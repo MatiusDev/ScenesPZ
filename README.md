@@ -25,23 +25,38 @@ steamcmd +force_install_dir <path>/pzserver +login anonymous +app_update 380870 
 
 ## Setup on a machine that owns the game
 
-Clone, then link the Workshop project into the game's cache directory. Use **only** this
-link — a second copy under `Zomboid/mods/` will clash with it and silently shadow changes.
+Clone anywhere, then **copy** the mods into the game's cache directory.
 
 ```cmd
-:: Windows (needs admin or Developer Mode)
-git clone <repo> C:\dev\PZ
-mklink /D "%USERPROFILE%\Zomboid\Workshop\TLOUProject" C:\dev\PZ\mods\TLOUProject
+git clone https://github.com/MatiusDev/ScenesPZ.git C:\dev\ScenesPZ
+cd C:\dev\ScenesPZ
+tools\sync-mods.bat
 ```
 
 ```bash
 # Linux / macOS
-git clone <repo> ~/dev/PZ
-ln -s ~/dev/PZ/mods/TLOUProject ~/Zomboid/Workshop/TLOUProject
+git clone https://github.com/MatiusDev/ScenesPZ.git ~/dev/ScenesPZ
+~/dev/ScenesPZ/tools/sync-mods.sh
 ```
 
-Enable the mod in-game under Mods. Deploy updates with `git pull` plus a game restart —
-Project Zomboid has no hot reload.
+**Do not symlink the mods instead.** Project Zomboid resolves a symlinked mod directory
+to its absolute target and then re-appends it to the mods folder, yielding paths like
+`Zomboid/mods/home/user/dev/scenespz/...`. `mod.info` is still found, so the mod reports
+as loaded while every script silently fails — a full day of debugging for nothing.
+Verified on 42.20.0.
+
+Deploy an update: `git pull`, rerun the sync script, restart the game. There is no hot reload.
+
+## Mods in this repo
+
+| Mod | id | What it does |
+|---|---|---|
+| ScenesDoctor | `scenesDoctor` | Diagnostics only. Wraps Bandit globals with call counters, samples the Lua heap, prefixes output with `SDOC\|`. No gameplay, no dependencies. |
+| TLOUFactions | `tlouFactions` | WLF / FEDRA / Seraphite clans for Bandits. Requires Bandits. |
+
+Analyze a run with `tools/logdoctor.py ~/Zomboid/console.txt` (Windows:
+`%USERPROFILE%\Zomboid\console.txt`). It collapses repeated errors into signatures, so a
+runaway loop appears as one entry with a huge count.
 
 ## Requirements
 
