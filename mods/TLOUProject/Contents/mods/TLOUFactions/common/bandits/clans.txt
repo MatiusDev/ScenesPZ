@@ -1,0 +1,47 @@
+[9f13fc16-8979-5f25-8f88-744d6a49321c]
+	general: name = TLOU_WLF
+	spawn: friendly = false
+	spawn: companion = false
+	spawn: defenders = false
+	spawn: campers = false
+	spawn: assault = true
+	spawn: wanderer = true
+	spawn: roadblock = false
+	spawn: dayStart = 1
+	spawn: dayEnd = 1000
+	spawn: spawnChance = 3
+	spawn: groupMin = 3
+	spawn: groupMax = 6
+	spawn: zone = 0
+
+[a25be786-2b52-5970-bf2c-7cf213aefea0]
+	general: name = TLOU_FEDRA
+	spawn: friendly = false
+	spawn: companion = false
+	spawn: defenders = true
+	spawn: campers = false
+	spawn: assault = false
+	spawn: wanderer = true
+	spawn: roadblock = true
+	spawn: dayStart = 1
+	spawn: dayEnd = 1000
+	spawn: spawnChance = 2
+	spawn: groupMin = 2
+	spawn: groupMax = 4
+	spawn: zone = 0
+
+[5588d133-c570-578c-a819-aa753b74bb68]
+	general: name = TLOU_Seraphites
+	spawn: friendly = false
+	spawn: companion = false
+	spawn: defenders = false
+	spawn: campers = true
+	spawn: assault = true
+	spawn: wanderer = true
+	spawn: roadblock = false
+	spawn: dayStart = 5
+	spawn: dayEnd = 1000
+	spawn: spawnChance = 2
+	spawn: groupMin = 3
+	spawn: groupMax = 7
+	spawn: zone = 0

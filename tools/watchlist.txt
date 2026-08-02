@@ -1,0 +1,17 @@
+# Steam Workshop ids to track. One per line, # starts a comment.
+# Run: ./workshop.py watch
+
+# --- NPC / faction frameworks (the core of the TLOU idea) ---
+3268487204  # [B42] Bandits NPC        - the NPC framework, 930k subs
+3469292499  # [B42] Bandits Creator    - in-game clan editor, emits bandits.txt / clans.txt
+3403180543  # [B42] Week One NPC       - narrative mod built on Bandits
+3707475814  # The Ark                  - sequel to Week One, same author
+
+# --- TLOU-flavoured reference mods (mostly stale = opportunity) ---
+3348036710  # TLOU: Factions & Gear    - DISCONTINUED, author allows a remake w/ credit
+3361757337  # TLOU Bandits             - OUTDATED Bandits addon, exactly our target shape
+3409434765  # TLOU Infected            - ABANDONED
+3729413689  # TLOU Survival Camp
+
+# --- Working addon to copy the structure from ---
+3479572125  # US Military Bandits Integration (Jusblazm, has a public GitHub)
