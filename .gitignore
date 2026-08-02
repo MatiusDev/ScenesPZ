@@ -12,3 +12,6 @@ mods/*/workshop.txt
 
 # Local secrets (STEAM_API_KEY etc.)
 .env
+
+# Workshop mods downloaded for reference (steamcmd, not ours)
+vendor/

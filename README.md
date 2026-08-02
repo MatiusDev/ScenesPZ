@@ -1,6 +1,7 @@
-# PZ TLOU Factions
+# ScenesPZ
 
-Project Zomboid Build 42 mod workspace. Adds The Last of Us style NPC factions
+Project Zomboid Build 42 mod workspace. Post-apocalyptic scenario mods — The Last of Us
+meets The Walking Dead. Adds NPC factions
 (WLF, FEDRA, Seraphites) as an addon to the [Bandits NPC](https://steamcommunity.com/sharedfiles/filedetails/?id=3268487204)
 framework.
 

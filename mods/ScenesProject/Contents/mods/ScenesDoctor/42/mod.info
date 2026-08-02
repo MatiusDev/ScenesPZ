@@ -1,0 +1,4 @@
+name=ScenesPZ Doctor
+id=scenesDoctor
+author=matiusdev
+description=Diagnostic-only mod. Samples Lua memory, counts calls on instrumented functions, and tags everything with a grep-able prefix. Adds no gameplay. Safe to run alongside any mod.
