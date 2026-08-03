@@ -87,6 +87,19 @@ local function sweep()
                         SR.Log("PROBE shape | loyal=" .. tostring(brain.loyal)
                             .. " permanent=" .. tostring(brain.permanent)
                             .. " master=" .. tostring(brain.master))
+
+                        -- Does an NPC own the player's needs systems, or only look like
+                        -- it does? Bandits never calls these on its own zombies and
+                        -- reimplements endurance on brain.endurance instead, which
+                        -- suggests they do not work -- but suggests is not knows, and
+                        -- the whole design of hunger, thirst and panic hangs on it.
+                        -- pcall so that a missing method reports instead of throwing.
+                        local probes = {"getStats", "getBodyDamage", "getMoodles"}
+                        for _, name in ipairs(probes) do
+                            local ok, result = pcall(function() return zombie[name](zombie) end)
+                            SR.Log("PROBE needs | " .. name .. " ok=" .. tostring(ok)
+                                .. " value=" .. tostring(ok and result or "-"))
+                        end
                     end
                 end
             end

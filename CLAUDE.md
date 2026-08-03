@@ -94,6 +94,11 @@ of truth for both machines and is committed on every version change.
   already gives us: 49 task actions with their fields, 8 programs, the full `Bandit.*` API,
   the brain record, how persistence works, and the known traps. It exists so nobody
   rebuilds something that already ships.
+- `docs/NPC-AI-ARCHITECTURE.md` — **the big picture.** The layer model (needs, perception,
+  appraisal, decision, execution, memory, social), the two extension seams and when to
+  graduate from one to the other, and what counts as done. Read before any design argument.
+- `docs/TEST-RUNS.md` — the ordered test protocol for the gaming PC, with pass criteria and
+  the exact log lines each test must produce.
 - `docs/NPC-BEHAVIOR-PLAN.md` — the staged plan for NPC behaviour, what each stage proves,
   the verified levers, the identifiers that do **not** exist in 42.20, and the tuning log
   with the reason behind every number. Update it whenever a value or a stage changes.
