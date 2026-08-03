@@ -105,4 +105,12 @@ Events.EveryTenMinutes.Add(sweep)
 
 Events.OnGameStart.Add(function()
     SR.Log("ScenesPZ Relations active -- PROBE BUILD, debug on, no time decay")
+
+    -- DayLength sets how much in-game time passes per real second, which is what made
+    -- the old per-minute decay fire 8-24 times faster than intended. Logged rather than
+    -- looked up: for an existing save it is baked into map_sand.bin, which is binary.
+    -- The authoritative measurement is still the timestamps on the PROBE sweep lines.
+    if SandboxVars then
+        SR.Log("PROBE sandbox | DayLength=" .. tostring(SandboxVars.DayLength))
+    end
 end)
