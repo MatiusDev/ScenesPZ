@@ -90,6 +90,11 @@ of truth for both machines and is committed on every version change.
 
 ## Reference
 
+- `docs/PLAN-STATUS.md` — **start here.** Which stage is open, and exactly what the user
+  must test in game to close it. One page, kept current.
+- `docs/plans/` — the staged roadmap from here to the full PRD. `README.md` lists all
+  eleven stages with their dependencies; only the current and next stage are written in
+  detail, on purpose.
 - `docs/BANDITS-API.md` — **read before writing any NPC behavior.** Every lever Bandits
   already gives us: 49 task actions with their fields, 8 programs, the full `Bandit.*` API,
   the brain record, how persistence works, and the known traps. It exists so nobody

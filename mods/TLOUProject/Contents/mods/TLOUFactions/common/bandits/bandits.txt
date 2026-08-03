@@ -80,3 +80,73 @@
 	clothing: Socks = Base.Socks_Ankle
 	clothing: Shoes = Base.Shoes_TrainerTINT
 	weapons: melee = Base.BaseballBat
+
+[54cb3bc4-6700-5da7-89a2-9f537f7da87d]
+	general: modid = tlouFactions
+	general: cid = 2fc3a279-dd87-5ee1-b8d4-1b7ecc4a82fd
+	general: name = Homesteader_01
+	general: female = false
+	general: skin = 1
+	general: hairType = 3
+	general: beardType = 2
+	general: hairColor = 4
+	general: health = 5
+	general: strength = 6
+	general: endurance = 5
+	general: sight = 5
+	general: exp1 = 0
+	general: exp2 = 0
+	general: exp3 = 0
+	clothing: Tshirt = Base.Shirt_Lumberjack
+	clothing: UnderwearBottom = Base.Boxers_White
+	clothing: Pants = Base.Trousers_Denim
+	clothing: Socks = Base.Socks_Ankle
+	clothing: Shoes = Base.Shoes_Brown
+	weapons: melee = Base.Crowbar
+
+[f8aef287-3ceb-54af-be23-edad064e20e9]
+	general: modid = tlouFactions
+	general: cid = 2fc3a279-dd87-5ee1-b8d4-1b7ecc4a82fd
+	general: name = Homesteader_02
+	general: female = true
+	general: skin = 2
+	general: hairType = 5
+	general: beardType = 0
+	general: hairColor = 2
+	general: health = 5
+	general: strength = 4
+	general: endurance = 6
+	general: sight = 6
+	general: exp1 = 0
+	general: exp2 = 0
+	general: exp3 = 0
+	clothing: Tshirt = Base.Tshirt_WhiteLongSleeve
+	clothing: UnderwearBottom = Base.Boxers_White
+	clothing: Pants = Base.Trousers_JeanBaggy
+	clothing: Socks = Base.Socks_Long
+	clothing: Shoes = Base.Shoes_BlueTrainers
+	weapons: melee = Base.KitchenKnife
+
+[a000dff9-279b-5121-ac7b-bbd4753ee60c]
+	general: modid = tlouFactions
+	general: cid = 2fc3a279-dd87-5ee1-b8d4-1b7ecc4a82fd
+	general: name = Homesteader_03
+	general: female = false
+	general: skin = 3
+	general: hairType = 7
+	general: beardType = 4
+	general: hairColor = 1
+	general: health = 6
+	general: strength = 5
+	general: endurance = 5
+	general: sight = 4
+	general: exp1 = 0
+	general: exp2 = 0
+	general: exp3 = 0
+	clothing: Jacket = Base.Jacket_Padded
+	clothing: Tshirt = Base.Tshirt_DefaultTEXTURE
+	clothing: UnderwearBottom = Base.Boxers_White
+	clothing: Pants = Base.Trousers_Black
+	clothing: Socks = Base.Socks_Heavy
+	clothing: Shoes = Base.Shoes_BlackBoots
+	weapons: melee = Base.HandAxe

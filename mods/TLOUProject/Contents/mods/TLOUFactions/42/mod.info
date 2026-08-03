@@ -1,5 +1,5 @@
 name=The Last of Us - Factions
 id=tlouFactions
 author=matiusdev
-description=WLF, FEDRA and Seraphite clans for the Bandits NPC framework.
+description=WLF, FEDRA and Seraphite clans for the Bandits NPC framework, plus friendly survivors holed up in houses and one companion who starts at your side on a new game.
 require=\Bandits2

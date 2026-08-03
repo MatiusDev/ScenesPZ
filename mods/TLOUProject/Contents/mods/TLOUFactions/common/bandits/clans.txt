@@ -70,3 +70,39 @@
 	spawn: groupMin = 1
 	spawn: groupMax = 2
 	spawn: zone = 0
+
+# Survivors holed up in houses, rather than walking the roads.
+#
+# defenders is the only flag that reaches spawnHouse in BanditServerSpawner line 1006.
+# It finds the building under the spawn point, then generateSpawnPointBuilding places one
+# NPC per room, and the program becomes Defend. Two consequences worth knowing before
+# testing this.
+#
+# First, spawnHouse refuses any building the player entered in the last 7 in-game days
+# (BanditServerSpawner lines 777-786). Looking for these in a house you already cleared
+# will find nothing, and that is correct behaviour, not a bug.
+#
+# Second, spawnGroup picks DISTINCT bandit definitions from the clan and stops when it
+# runs out (lines 450-468). A clan with one definition can never spawn more than one NPC
+# at a time no matter what groupMax says, which is why this clan ships three.
+#
+# dayStart is 0 so they are part of the world from the first morning. The other clans
+# start at 1 because they are an escalation; these people were already here.
+#
+# No line in this comment may contain both a colon and an equals sign. The parser
+# at BanditCustom line 146 has no comment syntax and would read it as a field.
+[2fc3a279-dd87-5ee1-b8d4-1b7ecc4a82fd]
+	general: name = TLOU_Homesteaders
+	spawn: friendly = true
+	spawn: companion = false
+	spawn: defenders = true
+	spawn: campers = false
+	spawn: assault = false
+	spawn: wanderer = false
+	spawn: roadblock = false
+	spawn: dayStart = 0
+	spawn: dayEnd = 1000
+	spawn: spawnChance = 4
+	spawn: groupMin = 1
+	spawn: groupMax = 3
+	spawn: zone = 0
