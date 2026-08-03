@@ -94,6 +94,9 @@ of truth for both machines and is committed on every version change.
   already gives us: 49 task actions with their fields, 8 programs, the full `Bandit.*` API,
   the brain record, how persistence works, and the known traps. It exists so nobody
   rebuilds something that already ships.
+- `docs/NPC-BEHAVIOR-PLAN.md` — the staged plan for NPC behaviour, what each stage proves,
+  the verified levers, the identifiers that do **not** exist in 42.20, and the tuning log
+  with the reason behind every number. Update it whenever a value or a stage changes.
 - `docs/PZ-MODDING-MAP.md` — folder-by-folder map, mod.info fields, B41/B42 differences
 - `docs/NETWORKING.md` — how this box and the Windows PC connect
 - `tools/workshop.py` — Steam Workshop CLI (`watch`, `details`, `search`, `trending`)
