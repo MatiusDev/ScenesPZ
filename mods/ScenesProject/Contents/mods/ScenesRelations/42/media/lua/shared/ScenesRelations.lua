@@ -15,7 +15,7 @@ local SR = ScenesRelations
 SR.MIN, SR.MAX = -100, 100
 SR.MEMORY_CAP = 12          -- bounded on purpose: an unbounded log in a mod that runs
                             -- for hours is exactly how you ship a memory leak.
-SR.DEBUG = false
+SR.DEBUG = true          -- ON while we are gathering data. Turn off before shipping.
 
 -- Trust bands. Ordered high to low; Tier() returns the first band the value reaches.
 SR.TIERS = {
@@ -102,14 +102,17 @@ function SR.Apply(bandit)
     return tier
 end
 
---- Trust drifts toward neutral when nothing happens, so a single bad moment is not
---- permanent and a single gift does not buy a friend forever.
-function SR.Decay(bandit, amount)
-    local record = SR.Get(bandit)
-    if not record or record.trust == 0 then return end
-    local step = math.min(amount or 1, math.abs(record.trust))
-    SR.Adjust(bandit, record.trust > 0 and -step or step, "decay")
-end
+-- NO TIME DECAY. Deliberately removed, not forgotten.
+--
+-- Trust used to drift toward neutral once per in-game minute. Two things were wrong:
+--   * `EveryOneMinute` is an IN-GAME minute. A day is compressed into 1-3 real hours, so
+--     it fired roughly 8-24 times per real minute -- trust evaporated in seconds.
+--   * Worse, it made WAITING a strategy. Shoot someone, walk away, come back forgiven.
+--     A mechanic that rewards doing nothing is not a mechanic.
+--
+-- What decay tried to solve -- one mistake should not condemn you forever -- is solved
+-- by the opposing action instead: helping repairs what hurting broke. Trust moves on
+-- events, never on the clock.
 
 function SR.Log(msg)
     print("SREL| " .. tostring(msg))
