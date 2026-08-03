@@ -68,7 +68,8 @@ local function penalizeWitnesses(victim, attacker, delta, reason)
             if dx * dx + dy * dy < WITNESS_RADIUS_SQ then
                 local other = cache[witness.id]
                 if other and other:CanSee(attacker) then
-                    SR.Adjust(other, delta, reason)
+                    local wBefore, wAfter = SR.Adjust(other, delta, reason)
+                    if wBefore ~= wAfter then SR.Apply(other) end
                     seen = seen + 1
                 end
             end
@@ -85,8 +86,11 @@ Events.OnHitZombie.Add(function(zombie, attacker)
     local before, after = SR.Adjust(zombie, HIT_PENALTY, "attacked")
     if before ~= after then SR.Apply(zombie) end
 
-    -- The audience. Deliberately no SR.Apply here: Bandits already decides immediate
-    -- hostility for witnesses, our job is to remember that they saw it.
+    -- The audience. This used to record the memory and stop there, on the assumption
+    -- that Bandits escalated witnesses itself in BanditPlayer.CheckFriendlyFire. The
+    -- 2026-08-03 log disproved it: that function dies on the same missing isNPC() and
+    -- never sets a flag, so nothing downstream acts on what a witness saw. If we do not
+    -- apply here, seeing an attack has no consequence at all.
     local seen = penalizeWitnesses(zombie, attacker, WITNESS_PENALTY, "saw attack")
     if SR.DEBUG and seen > 0 then
         SR.Log(seen .. " witnesses lost trust")
