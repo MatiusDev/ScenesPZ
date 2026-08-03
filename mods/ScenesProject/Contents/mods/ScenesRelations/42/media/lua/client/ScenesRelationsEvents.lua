@@ -91,11 +91,24 @@ local function adjustNearby(attacker, delta, reason, accept, quiet)
     return seen, changed
 end
 
---- Nobody earns credit for a beating they were the target of.
-local function excluding(victim)
-    local victimBrain = BanditBrain.Get(victim)
+--- Two NPCs are each other's people if they were born into the same clan, or if they have
+--- both sworn to the same player. The second half matters once "Join me" exists: a group
+--- assembled by the player is a group even though its members started in different clans.
+local function inSameGroup(a, b)
+    if not a or not b then return false end
+    if a.clan and a.clan == b.clan then return true end
+    if a.loyal and b.loyal and a.master and a.master == b.master then return true end
+    return false
+end
+
+--- Who is hurt by seeing this. Not everyone who can see it: only the victim's own people.
+--- Nobody earns credit for a beating they were the target of, and a stranger from another
+--- clan going down is not their loss to feel.
+local function kinOf(victimBrain)
     local victimId = victimBrain and victimBrain.id
-    return function(witness) return witness.id ~= victimId end
+    return function(witness)
+        return witness.id ~= victimId and inSameGroup(witness.brain, victimBrain)
+    end
 end
 
 --- Killing zombies in front of someone who is already trying to kill you does not make
@@ -107,38 +120,52 @@ local function isNotHostile(witness)
     return brain ~= nil and not brain.hostile and not brain.hostileP
 end
 
--- One event, two opposite readings, and the difference is only who got hit. Turning on a
--- person costs trust; turning on the dead earns it. Keeping both here means the two can
--- never disagree about who was close enough to see.
+-- One event, and everything depends on WHO was hit.
+--
+-- The first version asked only "is the victim a bandit?", which meant defending yourself
+-- from a raider in front of a friendly cost you both of them. That is backwards, and it
+-- was visible in the 2026-08-03 log: two survivors penalising each other as witnesses
+-- while the player fought hostiles beside them.
+--
+-- A bystander does not classify by species. It reads intent. Swinging at something that
+-- is trying to kill people is the same act whether the target is dead or alive, and it is
+-- the opposite of swinging at someone who was standing there peacefully.
 Events.OnHitZombie.Add(function(zombie, attacker)
     if not isRealPlayer(attacker) then return end
 
-    if isBandit(zombie) then
-        -- The victim. Apply only when the tier actually moved, so we are not writing into
-        -- the Bandits brain on every single swing.
-        local before, after = SR.Adjust(zombie, HIT_PENALTY, "attacked")
-        if before ~= after then SR.Apply(zombie) end
+    local victimBrain = nil
+    if isBandit(zombie) then victimBrain = BanditBrain.Get(zombie) end
+    local victimIsThreat = victimBrain == nil
+        or victimBrain.hostile
+        or victimBrain.hostileP
 
-        -- The audience. This used to record the memory and stop there, on the assumption
-        -- that Bandits escalated witnesses itself in BanditPlayer.CheckFriendlyFire. The
-        -- 2026-08-03 log disproved it: that function dies on the same missing isNPC() and
-        -- never sets a flag, so nothing downstream acts on what a witness saw. If we do
-        -- not apply here, seeing an attack has no consequence at all.
-        local seen = adjustNearby(attacker, WITNESS_PENALTY, "saw attack", excluding(zombie))
-        if SR.DEBUG and seen > 0 then
-            SR.Log(seen .. " witnesses lost trust")
+    if victimIsThreat then
+        -- A walking corpse, or a person who had already chosen violence. Either way the
+        -- player is dealing with a threat, and anyone friendly watching benefits.
+        --
+        -- Quiet: this fires on every swing of every fight. Only tier crossings are worth
+        -- a line, and SR.Adjust still prints those.
+        local _, promoted = adjustNearby(attacker, HELP_REWARD, "fought beside", isNotHostile, true)
+        if promoted > 0 then
+            SR.Log(promoted .. " gained ground for fighting beside the player")
         end
         return
     end
 
-    -- An ordinary zombie. Anyone friendly who watched the player deal with it gains a
-    -- little. Without this the module only ever takes trust away, which would ship
-    -- something strictly worse than plain Bandits: a way to lose allies and none to earn
-    -- them.
-    -- Quiet: this fires on every swing of every fight. Only the tier crossings are worth
-    -- a line, and SR.Adjust still prints those.
-    local _, promoted = adjustNearby(attacker, HELP_REWARD, "fought beside", isNotHostile, true)
-    if promoted > 0 then
-        SR.Log(promoted .. " gained ground for fighting beside the player")
+    -- Someone peaceful. This is the only case in the whole module that costs anything.
+    local before, after = SR.Adjust(zombie, HIT_PENALTY, "attacked")
+    if before ~= after then SR.Apply(zombie) end
+
+    -- The audience, narrowed to the victim's own people. A witness from another clan
+    -- watching a stranger get hit has no stake in it; a witness watching one of their own
+    -- has every stake.
+    --
+    -- This used to record the memory and stop there, on the assumption that Bandits
+    -- escalated witnesses itself in BanditPlayer.CheckFriendlyFire. The 2026-08-03 log
+    -- disproved it: that function dies on the missing isNPC() and never sets a flag.
+    local seen = adjustNearby(attacker, WITNESS_PENALTY, "saw one of their own attacked",
+        kinOf(victimBrain))
+    if SR.DEBUG and seen > 0 then
+        SR.Log(seen .. " of their group lost trust")
     end
 end)
