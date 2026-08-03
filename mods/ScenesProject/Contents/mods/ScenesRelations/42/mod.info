@@ -1,0 +1,5 @@
+name=ScenesPZ Relations
+id=scenesRelations
+author=matiusdev
+description=Gives Bandits NPCs a trust scale and a memory of how you treated them, instead of a single hostile flag. Relationships move gradually and are visible before they turn violent.
+require=\Bandits2
