@@ -50,3 +50,33 @@
 	weapons: primary = Base.AssaultRifle
 	weapons: melee = Base.FightingKnife
 	ammo: primary = 1
+
+# Member of the friendly TLOU_Survivors test clan.
+# Melee only, no firearm. BanditServerSpawner.lua lines 348-351 default the primary
+# weapon to an empty magazine, so omitting the primary and ammo fields is supported
+# and keeps a friendly NPC from opening fire the moment anything goes wrong.
+#
+# No line in this comment may contain both a colon and an equals sign: the parser
+# (BanditCustom.lua line 146) has no comment syntax and would read it as a field.
+[c74cb89e-3168-57b0-a4c8-dcb0194a023f]
+	general: modid = tlouFactions
+	general: cid = a742fcf6-29eb-5107-8396-d6c760d54dc0
+	general: name = Survivor_01
+	general: female = false
+	general: skin = 2
+	general: hairType = 9
+	general: beardType = 5
+	general: hairColor = 8
+	general: health = 5
+	general: strength = 5
+	general: endurance = 5
+	general: sight = 5
+	general: exp1 = 0
+	general: exp2 = 0
+	general: exp3 = 0
+	clothing: Tshirt = Base.Tshirt_WhiteTINT
+	clothing: UnderwearBottom = Base.Boxers_White
+	clothing: Pants = Base.Trousers_Denim
+	clothing: Socks = Base.Socks_Ankle
+	clothing: Shoes = Base.Shoes_TrainerTINT
+	weapons: melee = Base.BaseballBat

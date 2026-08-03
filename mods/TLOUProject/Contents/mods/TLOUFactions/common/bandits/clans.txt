@@ -45,3 +45,28 @@
 	spawn: groupMin = 3
 	spawn: groupMax = 7
 	spawn: zone = 0
+
+# Test clan for ScenesRelations.
+# A friendly clan spawns with brain.hostile false (BanditServerSpawner.lua line 397
+# negates the friendly flag), which is the only way to get an NPC that trust can move
+# in either direction. A hostile-born NPC can never be talked down.
+# wanderer without assault makes the natural spawn path pick the Looter program
+# (BanditServerSpawner.lua lines 980-982), the only program that offers "Join Me!".
+#
+# No line in this comment may contain both a colon and an equals sign: the parser
+# (BanditCustom.lua line 146) has no comment syntax and would read it as a field.
+[a742fcf6-29eb-5107-8396-d6c760d54dc0]
+	general: name = TLOU_Survivors
+	spawn: friendly = true
+	spawn: companion = false
+	spawn: defenders = false
+	spawn: campers = false
+	spawn: assault = false
+	spawn: wanderer = true
+	spawn: roadblock = false
+	spawn: dayStart = 1
+	spawn: dayEnd = 1000
+	spawn: spawnChance = 3
+	spawn: groupMin = 1
+	spawn: groupMax = 2
+	spawn: zone = 0
