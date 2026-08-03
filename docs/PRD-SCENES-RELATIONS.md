@@ -79,6 +79,24 @@ Sources:
 [Emergent social NPC interactions (Social NPCs Skyrim mod)](https://arxiv.org/pdf/2207.13398) ·
 [AI NPC social simulation networks](https://www.daydreamsoft.com/blog/ai-npc-social-simulation-networks-the-future-of-intelligent-virtual-characters)
 
+## What already exists in the ecosystem
+
+Surveyed 2026-08-03. The relevant finding is what is **missing**.
+
+| Mod | Build | What it actually does |
+|---|---|---|
+| [Project Remnants](https://steamcommunity.com/sharedfiles/filedetails/?id=3738362476) | 42 | recruit, command, switch control, share inventory — party mechanics |
+| [Knox Survivors](https://steamcommunity.com/sharedfiles/filedetails/?id=3749727604) | 42 | camps and factions. "Survivor relationships and reputation" is on its **planned** list |
+| [NotAlone](https://steamcommunity.com/sharedfiles/filedetails/?id=3720923377) | 42 | orders: defend the base, follow, trade items |
+| [SuperbSurvivors](https://en.namu.wiki/w/Project%20Zomboid/MOD/Super%20Survivors!) | 41 | the older standard, also command-based |
+
+Every one of them builds a **command interface**. None builds a relationship. The player
+decides and the NPC complies; there is no version where the NPC decides about the player.
+
+That is the gap this mod occupies, and the mod closest to it lists the feature as unbuilt.
+[RemnantsOfKentucky](https://github.com/ZioPao/RemnantsOfKentucky) is open source and worth
+reading for structure, not for design.
+
 ## Player-facing pillars
 
 1. **Nobody trusts you on sight.** A stranger in an apocalypse assumes the worst, and is
@@ -203,13 +221,23 @@ project has already lost sessions.
   people, edges carrying trust, rivalry and loyalty — and that shape fits, but the cost
   question is unanswered: how many edges can be kept alive in Kahlua while the game
   renders. Needs its own design pass with a budget attached.
-- **Does memory survive the NPC leaving the loaded cell?** The RDR2 moment the author wants
-  — being recognised later — requires the record to outlive the encounter. Ours lives in
-  `getModData()` on the entity, which dies with the NPC and may or may not survive
-  unloading. Bandits' own durable store is 32 sharded ModData tables keyed by `id % 32`,
-  and `brain.id` identifies an outfit rather than an individual. **This is the single
-  biggest unverified risk to the whole premise** and should be probed before the emotion
-  layer, not after.
+- **Does memory survive the NPC leaving the loaded cell?** **The single biggest unverified
+  risk to the whole premise.** Probe it before the emotion layer, not after.
+
+  Stated as the scene it breaks: you fight beside Theodore for half an hour, he reaches
+  trust 86 and joins you. You walk eight blocks away and his area unloads. You come back.
+  Does he know you?
+
+  Two things have to hold and neither is verified. **Where the record lives** — ours is in
+  `getModData()` on the entity, and the entity is destroyed on unload. The warning sign is
+  that Bandits does not keep its brain there either: it maintains 32 separate ModData
+  tables (`BanditC0`..`BanditC31`) keyed by `id % 32`. Nobody builds that if entity data
+  survived on its own. **And whether the id is stable** — even copying their store needs
+  the same NPC to return under the same id.
+
+  Note a retraction: an earlier claim that `brain.id` collides between NPCs wearing the
+  same clothes was wrong. Six survivors from one definition produced seven distinct ids in
+  a real log; the engine randomises the outfit per individual.
 - **How much unpredictability is too much?** "Unrepeatable situations" and "learnable
   rules" pull against each other. The player must be able to get better at approaching
   people, or the system reads as arbitrary.

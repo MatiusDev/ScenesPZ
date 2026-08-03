@@ -76,8 +76,10 @@ the flag possibly not.
   found in `pzserver/media/` first, not invented.
 - `brain.personality` — flavour only (`alcoholic`, `smoker`, collectors). Useless for
   social logic.
-- `brain.id` as an identity key — it comes from `getPersistentOutfitID()` and identifies
-  an outfit, so two NPCs in the same clothes share it.
+- ~~`brain.id` as an identity key — two NPCs in the same clothes share it.~~ **Retracted
+  2026-08-03.** Six survivors spawned from one definition produced seven distinct ids in a
+  real log. The engine randomises the outfit per individual, so the id is per person. The
+  real open question is whether it survives a cell unload — see the PRD.
 
 ## Stages
 

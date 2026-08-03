@@ -33,9 +33,17 @@ SR.TIERS = {
 --   * it saves and loads with the world, for free
 --   * it dies with the NPC, so the store cannot grow without bound
 --
--- Do NOT key a global table by BanditUtils.GetCharacterID. That id is derived from
--- getPersistentOutfitID() (BanditUtils.lua:632), so two NPCs wearing the same outfit
--- share an id. It identifies an appearance, not an individual.
+-- On BanditUtils.GetCharacterID: it returns getPersistentOutfitID() with the hat bit
+-- cleared (BanditUtils.lua:628-648). The name reads like an outfit template id, and an
+-- earlier version of this comment claimed two NPCs in the same clothes would collide.
+-- The 2026-08-03 log disproves that: six survivors spawned from the single Survivor_01
+-- definition came back with seven distinct ids. The engine randomises the outfit per
+-- individual, so the id is per person in practice.
+--
+-- The open question is a different one and it is not settled: does that id stay the same
+-- for the same NPC after the cell unloads and reloads? Storing on the entity is fine while
+-- it is loaded. Being recognised later depends on the answer, and Bandits keeping its brain
+-- in 32 separate ModData tables rather than on the entity is a strong hint about it.
 function SR.Get(bandit)
     if not bandit then return nil end
     local modData = bandit:getModData()
