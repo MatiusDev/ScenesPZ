@@ -48,6 +48,10 @@ git, network/deploy, and reading `console.txt` the user pastes. Research before 
 
 Single-file mechanical edits stay inline. Do not delegate a one-line fix.
 
+Before building NPC behavior, `pz-lua` and `pz-research` read `docs/BANDITS-API.md` first.
+It is a lookup table, not background reading — the point is to answer "does this already
+exist?" in one file instead of re-deriving it from 22,458 lines every session.
+
 ## Dependency freshness — blocking gate
 
 Slayer ships fixes to Bandits **same-day**. We already lost a session debugging
@@ -86,6 +90,10 @@ of truth for both machines and is committed on every version change.
 
 ## Reference
 
+- `docs/BANDITS-API.md` — **read before writing any NPC behavior.** Every lever Bandits
+  already gives us: 49 task actions with their fields, 8 programs, the full `Bandit.*` API,
+  the brain record, how persistence works, and the known traps. It exists so nobody
+  rebuilds something that already ships.
 - `docs/PZ-MODDING-MAP.md` — folder-by-folder map, mod.info fields, B41/B42 differences
 - `docs/NETWORKING.md` — how this box and the Windows PC connect
 - `tools/workshop.py` — Steam Workshop CLI (`watch`, `details`, `search`, `trending`)
