@@ -7,7 +7,7 @@ Updated 2026-08-03. Read this first in a new session, together with `CLAUDE.md`.
 | Mod | id | Status |
 |---|---|---|
 | ScenesDoctor | `scenesDoctor` | Working. Loads clean, instruments by prefix (`Bandit`, `BWO`, `Scenes`). Verified in a real game run — 1,080 CALL + 72 MEM samples. |
-| ScenesRelations | `scenesRelations` | Core written, lints clean. **Never run in game.** Trust store + tiers + decay. No event wiring yet. |
+| ScenesRelations | `scenesRelations` | Trust store + tiers + decay + `OnHitZombie` wiring. Lints clean. **Never run in game.** |
 | TLOUFactions | `tlouFactions` | Loads. Three clans, two bandits, vanilla gear only. Parked while we do B. |
 
 Upstream pinned in `deps.lock.json`. Run `./tools/deps.py check` before touching `vendor/`.
@@ -19,18 +19,37 @@ Upstream pinned in `deps.lock.json`. Run `./tools/deps.py check` before touching
 - **Week One should be disabled while developing.** Its newest version folder is 42.18 against a 42.20 game; every error in the last run came from it. It is a reference, not a dependency.
 - **Relation records live on the entity** (`bandit:getModData().scenesRel`), never in a global table keyed by `BanditUtils.GetCharacterID` — that id comes from `getPersistentOutfitID()` and identifies an outfit, not an individual.
 
-## Next task: wire events (step A of B)
+## Done: events wired (commit `b99ebeb`)
 
-Trust never moves on its own right now. `SR.Adjust` has no callers.
+`client/ScenesRelationsEvents.lua` hooks `Events.OnHitZombie`. Direct hit −25, witnesses
+within 12 tiles who can see the attacker −10. Lints clean, **not yet run in game.**
 
-1. Have `pz-research` map the real damage/interaction events across the 2,680 files in
-   `pzserver/media/lua/`. **Do not guess event names** — a wrong one fails silently, the
-   handler simply never fires and there is no error.
-2. Already confirmed by reading `vendor/Bandits/.../client/BanditZombie.lua:193`:
-   `Events.OnZombieUpdate`, `Events.OnZombieDead`.
-3. Wire: player attacks a bandit → `SR.Adjust(bandit, -N, "attacked")`; player helps →
-   positive. Call `SR.Apply` when the tier changes.
-4. Run it in game, confirm `SREL|` lines in `console.txt`.
+### Event contract — verified, never guess these
+
+```lua
+Events.OnHitZombie.Add(function(zombie, attacker, bodyPart, weapon) end)
+-- TARGET first, ATTACKER second. Backwards = trust moves on the wrong entity, silently.
+--   pzserver/media/lua/shared/Definitions/DamageModelDefinitions.lua:24  (vanilla)
+--   vendor/Bandits/.../client/BanditUpdate.lua:2136                      (Bandits)
+Events.OnZombieDead.Add(function(zombie) end)      -- no attacker argument
+Events.OnPlayerDeath.Add(function(playerObj) end)
+```
+
+**There is no vanilla event for giving an item to a character.** `RequestTrade` /
+`AcceptedTrade` / `TradingUI*` are the player-to-player trading window only. Positive
+trust from gifts needs another mechanism — do not invent an event name.
+
+`Events.OnZombieUpdate` is real (Bandits uses it at `BanditUpdate.lua:2483`) but appears
+nowhere in vanilla Lua. Grep before using any name not already listed here.
+
+## Next task: verify in game, then positive trust
+
+1. Enable ScenesRelations, disable Week One, hit a friendly bandit. Expect `SREL|` lines
+   in `console.txt` showing the tier moving neutral → wary → hostile.
+2. Confirm whether `OnHitZombie` fires client-side only. Bandits registers it under
+   `lua/client/`, which suggests yes — UNCONFIRMED, and it decides where trust logic can
+   safely live in multiplayer.
+3. Design the positive side. Nothing raises trust yet except decay drifting toward 0.
 
 ## Integration surface (all verified in Bandits 42.20)
 
