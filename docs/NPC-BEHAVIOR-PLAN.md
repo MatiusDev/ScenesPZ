@@ -143,7 +143,32 @@ promoted the same way — which is what makes any of this testable at all.
 
 **Proves:** trust gates access, not just aggression.
 
-### Stage 3 — something to do when nobody is shooting
+### Stage 3a — the danger scenario (built 2026-08-03, untested)
+
+`ScenesRelationsThreat.lua`. Every in-game minute each non-hostile NPC counts the zombies
+within 15 tiles and the friends within 12. Outnumbered, the cautious break for the nearest
+window and the brave hold. Bravery is `brain.rnd[2]`, rolled once at spawn, so the same
+survivor is always the one who stands.
+
+This also retires the "threat response is blocked" note below for the common case. Danger
+never needed `zombie:getTarget()` — how many are coming and how many of us there are is
+fully measurable from caches Bandits already keeps. Counting is honest; guessing an API is
+not.
+
+**It never switches a program.** One task goes to the front of a queue their program owns
+(`Bandit.AddTaskFirst`); when it drains they resume. Worst case is an NPC that runs to a
+window and then goes back to what it was doing — visible, harmless, undone by deleting the
+file.
+
+Doors are deliberately not broken down. `Destroy` takes an `idx` whose meaning is not
+verified. Windows first, `Destroy` when it has been read properly.
+
+Test protocol: `docs/TEST-RUNS.md`, tests 6-8.
+
+**Proves:** an NPC can weigh a situation and choose, and two NPCs in the same situation
+can choose differently for a reason.
+
+### Stage 3b — something to do when nobody is shooting
 
 The observed failure right now: capped at 8 tiles, a survivor with no zombie nearby stands
 still playing the Shrug animation from `ZPBandit.lua:227`. That branch is Bandits' idea of
