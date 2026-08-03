@@ -1,0 +1,4 @@
+#!/bin/bash
+# Blocks a commit that would ship broken Lua or a fabricated item id.
+# Bypass deliberately with: git commit --no-verify
+exec "$(git rev-parse --show-toplevel)/tools/lint.sh"

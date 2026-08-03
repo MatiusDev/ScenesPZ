@@ -58,6 +58,18 @@ Analyze a run with `tools/logdoctor.py ~/Zomboid/console.txt` (Windows:
 `%USERPROFILE%\Zomboid\console.txt`). It collapses repeated errors into signatures, so a
 runaway loop appears as one entry with a huge count.
 
+## Development checks
+
+```bash
+./tools/deps.py check     # are we building against current upstream mods?
+./tools/lint.sh           # Lua syntax + every Base.<id> we reference actually exists
+```
+
+`lint.sh` runs automatically as a pre-commit hook (`git config core.hooksPath .githooks`,
+already set in this clone; run that once after cloning elsewhere).
+
+A systemd user timer can run the drift check daily — see `tools/systemd/README.md`.
+
 ## Requirements
 
 - Project Zomboid Build 42 (42.20.0)

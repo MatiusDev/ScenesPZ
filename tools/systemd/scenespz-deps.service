@@ -1,0 +1,7 @@
+[Unit]
+Description=ScenesPZ - check Workshop dependencies for drift
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/Docs/Workspace/PZ
+ExecStart=/bin/bash -c '%h/Docs/Workspace/PZ/tools/deps.py check > /tmp/scenespz-deps.txt 2>&1 || notify-send -u normal "ScenesPZ: dependencia desactualizada" "$(grep DRIFT -A1 /tmp/scenespz-deps.txt | head -4)"'
