@@ -1,0 +1,6 @@
+Durante la revisión del juego, se vió que al iniciar la escena de weekone, barricaded donde se spawnea en una sala con varios policias está demasiado lenta y genera varios errores, a medida que avanza, hay momentos donde dice que pasan varios aviones, pero comienzan a aparecer puros aviones cerca de la jugador y eso pone lento el pc ya que son muchos spawneos. 
+
+BUGS a revisar:
+
+- Revisar el motivo por el cual se spawnean partes de aviones cerca del jugador en el momento en el que comienzan a haber bombardeos y suena los aviones pasar por encima del jugador. Esto genera un bucle de errores, me imagino que de intentar generar más aviones o posiblemente un bucle infinito que genera los errores.
+- Baja mucho el rendimiento cuando comienzan las escenas, me imagino que son temas de generación, debe haber algo que permita la generación de la cantidad de interacción alrededor del jugador para que el juego no colisione, y una pantalla de carga que pause el movimiento y todo el juego mientras todo se regenera hasta poder comenzar cada escena, esto hace que el juego crashee apenas se está iniciando una nueva escena, hasta el momento barricaded ha sido la única que he probado y que me ha cargado. (Seguiré probando las demás escenas a ver en cual más todo funciona un poco mejor)
