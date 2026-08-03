@@ -5,9 +5,9 @@
 -- clan, hostile, loyal, hostileP. There is no state between "friendly" and "will kill
 -- you", so relationships flip instead of developing, and the player never sees it coming.
 --
--- This module keeps trust as a number and remembers what caused each change. It never
--- writes into the Bandits brain -- it keeps its own store keyed by character id, so a
--- Bandits update cannot collide with us and we cannot corrupt their save data.
+-- This module keeps trust as a number and remembers what caused each change. It stores
+-- that record under its own key on the NPC entity (see STORAGE below), so a Bandits
+-- update cannot collide with us and we cannot corrupt their save data.
 
 ScenesRelations = ScenesRelations or {}
 local SR = ScenesRelations
@@ -85,12 +85,19 @@ end
 
 --- Push our trust tier down into the Bandits brain. This is the ONLY place we write
 --- to their state, so there is exactly one line to audit if their API changes.
+---
+--- Escalation only. We never clear a hostile flag, because we did not necessarily set
+--- it: Bandits raises it for its own reasons (raider clans, witnessed friendly fire in
+--- BanditPlayer.CheckFriendlyFire) and clearing it would silently disarm their AI.
+--- Principle 4 -- extend, never replace. Earning peace back is a separate feature that
+--- first has to know who made the NPC hostile.
+--- Only "hostile" arms them. "wary" is the middle ground this whole module exists to
+--- create -- if it also set the flag, one hit would flip an NPC to lethal and we would
+--- have rebuilt the binary we set out to replace.
 function SR.Apply(bandit)
     local tier = SR.Tier(bandit)
-    if tier == "hostile" or tier == "wary" then
+    if tier == "hostile" then
         Bandit.SetHostile(bandit, true)
-    else
-        Bandit.SetHostile(bandit, false)
     end
     return tier
 end
