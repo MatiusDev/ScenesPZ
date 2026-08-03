@@ -260,6 +260,28 @@ Open question: `HELP_REWARD` is measured per swing because `Events.OnZombieDead`
 no attacker argument, so a slow weapon earns trust faster than a fast one. If that shows
 up as gamey in play, the fix is a cooldown per NPC, not a smaller number.
 
+## Upstream patch we carry
+
+`ScenesRelationsBanditPatch.lua` replaces `BanditPlayer.CheckFriendlyFire`. It is the only
+file in the mod that replaces rather than extends, and it is isolated so that deleting it
+is one command.
+
+Two reasons, and only one is about us:
+
+1. The upstream `isNPC()` crash propagates out of `BanditUpdate.lua:2197`, killing
+   **everything after that line** — which is the entire ranged locational damage system
+   (`BanditUpdate.lua:2199-2245`). Firearms against NPCs have been missing headshots,
+   serious-wound multipliers and clothing defence rolls the whole time. Nothing to do with
+   this mod; it is the real reason to patch.
+2. Their function also flips every friendly witness to hostile instantly. We deliberately
+   do **not** restore that: it is the binary this mod exists to replace, and it would
+   overrule our gradient on the first swing.
+
+**Lifecycle.** When `./tools/deps.py check` reports DRIFT on Bandits, re-read
+`BanditPlayer.lua:91`. If the `isNPC()` call is gone, delete this file and re-test — do
+not keep shadowing a function upstream has fixed. Reporting it to Slayer is a separate
+decision the user owns.
+
 ## Missing from base Bandits
 
 Things Week One and The Ark provided that plain Bandits does not, confirmed by grep:
