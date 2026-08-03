@@ -100,6 +100,22 @@ local function sweep()
                             SR.Log("PROBE needs | " .. name .. " ok=" .. tostring(ok)
                                 .. " value=" .. tostring(ok and result or "-"))
                         end
+
+                        -- getStats() came back as a real Stats object on 2026-08-03, so
+                        -- an NPC does carry the player's stat container. That only settles
+                        -- that it EXISTS. Whether the engine ticks it for a zombie -- or
+                        -- whether it sits at its defaults forever -- is a different
+                        -- question, and it decides whether needs are read or simulated.
+                        -- Read the fields; a frozen zero is as informative as a number.
+                        local okStats, stats = pcall(function() return zombie:getStats() end)
+                        if okStats and stats then
+                            for _, getter in ipairs({"getPanic", "getThirst", "getHunger",
+                                                     "getFatigue", "getStress", "getEndurance"}) do
+                                local gok, value = pcall(function() return stats[getter](stats) end)
+                                SR.Log("PROBE stat | " .. getter .. " ok=" .. tostring(gok)
+                                    .. " value=" .. tostring(gok and value or "-"))
+                            end
+                        end
                     end
                 end
             end

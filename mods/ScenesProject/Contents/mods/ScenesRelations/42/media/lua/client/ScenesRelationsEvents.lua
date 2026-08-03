@@ -91,14 +91,26 @@ local function adjustNearby(attacker, delta, reason, accept, quiet)
     return seen, changed
 end
 
---- Two NPCs are each other's people if they were born into the same clan, or if they have
---- both sworn to the same player. The second half matters once "Join me" exists: a group
---- assembled by the player is a group even though its members started in different clans.
-local function inSameGroup(a, b)
-    if not a or not b then return false end
-    if a.clan and a.clan == b.clan then return true end
-    if a.loyal and b.loyal and a.master and a.master == b.master then return true end
-    return false
+--- Whose side is this witness on?
+---
+--- Joining someone REPLACES your allegiance, it does not add to it. Checking birth clan
+--- first was wrong and the 2026-08-03 log shows exactly how: every TLOU_Survivors NPC
+--- shares one clan id, so two sworn companions still grieved for a stranger the player
+--- struck, purely because they had been spawned from the same list. Trust fell from 76 to
+--- 56 over a fight that had nothing to do with them.
+---
+--- A person who has thrown in with you judges by the group they chose. Their old clan is
+--- where they came from, not who they answer to.
+local function inSameGroup(witness, victim)
+    if not witness or not victim then return false end
+
+    if witness.loyal then
+        return victim.loyal == true
+            and witness.master ~= nil
+            and witness.master == victim.master
+    end
+
+    return witness.clan ~= nil and witness.clan == victim.clan
 end
 
 --- Who is hurt by seeing this. Not everyone who can see it: only the victim's own people.
