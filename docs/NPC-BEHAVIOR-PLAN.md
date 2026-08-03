@@ -58,24 +58,46 @@ the flag possibly not.
 
 ## Stages
 
-### Stage 0 — foundation (done, awaiting confirmation in a log)
+### Stage 0 — foundation (DONE, confirmed 2026-08-03)
 
 Trust store on the entity, hit and witness penalties, escalation to hostile, engagement
-range. **Proves:** an engine event can move a number that changes what an NPC does.
+range. **Proved:** an engine event can move a number that changes what an NPC does.
 
-**Done when** a log shows a `SREL|` line with `reason=attacked`, and a second NPC turning
-hostile from `saw attack` alone. Not yet observed.
+Observed in `logs/console.txt`:
 
-### Stage 1 — a way back up
+```
+9306369:  -25 (attacked)   -> trust  -25 [wary]
+9306369:  -25 (attacked)   -> trust  -50 [hostile]
+12452221: -10 (saw attack) -> trust  -10 [neutral]
+...
+12452221: -10 (saw attack) -> trust  -50 [hostile]
+```
 
-Trust can currently only fall. Shipping that alone is strictly worse than vanilla
-Bandits: we would have added a way to lose allies and no way to earn them.
+The witness crossed to hostile on the fifth observed beating, exactly as predicted. The
+NPCs also held position instead of running the map, confirming the engagement cap.
 
-Candidate source, all parts already verified: the player hits a **non-bandit** zombie
-within sight of a friendly bandit. Same `OnHitZombie` event, same witness cache, opposite
-sign. Needs the `isBandit` check inverted for the victim.
+### Stage 1 — a way back up (built 2026-08-03, untested)
+
+Trust could only fall. That alone is strictly worse than vanilla Bandits: a way to lose
+allies and none to earn them.
+
+The player hits a **non-bandit** zombie within sight of a non-hostile bandit, and that
+bandit gains `HELP_REWARD`. Same `OnHitZombie` event, same proximity cache, opposite
+sign — the branch is chosen by whether the victim carries the `Bandit` flag.
+
+Two deliberate constraints:
+
+- **Hostile NPCs are excluded.** Killing zombies in front of someone already trying to
+  kill you does not make them reconsider. Earning peace back needs to know who made them
+  hostile first, which is a separate feature.
+- **The reward logs quietly.** `OnHitZombie` fires per swing, not per kill, so only tier
+  crossings print. `SR.Adjust` takes a `quiet` flag for exactly this.
 
 **Proves:** trust is a relationship, not a punishment counter.
+
+**Note what this does and does not do yet.** `SR.Apply` only escalates — nothing acts on
+positive trust until stage 2 exists. Expect to see the number climb in the log and the
+NPC behave the same. That is correct, not broken.
 
 ### Stage 2 — the companion trust gate
 
@@ -124,9 +146,22 @@ Values we have chosen and why, so the next session does not re-litigate them.
 | `WITNESS_PENALTY = -10` | `ScenesRelationsEvents.lua` | 2026-08-02 | seeing costs less than receiving |
 | `WITNESS_RADIUS_SQ = 144` | `ScenesRelationsEvents.lua` | 2026-08-02 | 12 tiles, matches `BanditPlayer.lua:97` |
 | `ENGAGE_RANGE = 8` | `ScenesRelationsEngagement.lua` | 2026-08-03 | user's call; close enough to read as defence |
+| `HELP_REWARD = 2` | `ScenesRelationsEvents.lua` | 2026-08-03 | per swing, not per kill; ~13 swings to `friendly` |
 
-Open question from 2026-08-03: at `WITNESS_PENALTY = -10` a witness needs **five**
-observed beatings to reach hostile. That is probably too patient. Decide with real data.
+Resolved 2026-08-03: five observed beatings to flip a witness was confirmed in a real log
+and left as is for now — it reads as a person taking a while to give up on you.
+
+Open question: `HELP_REWARD` is measured per swing because `Events.OnZombieDead` carries
+no attacker argument, so a slow weapon earns trust faster than a fast one. If that shows
+up as gamey in play, the fix is a cooldown per NPC, not a smaller number.
+
+## Missing from base Bandits
+
+Things Week One and The Ark provided that plain Bandits does not, confirmed by grep:
+
+- **No dialogue.** No key handler, no conversation UI anywhere in Bandits' Lua. The `T`
+  key belonged to Week One. `Bandit.Say` (`Bandit.lua:1161`) is one-way NPC speech.
+  Any talking system is ours to build, and it is the natural home for intent-based trust.
 
 ## Cleanup owed before anything ships
 

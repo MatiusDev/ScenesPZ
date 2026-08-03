@@ -63,7 +63,12 @@ function SR.Tier(bandit)
 end
 
 --- Move trust and remember why. Returns oldTier, newTier so callers can react to a change.
-function SR.Adjust(bandit, delta, reason)
+---
+--- `quiet` suppresses the per-call debug line, never the tier-change line. It exists for
+--- sources that fire per swing rather than per event: OnHitZombie runs several times per
+--- zombie killed, and at one line per nearby bandit per swing an ordinary fight buries
+--- the log we actually have to read on the other machine.
+function SR.Adjust(bandit, delta, reason, quiet)
     local record = SR.Get(bandit)
     if not record then return nil, nil end
 
@@ -76,7 +81,7 @@ function SR.Adjust(bandit, delta, reason)
     end
 
     local after = SR.Tier(bandit)
-    if SR.DEBUG or before ~= after then
+    if before ~= after or (SR.DEBUG and not quiet) then
         SR.Log(string.format("%s: %+d (%s) -> trust %d [%s]",
             SR.KeyOf(bandit), delta, reason or "unknown", record.trust, after))
     end
