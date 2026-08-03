@@ -30,6 +30,55 @@ It is also already possible. Bandits reads exactly these signals from the player
 (`ZPCompanion.lua:36-48`): `isSprinting()`, `isSneaking()`, `isAiming()`, and distance.
 Verified, in use, no new engine surface required.
 
+## The reference: Red Dead Redemption 2
+
+The author's benchmark: kill an NPC's spouse, and when that NPC sees you again it
+remembers and shouts for help.
+
+Researched 2026-08-03, and the finding is more useful than the example. Rockstar's Director
+of Design, Imran Sarwar, describes the causality in the opposite direction from how it is
+usually assumed: the aspiration to give NPCs memory **"led to the creation of the
+interaction system that exists for the entire world."**
+
+Memory came first. The interaction system was built to express it.
+
+That validates the order of work here and rules out a tempting mistake — building the
+interaction UI first because it is the visible part. In RDR2 the interface exists because
+there was something remembered worth surfacing. Ours should be built the same way round.
+
+Two more things the reference actually teaches:
+
+- **Memory is not only personal.** Towns remember: they boo you, post a bounty, or attack
+  on sight. That is group-level propagation of a personal act, which is the same mechanism
+  the brothers example needs and which nothing in Bandits provides.
+- **RDR2 does use a menu.** Targeting someone brings up interaction options — Defuse,
+  Threaten. So the no-menu constraint here is *stricter than the reference*. That is a
+  deliberate bet, not an oversight, and it is the part of this design most likely to need
+  revisiting after the first real playtest.
+
+## What the field already knows
+
+Searched 2026-08-03 for how games model relationships between NPCs, since the brothers
+example demands it and Bandits has nothing.
+
+- **Relationship graphs.** NPCs as nodes, edges carrying trust, influence, rivalry and
+  loyalty. Group behaviour emerges from the edges rather than being authored. This is the
+  established shape for what the brothers example describes.
+- **Trait models (OCEAN and similar).** Fixed personality dimensions that make an NPC
+  consistent across situations. Directly supports the "some people cannot be persuaded"
+  rule, and `brain.rnd` can seed it deterministically at no cost.
+- **The warning worth heeding.** Behaviour trees remain the industry standard and produce
+  believable, predictable NPCs — but authoring cost scales linearly with character count.
+  For a mod where every survivor should feel specific, hand-authoring per archetype does
+  not scale. Traits plus utility scoring produce variety from combination instead, which is
+  the direction `docs/NPC-AI-ARCHITECTURE.md` already points.
+
+Sources:
+[Rockstar on the RDR2 NPC system](https://www.tweaktown.com/news/63303/red-dead-redemption-2-npc-system-explained-rockstar-devs/index.html) ·
+[Simulation of the Dynamics of NPCs' Emotions and Social Relations](https://perso.limsi.fr/sabouret/ps/TCIAIG.pdf) ·
+[Emergent social NPC interactions (Social NPCs Skyrim mod)](https://arxiv.org/pdf/2207.13398) ·
+[AI NPC social simulation networks](https://www.daydreamsoft.com/blog/ai-npc-social-simulation-networks-the-future-of-intelligent-virtual-characters)
+
 ## Player-facing pillars
 
 1. **Nobody trusts you on sight.** A stranger in an apocalypse assumes the worst, and is
@@ -150,7 +199,17 @@ project has already lost sessions.
   text and speech. Body language remains attractive and unverified. The risk stands: a deep
   simulation the player cannot read is indistinguishable from randomness.
 - **What is an NPC-to-NPC relationship, mechanically?** The brothers example demands it and
-  nothing in Bandits models it. Needs its own design pass.
+  nothing in Bandits models it. The field's answer is a relationship graph — nodes for
+  people, edges carrying trust, rivalry and loyalty — and that shape fits, but the cost
+  question is unanswered: how many edges can be kept alive in Kahlua while the game
+  renders. Needs its own design pass with a budget attached.
+- **Does memory survive the NPC leaving the loaded cell?** The RDR2 moment the author wants
+  — being recognised later — requires the record to outlive the encounter. Ours lives in
+  `getModData()` on the entity, which dies with the NPC and may or may not survive
+  unloading. Bandits' own durable store is 32 sharded ModData tables keyed by `id % 32`,
+  and `brain.id` identifies an outfit rather than an individual. **This is the single
+  biggest unverified risk to the whole premise** and should be probed before the emotion
+  layer, not after.
 - **How much unpredictability is too much?** "Unrepeatable situations" and "learnable
   rules" pull against each other. The player must be able to get better at approaching
   people, or the system reads as arbitrary.
