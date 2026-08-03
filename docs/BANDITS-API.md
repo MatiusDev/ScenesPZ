@@ -163,6 +163,12 @@ programs are assigned at spawn through `args.program` in
 | `Thief` | `ZPThief.lua` | — no assigning callsite found | **dead** |
 | `CompanionGuard` | `ZPCompanionGuard.lua` | — no assigning callsite found | **dead** |
 
+> **Other mods add their own programs and can shadow these entirely.** Measured in a real
+> run on 2026-08-03 with Week One installed: 105 NPC observations, all of them
+> `Inhabitant` (83), `Walker` (15) or `Babe` (7) — none from the table above. `Looter`
+> never appeared, so the "Join Me!" menu below was unreachable. **Any behavior gated on a
+> Bandits program name must be tested with Bandits alone before it is trusted.**
+
 `Bandit.SetProgram(zombie, program, programParams)` (`Bandit.lua:566`) always resets
 `brain.program = {name=program, stage="Prepare"}`. **`programParams` is accepted and never
 stored** — do not use it to pass state; put state on the brain instead.

@@ -42,14 +42,65 @@ trust from gifts needs another mechanism — do not invent an event name.
 `Events.OnZombieUpdate` is real (Bandits uses it at `BanditUpdate.lua:2483`) but appears
 nowhere in vanilla Lua. Grep before using any name not already listed here.
 
-## Next task: verify in game, then positive trust
+## First probe run (2026-08-03) — inconclusive, and why
 
-1. Enable ScenesRelations, disable Week One, hit a friendly bandit. Expect `SREL|` lines
-   in `console.txt` showing the tier moving neutral → wary → hostile.
-2. Confirm whether `OnHitZombie` fires client-side only. Bandits registers it under
-   `lua/client/`, which suggests yes — UNCONFIRMED, and it decides where trust logic can
-   safely live in multiplayer.
-3. Design the positive side. Nothing raises trust yet except decay drifting toward 0.
+`logs/console.txt`, 1.5 MB, 131 `SREL|` lines. Four findings:
+
+1. **Week One was still loaded.** `LOG : Mod f:0> loading BanditsWeekOne`. The run was
+   believed to be Bandits-only and was not. Loaded: `scenesDoctor`, `Bandits2`,
+   `scenesRelations`, `Waterpipes`, `BanditsWeekOne`.
+2. **Week One shadows the program set.** All 105 NPC observations were `Inhabitant` (83),
+   `Walker` (15), `Babe` (7). None of those exist in Bandits. `Looter` never appeared, so
+   `joinMe=false` on all 13 nearby NPCs — the "Join Me!" menu requires
+   `program.name == "Looter"` (`BanditMenu.lua:214`). **The companion plan is untestable
+   with Week One installed.**
+3. **Trust never moved.** Zero non-PROBE `SREL|` lines. `SR.Adjust` never fired.
+   `OnHitZombie` wiring is still UNVERIFIED in game.
+4. **Time compression measured: ~10x.** `DayLength=4`. Sweeps landed at frames 3520 →
+   7514 → 11161, about 3,800 frames ≈ 63 real seconds apart. One in-game minute ≈ 6.3 real
+   seconds, so the removed decay would have fired ~10 times per real minute. The 8-24x
+   estimate that justified removing it is confirmed.
+
+Brain shape confirmed in the wild: `personality=none set`, `rnd=0,6,81,773,9664`,
+`loyal=true permanent=true master=1` on a Week One companion.
+
+## Spawning NPCs on demand — already exists, do not build it
+
+`BanditMenu.lua:236-243` adds a **"Spawn Bandit Clan"** context submenu gated on
+`isDebugEnabled() or isAdmin()`, listing every clan from `BanditCustom`. Debug mode also
+gives `[DGB] Remove All Bandits` and `[DGB] Show Brain`.
+
+Launch PZ with **`-debug`** (Steam → Properties → Launch Options). No code needed.
+
+## Next task: a clean Bandits-only run
+
+1. Disable Week One **and The Ark** in the in-game mod menu, not just on Steam. Confirm in
+   the log that `loading BanditsWeekOne` is absent. Keep `Bandits2`, `scenesRelations`,
+   `scenesDoctor`.
+2. Launch with `-debug`, spawn a friendly clan, confirm `prog=Looter` and `joinMe=true`
+   appear in the probe lines.
+3. **Hit that NPC.** A `SREL|` trust line must appear. This is the last unverified piece
+   of code we have already written.
+4. Save, quit, reload — confirm `trust` survives.
+
+Only after step 3 passes is the companion trust gate worth writing. The design: wrap
+`BanditMenu.SwitchProgram` (a global function, `BanditMenu.lua:145`), refuse promotion to
+Companion below a trust threshold, keep the original call. Their "Join Me!" still appears;
+the NPC refusing you *is* the feature.
+
+## Trust model — direction agreed, not yet designed
+
+Time decay is gone for good: it fired ~10x per real minute, and worse, it made **waiting a
+strategy**. Trust moves on events only. Open design, deliberately unbuilt until there is
+data:
+
+- A **floor**, not a drift. In an apocalypse a stranger probably starts below neutral.
+- **Trust is not one number.** "You fight well" and "you won't stab me" are different, and
+  that difference is what makes betrayal coherent instead of random.
+- **External sources.** Another NPC reporting what you did — Bandits already gives us
+  `brain.clan` and the proximity cache to propagate it without inventing anything.
+- `brain.personality` is **flavor only** (`alcoholic`, `smoker`, collectors) — useless for
+  this. `brain.rnd` (5 stable ints per NPC) is a free per-individual seed we can use.
 
 ## Integration surface (all verified in Bandits 42.20)
 
