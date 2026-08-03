@@ -8,6 +8,29 @@ Each stage names **what it proves**. A stage that proves nothing is not a stage,
 feature we guessed at. Nothing moves forward until the previous stage has been seen in a
 real log — every session on the gaming PC is expensive and there is no hot reload.
 
+## The vision this serves
+
+**People follow you because they are safer with you, and together you build a place worth
+living in.**
+
+That sentence decides arguments. Every stage below has to move toward it, and anything
+that does not is out of scope no matter how interesting.
+
+Three things follow from it directly:
+
+1. **Safety has to be felt, not asserted.** An NPC should follow because staying near you
+   demonstrably keeps it alive, not because a number crossed a threshold. The number is
+   how we record what happened; it is not the reason.
+2. **Idle is the enemy.** An NPC standing in a field playing the Shrug animation has no
+   reason to be anywhere. Purpose is what makes a companion read as a person, and right
+   now Bandits gives non-combat NPCs nothing to do.
+3. **The settlement is the point, not a reward.** A village is what a group of people who
+   trust each other produces. It is the destination, so the systems underneath — trust,
+   purpose, safety — have to be built as if something will eventually stand on them.
+
+What this rules out: quest chains, dialogue trees for their own sake, faction reputation
+tables. Those are content. The relationship is the mechanic.
+
 ## Ground rules, learned the hard way
 
 1. **Grep `pzserver/media/` before writing any identifier.** Not the wiki, not upstream
@@ -99,28 +122,74 @@ Two deliberate constraints:
 positive trust until stage 2 exists. Expect to see the number climb in the log and the
 NPC behave the same. That is correct, not broken.
 
-### Stage 2 — the companion trust gate
+### Stage 2 — asking for something (built 2026-08-03, untested)
 
-Wrap `BanditMenu.SwitchProgram`, refuse promotion to `Companion` below a trust
-threshold, keep the original call. Their "Join Me!" still appears — **the NPC refusing
-you is the feature.**
+`ScenesRelationsMenu.lua` adds our own submenu on any non-hostile bandit: **Follow me**
+above `FOLLOW_MIN_TRUST`, greyed out with the required number below it, and **Leave me**
+on anyone already following.
 
-Blocked on a `Looter` existing to test against: the debug spawn menu forces the `Bandit`
-program, so a Looter only appears from natural spawn of a `wanderer`-without-`assault`
-clan (`TLOU_Survivors`).
+Two decisions worth keeping:
+
+- **We decide, Bandits executes.** The switch itself is `BanditMenu.SwitchProgram`
+  (`BanditMenu.lua:145`), which sets `brain.master`, replaces `brain.program`, updates and
+  syncs. `ZPCompanion` does nothing without `brain.master` (`ZPCompanion.lua:26`).
+  Reimplementing that would mean owning their multiplayer sync forever.
+- **Refusal is visible, dismissal is not gated.** A hidden option reads as a bug; a greyed
+  one reads as a person. And a companion you cannot release is a prisoner, not an ally.
+
+This also sidesteps the Looter blocker. Bandits only offers "Join Me!" on Looters, but
+nothing in `SwitchProgram` requires it, so a debug-spawned `Bandit`-program NPC can be
+promoted the same way — which is what makes any of this testable at all.
 
 **Proves:** trust gates access, not just aggression.
 
-### Stage 3 — demotion
+### Stage 3 — something to do when nobody is shooting
 
-Trust falling while an NPC is a companion sends it back to `Looter`. The reverse of
-stage 2 through the same seam.
+The observed failure right now: capped at 8 tiles, a survivor with no zombie nearby stands
+still playing the Shrug animation from `ZPBandit.lua:227`. That branch is Bandits' idea of
+"nothing to do", and it is where most of an NPC's life is spent.
 
-**Proves:** the relationship is live, not a one-time check at the door.
+An NPC with no purpose cannot read as a person no matter how good the trust maths are.
+This is the stage that turns a follower into a companion.
 
-### Stage 4 — trust is not one number
+Direction, not yet designed: companions already have `ZPCompanion` behaviour to draw
+from, and the task queue (`Bandit.AddTask`, 49 verified actions in `BANDITS-API.md`) is
+the mechanism. The question to answer first is what an idle survivor *should* want —
+follow, scavenge, keep watch, stay warm — not how to queue it.
 
-Agreed direction, deliberately undesigned until stages 1-3 produce data.
+**Proves:** an NPC has a reason to be where it is.
+
+### Stage 4 — safety you can feel
+
+The heart of the vision. Today trust rises because you swing at zombies near someone.
+That is a proxy. What should actually raise it is **outcome**: they were in danger, you
+were there, they lived.
+
+Candidate signals, none verified yet — this stage starts with reading
+`pzserver/media/lua/`, not writing:
+
+- an NPC's health dropping while the player is close, and not dropping further
+- a zombie that was targeting them dying
+- distance held during a fight rather than the player fleeing
+
+The inverse matters as much: getting hurt beside you should cost trust. Someone who leads
+you into danger and leaves is not safe, and the system should be able to say so.
+
+**Proves:** the relationship responds to what happened, not to what was clicked.
+
+### Stage 5 — a place worth defending
+
+The village. Companions attach to a location as well as to a person, so the group survives
+the player logging off, dying, or walking away.
+
+Bandits already has `BanditPlayerBase` and `ZPCamper` / `ZPDefend`. Whether they can carry
+a settlement is an open question and the first thing to investigate when we get here.
+
+**Proves:** the group is a thing in the world, not an escort quest.
+
+### Stage 6 — trust is not one number
+
+Deliberately undesigned until stages 3-5 produce data.
 
 - **A floor, not a drift.** In an apocalypse a stranger starts below neutral. No time
   decay, ever: it fires ~10x per real minute at `DayLength=4`, and worse, it makes
@@ -131,10 +200,21 @@ Agreed direction, deliberately undesigned until stages 1-3 produce data.
   proximity cache already exist; nothing new needs inventing.
 - **Per-individual variation.** `brain.rnd` gives 5 stable ints per NPC, free.
 
-### Stage 5 — threat response
+### Cross-cutting — dialogue
 
-Only after a verified "am I in danger" signal exists. Until then, engagement range is
-proximity and nothing more. Do not fake this with guessed API names.
+Not a stage, because it is not a prerequisite for any of them and it is the easiest thing
+to overbuild. Base Bandits has none (see below), so it is entirely ours.
+
+Build it when there is something worth saying — a companion explaining why it will not
+follow, a survivor naming what it wants. A dialogue tree with nothing behind it is a
+content treadmill, which the vision explicitly rules out.
+
+### Deferred — threat response
+
+Wanted: NPCs that engage because they feel threatened, not merely because something is
+within 8 tiles. Blocked on a verified "is this zombie hunting me" signal;
+`zombie:getTarget()` does not exist. Until one is found in `pzserver/media/`, engagement
+is proximity and nothing more. Do not fake it with guessed API names.
 
 ## Tuning log
 
