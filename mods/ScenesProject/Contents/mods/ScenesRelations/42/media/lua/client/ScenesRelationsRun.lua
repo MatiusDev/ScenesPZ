@@ -11,7 +11,11 @@
 --      play, the companion plan has nowhere to attach.
 --   2. Would "Join Me!" appear on the NPCs actually near the player?
 --   3. What is really inside brain.rnd and brain.personality in the wild?
---   4. Does a trust record survive a save and reload?
+--   4. Does a trust record survive a cell unload and a save/reload, and does the same NPC
+--      come back under the same id? Read the STORE lines: the id and trust printed for a
+--      survivor before you walk away must be the same pair printed when you return.
+--   5. Does HaloTextHelper accept an IsoZombie? Every floating indicator in the PRD
+--      depends on it and every vanilla callsite passes a player.
 
 require "ScenesRelations"
 local SR = ScenesRelations
@@ -64,14 +68,18 @@ local function sweep()
                     local offer = wouldOfferJoinMe(brain)
                     if offer then joinable = joinable + 1 end
 
-                    local record = SR.Get(zombie)
+                    -- Peek, never Get: the probe must not create the records it is
+                    -- measuring. "known=false" here is a real answer, not a gap.
+                    local record = SR.Peek(zombie)
                     SR.Log(string.format(
-                        "PROBE %s | prog=%s/%s clan=%s hostile=%s/%s | trust=%d %s | joinMe=%s | d=%.0f",
+                        "PROBE %s | id=%s | prog=%s/%s clan=%s hostile=%s/%s | known=%s trust=%d %s | joinMe=%s | d=%.0f",
                         tostring(brain.fullname),
+                        tostring(SR.IdOf(zombie)),
                         tostring(brain.program and brain.program.name),
                         tostring(brain.program and brain.program.stage),
                         tostring(brain.clan),
                         tostring(brain.hostile), tostring(brain.hostileP),
+                        tostring(record ~= nil),
                         record and record.trust or 0, SR.Tier(zombie),
                         tostring(offer),
                         math.sqrt(dx * dx + dy * dy)))
@@ -116,6 +124,31 @@ local function sweep()
                                     .. " value=" .. tostring(gok and value or "-"))
                             end
                         end
+
+                        -- HaloTextHelper with an IsoZombie. Every vanilla callsite passes
+                        -- a player (forageClient.lua:73, ISInventoryPage.lua:1927 and the
+                        -- rest), so whether the Java side accepts a zombie is genuinely
+                        -- unknown -- and the PRD's whole "the NPC answers above its head"
+                        -- channel rests on it. Two variants, because addGoodText picks its
+                        -- own colour and may take a different path than addText.
+                        --
+                        -- `ok` here only means it did not throw. The real answer is
+                        -- visual: if the text appears over the survivor in game, it works.
+                        -- Say so in the report either way.
+                        if HaloTextHelper then
+                            local hok = pcall(function()
+                                HaloTextHelper.addText(zombie, "SCENES probe")
+                            end)
+                            SR.Log("PROBE halo | addText(zombie) threw=" .. tostring(not hok)
+                                .. " -- LOOK AT THE SCREEN, did text appear over them?")
+
+                            local gok = pcall(function()
+                                HaloTextHelper.addGoodText(zombie, "SCENES good")
+                            end)
+                            SR.Log("PROBE halo | addGoodText(zombie) threw=" .. tostring(not gok))
+                        else
+                            SR.Log("PROBE halo | HaloTextHelper is nil on this build")
+                        end
                     end
                 end
             end
@@ -123,8 +156,9 @@ local function sweep()
     end
 
     if seen > 0 then
-        SR.Log(string.format("PROBE sweep: %d bandits within %d tiles, %d would offer Join Me!",
-            seen, PROBE_RANGE, joinable))
+        SR.Log(string.format(
+            "PROBE sweep: day %d | %d bandits within %d tiles, %d would offer Join Me! | store holds %d records",
+            SR.Today(), seen, PROBE_RANGE, joinable, SR.Store.Count()))
     end
 end
 
@@ -134,6 +168,8 @@ Events.EveryTenMinutes.Add(sweep)
 
 Events.OnGameStart.Add(function()
     SR.Log("ScenesPZ Relations active -- PROBE BUILD, debug on, no time decay")
+    SR.Log(string.format("PROBE start | world day %d | store holds %d records",
+        SR.Today(), SR.Store.Count()))
 
     -- DayLength sets how much in-game time passes per real second, which is what made
     -- the old per-minute decay fire 8-24 times faster than intended. Logged rather than

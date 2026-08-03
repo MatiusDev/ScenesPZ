@@ -84,7 +84,7 @@ end
 --- machine with no hot reload costs a whole session to tell apart.
 local function logAction(bandit, action)
     local brain = BanditBrain.Get(bandit)
-    local record = SR.Get(bandit)
+    local record = SR.Peek(bandit)
     SR.Log(string.format("MENU %s | %s | trust=%d loyal=%s master=%s",
         tostring(brain and brain.fullname), action,
         record and record.trust or 0,
@@ -125,7 +125,7 @@ local function fillMenu(playerID, context)
     -- on its own menu at BanditMenu.lua:210.
     if brain.hostile or brain.hostileP then return end
 
-    local record = SR.Get(zombie)
+    local record = SR.Peek(zombie)
     local trust = record and record.trust or 0
 
     -- The trust number is in the label on purpose. There is no hot reload here: reading

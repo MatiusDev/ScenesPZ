@@ -159,16 +159,27 @@ add on a per-frame path is a mistake by default.
 ## Must be probed before building
 
 1. **Does a record in our own sharded ModData survive a cell unload and a save/reload?**
-   Blocks everything above.
-2. **Is the NPC id stable across that same cycle?** Decides whether the fallback
-   recognition design is needed.
-3. **What day is it, cheaply?** Episodes are timestamped; there must be a game-day source
-   that does not cost anything to read.
+   Blocks everything above. **Still open** — needs one real session. The probe is written:
+   every `PROBE` line now prints `id=` and `known=`, and both `PROBE start` and each sweep
+   print how many records the store holds. Walk away, come back, and the same id must
+   return with the same trust.
+2. **Is the NPC id stable across that same cycle?** **Answered from code, 2026-08-03.**
+   `BanditUpdate.lua:1983-1991` re-banditizes any unflagged zombie whose id is present in
+   the cluster, and zombifies any flagged one whose id is absent. That branch is the only
+   way an NPC survives a reload in Bandits at all, so the entire framework already assumes
+   `BanditUtils.GetZombieID` returns the same number for the same NPC across the cycle.
+   This is design intent read off working code, not a measurement — probe 1 confirms it in
+   passing. The name-plus-traits fallback stays designed but unbuilt.
+3. **What day is it, cheaply?** **Answered.** `getGameTime():getWorldAgeHours()`, floored
+   to days — monotonic, does not reset at month end, and it is what vanilla itself uses to
+   age the world (`ISButtonPrompt.lua:520`, `WinterIsComing.lua:8`). Exposed as
+   `SR.Today()`; every episode is stamped with it as of phase 1.
 
 ## Phasing
 
-1. Move the existing trust record off the entity into a sharded store. No new features —
-   same behaviour, durable. Prove it with the probe.
+1. ~~Move the existing trust record off the entity into a sharded store. No new features —
+   same behaviour, durable.~~ **Done 2026-08-03** — `ScenesRelationsStore.lua`, shards
+   `ScenesRelC0`..`ScenesRelC31`. Awaiting confirmation in a real save.
 2. Salience ranking on the existing episode list.
 3. Consolidation into labels when episodes are dropped.
 4. NPC↔NPC edges on co-witnessed events.
@@ -176,3 +187,16 @@ add on a per-frame path is a mistake by default.
 
 Steps 1 and 2 are small and make everything after them possible. Nothing past 3 should be
 designed in detail until 1 is confirmed working in a real save.
+
+### What phase 1 actually changed
+
+Three things beyond moving bytes, each of which the design demanded:
+
+- **`SR.Peek` vs `SR.Get`.** Reading no longer creates. A record now means *one survivor
+  the player has met*, which is the difference between a store that grows with the cast
+  and one that grows with every zombie the engine ever spawned. Only `SR.Adjust` creates.
+- **Emotion left the store.** Posture moved to `SR.Mood`, on the entity, because the PRD
+  says emotion decays and memory does not. A transient state in a permanent store would
+  have minted a record for every NPC that was ever startled nearby.
+- **Episodes are dated.** `{ day, delta, reason }`. Unread today; a field added after the
+  fact cannot be backfilled for events that already happened, and phase 2 ranks by it.

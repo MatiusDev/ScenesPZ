@@ -206,7 +206,9 @@ project has already lost sessions.
 | Question | Blocks | Status |
 |---|---|---|
 | Does the engine tick `getStats()` on a zombie? | whether emotions are read or simulated | probe written, unrun |
-| Does `HaloTextHelper` accept an `IsoZombie`? | every floating indicator in this document | not probed |
+| Does `HaloTextHelper` accept an `IsoZombie`? | every floating indicator in this document | probe written, unrun — `pcall` reports whether it throws, but the real answer is whether text appears on screen |
+| Does a record survive a cell unload? | recognition, and therefore the whole premise | store built, probe written, unrun |
+| Is the NPC id stable across a reload? | whether fuzzy recognition is needed instead | **answered** — Bandits' own restore path depends on it (`BanditUpdate.lua:1983-1991`) |
 | Can we read the player's equipped weapon and aim state reliably? | the entire posture system | `isAiming` verified; weapon-in-hand not |
 | Can an NPC approach the player unprompted? | NPC-initiated contact | not investigated |
 | Can we trigger animations on an NPC? | body language as a channel | not investigated |
@@ -228,12 +230,13 @@ project has already lost sessions.
   trust 86 and joins you. You walk eight blocks away and his area unloads. You come back.
   Does he know you?
 
-  Two things have to hold and neither is verified. **Where the record lives** — ours is in
-  `getModData()` on the entity, and the entity is destroyed on unload. The warning sign is
-  that Bandits does not keep its brain there either: it maintains 32 separate ModData
-  tables (`BanditC0`..`BanditC31`) keyed by `id % 32`. Nobody builds that if entity data
-  survived on its own. **And whether the id is stable** — even copying their store needs
-  the same NPC to return under the same id.
+  Two things have to hold. **Where the record lives** — as of 2026-08-03 it is no longer
+  on the entity. `ScenesRelationsStore.lua` copies Bandits' shape: 32 global ModData
+  tables, ours named `ScenesRelC0`..`ScenesRelC31`, keyed by `id % 32`. Bandits does not
+  keep its brain on the entity either, and nobody builds 32 shards if entity data survived
+  on its own. **And whether the id is stable** — this one is now answered: their restore
+  path at `BanditUpdate.lua:1983-1991` rebuilds an NPC from the cluster by that id, so the
+  framework already depends on it. What remains is confirming ours in a real save.
 
   Note a retraction: an earlier claim that `brain.id` collides between NPCs wearing the
   same clothes was wrong. Six survivors from one definition produced seven distinct ids in

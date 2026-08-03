@@ -150,8 +150,11 @@ local function assess()
             if threat > 0 then
                 local friends = countFriendsNear(light.x, light.y, light.id)
                 local zombie = cache[light.id]
-                local record = zombie and SR.Get(zombie)
-                local previous = record and record.posture
+                -- Mood, not the trust record. Posture is transient and belongs to the
+                -- entity; asking for the record here would create a permanent one for
+                -- every NPC that ever saw a zombie near the player.
+                local mood = zombie and SR.Mood(zombie)
+                local previous = mood and mood.posture
 
                 -- The whole decision, in one line. Outnumbered means the group cannot
                 -- absorb the hit; then bravery decides who buys time and who gets inside.
@@ -160,7 +163,7 @@ local function assess()
                 if outnumbered and not isBrave(brain) then posture = "flee" end
 
                 if zombie and posture ~= previous then
-                    if record then record.posture = posture end
+                    if mood then mood.posture = posture end
 
                     -- Phrase keys are not free text. These three are the only ones used
                     -- here that appear in Bandits' own Say calls; "PANIC" and "COVER"
@@ -173,7 +176,7 @@ local function assess()
                         else
                             -- Nowhere to go. Standing and fighting is not courage here,
                             -- it is the only option left, and it should look like that.
-                            if record then record.posture = "fight" end
+                            if mood then mood.posture = "fight" end
                             Bandit.Say(zombie, "OUTSIDE")
                         end
                     else

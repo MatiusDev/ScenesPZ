@@ -148,7 +148,7 @@ spawn, so bravery is a trait, not a die roll.
 
 ---
 
-## 9. Persistence
+## 9. Persistence — save and reload
 
 **Do:** build trust with one survivor, save, quit to menu, reload.
 
@@ -156,8 +156,41 @@ spawn, so bravery is a trait, not a die roll.
 
 **Known caveat:** the hostile flag may not. `Bandit.SetHostile` (`Bandit.lua:588`) has its
 `BanditBrain.Update` call commented out, so it lives only in the client-side brain mirror.
-Trust is in `getModData()` and does persist. If the number survives and the flag does not,
+Trust is in our own store and does persist. If the number survives and the flag does not,
 that is the known upstream behaviour, not our bug.
+
+---
+
+## 10. Persistence — the cell unload. **The one that matters.**
+
+This is the test the whole mod rests on. Everything else is a feature; this decides
+whether an NPC can know you at all.
+
+**Do:**
+
+1. Fight beside one survivor until their trust is clearly above zero. Right-click them
+   once so the tier and number are on screen.
+2. In `console.txt`, find their `PROBE` line and write down **both** `id=` and `trust=`.
+3. Walk at least ten blocks away — far enough that their cell unloads. Wait for two
+   `PROBE sweep` lines with no `PROBE` line for them in between.
+4. Walk back.
+
+**Pass:** their `PROBE` line returns with **the same `id=`** and **the same `trust=`**, and
+`known=true`. The right-click label shows the same number it did before you left.
+
+**Fail modes, and what each one means:**
+
+| What you see | What it means |
+|---|---|
+| Same `id`, `known=false`, trust back to 0 | the store is not saving. The record died with the entity anyway. |
+| Different `id`, `known=false` | the id is not stable across unload. Recognition needs the name-plus-traits fallback in `docs/DESIGN-MEMORY.md`. |
+| `STORE WARNING: write before global ModData was ready` | shard registration is racing gameplay. Ordering bug on our side. |
+| `store holds N records` climbing every sweep with nobody being met | `SR.Peek` is leaking into a create path. |
+
+**Also check, once, near the start of the session:** the two `PROBE halo` lines.
+`threw=false` is necessary but not sufficient — **look at the screen** and say whether the
+text actually appeared above the survivor's head. That single observation decides whether
+NPC state can be shown in the world or needs a UI panel.
 
 ---
 
