@@ -32,11 +32,21 @@ local function isBandit(character)
 end
 
 -- Bandits attacking each other, and NPC-on-NPC hits, are not our business. Only a real
--- human player moves trust. Same two guards as BanditPlayer.lua:91.
+-- human player moves trust.
+--
+-- Do NOT add an isNPC() guard here. That method does not exist in 42.20 -- it appears
+-- zero times across the 2,680 Lua files in pzserver/media/lua/. Calling it throws
+-- "Object tried to call nil", which killed this handler on every single hit for two
+-- play sessions (110 stack traces in logs/console.txt) and made it look as though
+-- trust simply never moved.
+--
+-- Bandits has the identical defect at BanditPlayer.lua:91, so their CheckFriendlyFire
+-- is dead in 42.20 as well. Copying that line is exactly how we inherited the bug.
+--
+-- instanceof alone is sufficient: every Bandits NPC is an IsoZombie flagged with the
+-- "Bandit" boolean, so it can never satisfy this test in the first place.
 local function isRealPlayer(character)
-    return character ~= nil
-        and instanceof(character, "IsoPlayer")
-        and not character:isNPC()
+    return character ~= nil and instanceof(character, "IsoPlayer")
 end
 
 --- Bandits near the attacker who can actually see them lose trust too.
