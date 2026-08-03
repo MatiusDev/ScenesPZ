@@ -1,0 +1,27 @@
+{
+  "game_build": "42.20.0",
+  "checked_at": "2026-08-03T01:24:21Z",
+  "mods": {
+    "3268487204": {
+      "name": "[B42] Bandits NPC",
+      "role": "hard dependency - tlouFactions requires Bandits2",
+      "vendor_path": "vendor/Bandits",
+      "steam_updated": "2026-08-02T23:36:23Z",
+      "vendored_at": "2026-08-03T01:24:21Z"
+    },
+    "3403180543": {
+      "name": "[B42] Week One NPC",
+      "role": "reference only - narrative patterns we imitate",
+      "vendor_path": "vendor/WeekOne",
+      "steam_updated": "2026-06-03T09:18:22Z",
+      "vendored_at": "2026-08-03T01:24:21Z"
+    },
+    "3469292499": {
+      "name": "[B42] Bandits Creator",
+      "role": "tool - generates our clans.txt / bandits.txt",
+      "vendor_path": null,
+      "steam_updated": "2026-04-27T05:43:09Z",
+      "vendored_at": "not vendored - in-game tool, no source needed"
+    }
+  }
+}

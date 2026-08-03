@@ -48,3 +48,9 @@ LIKELY CAUSE: <one sentence, or "unclear">
 ```
 
 Quote errors verbatim. A paraphrased stack trace is useless.
+
+## Dependency freshness (blocking)
+
+Run `./tools/deps.py check` before reading or reasoning about anything under `vendor/`.
+On DRIFT, stop and report it — a line number or a bug found in a stale copy may already
+be fixed upstream. That mistake has already cost this project a full session.

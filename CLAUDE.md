@@ -48,6 +48,33 @@ git, network/deploy, and reading `console.txt` the user pastes. Research before 
 
 Single-file mechanical edits stay inline. Do not delegate a one-line fix.
 
+## Dependency freshness — blocking gate
+
+Slayer ships fixes to Bandits **same-day**. We already lost a session debugging
+`IsoObject:transmitCompleteItemToServer()` — a bug the author had fixed hours earlier.
+Working against a stale vendored copy is the single most expensive failure mode in this
+project.
+
+`deps.lock.json` records the exact upstream version every dependency is pinned to.
+
+**Before any work that reads, calls, or extends a vendored mod, run:**
+
+```bash
+./tools/deps.py check
+```
+
+- **all current** — proceed.
+- **DRIFT** — stop. Report the drift to the user. Do not diagnose a bug, quote a line
+  number, or propose a fix against a stale copy; the finding may already be obsolete.
+  Resolve with `./tools/deps.py update`, which re-downloads and rewrites the lock.
+
+This gate is mandatory for `pz-research`, `pz-lua`, and `pz-verify`. It is skippable only
+for work that touches no vendored code at all — our own declarative data, docs, tooling.
+
+After an update the gaming PC must be resynced too: unsubscribe and resubscribe on Steam,
+then verify with the check in `docs/NETWORKING.md`. `deps.lock.json` is the shared source
+of truth for both machines and is committed on every version change.
+
 ## Conventions
 
 - Mod id prefix: `tlou` (lua table `TLOU`, item module `TLOU`, command module `"TLOU"`).

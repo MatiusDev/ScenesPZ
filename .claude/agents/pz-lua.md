@@ -65,3 +65,9 @@ Match vanilla: 4 spaces, `local` by default, early returns. Comments in English.
 
 Files written, events registered, and every engine symbol used with the vanilla file:line
 where you confirmed it exists.
+
+## Dependency freshness (blocking)
+
+Run `./tools/deps.py check` before reading or reasoning about anything under `vendor/`.
+On DRIFT, stop and report it — a line number or a bug found in a stale copy may already
+be fixed upstream. That mistake has already cost this project a full session.

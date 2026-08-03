@@ -52,3 +52,9 @@ CAVEATS: <anything you could not confirm, stated as unconfirmed>
 
 If you cannot confirm something, say `UNCONFIRMED` and say what you searched.
 Guessing is worse than reporting a gap.
+
+## Dependency freshness (blocking)
+
+Run `./tools/deps.py check` before reading or reasoning about anything under `vendor/`.
+On DRIFT, stop and report it — a line number or a bug found in a stale copy may already
+be fixed upstream. That mistake has already cost this project a full session.
