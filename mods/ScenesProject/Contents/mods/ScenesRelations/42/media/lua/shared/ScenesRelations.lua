@@ -26,29 +26,31 @@ SR.TIERS = {
     { name = "hostile",  min = -100 },
 }
 
-local function store()
-    -- ModData.getOrCreate is the vanilla persistence API
-    -- (pzserver/media/lua/client/Foraging/forageClient.lua:7).
-    local data = ModData.getOrCreate("ScenesRelations")
-    data.actors = data.actors or {}
-    return data
-end
-
---- Stable per-NPC key. Bandits assigns these; we only read them.
-function SR.KeyOf(bandit)
-    if not bandit then return nil end
-    local id = BanditUtils.GetCharacterID(bandit)
-    return id and tostring(id) or nil
-end
-
+-- STORAGE
+-- The record lives on the NPC entity, exactly where Bandits keeps its own brain
+-- (BanditBrain.Get is `zombie:getModData().brain`). Three reasons this is right:
+--   * no collision -- one record per entity, guaranteed
+--   * it saves and loads with the world, for free
+--   * it dies with the NPC, so the store cannot grow without bound
+--
+-- Do NOT key a global table by BanditUtils.GetCharacterID. That id is derived from
+-- getPersistentOutfitID() (BanditUtils.lua:632), so two NPCs wearing the same outfit
+-- share an id. It identifies an appearance, not an individual.
 function SR.Get(bandit)
-    local key = SR.KeyOf(bandit)
-    if not key then return nil end
-    local actors = store().actors
-    if not actors[key] then
-        actors[key] = { trust = 0, memory = {} }
+    if not bandit then return nil end
+    local modData = bandit:getModData()
+    if not modData then return nil end
+    if not modData.scenesRel then
+        modData.scenesRel = { trust = 0, memory = {} }
     end
-    return actors[key]
+    return modData.scenesRel
+end
+
+--- Label for logs only. Not unique -- see the warning above.
+function SR.KeyOf(bandit)
+    if not bandit then return "?" end
+    local ok, id = pcall(BanditUtils.GetCharacterID, bandit)
+    return (ok and id) and tostring(id) or "?"
 end
 
 function SR.Tier(bandit)
