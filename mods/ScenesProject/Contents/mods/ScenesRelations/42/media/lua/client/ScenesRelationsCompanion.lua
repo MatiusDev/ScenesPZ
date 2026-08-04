@@ -277,12 +277,64 @@ local function scenesMain(bandit)
         return { status = true, next = "Main", tasks = {} }
     end
 
+    -- Whatever we were on is over: either it finished, or the ladder cleared it and moved
+    -- the intention to mood.unfinished on its way past. Being asked again IS the signal --
+    -- Main only runs on an empty queue.
+    mood.doing = nil
+    SR.Autonomy.ForgetIfStale(mood)
+
+    -- BLEEDING BEATS EVERYTHING ELSE THEY MIGHT WANT.
+    --
+    -- Their own healing trigger cannot fire while the ladder is running -- it is gated on
+    -- the queue holding nothing but movement -- and the 04-08 log shows what that costs:
+    -- John Jones opened in the health panel at `condition 0.02 / 1.80`, infected, and not
+    -- one `dressed with` line in the whole session. So the decision to start is ours. The
+    -- action, the animation and the sound stay theirs.
+    if SR.Wounds and SR.Wounds.NeedsDressing(bandit, brain) then
+        SR.Log(string.format("COMP %s stops to dress a wound", name))
+        return { status = true, next = "Main", tasks = { { action = "Bandage" } } }
+    end
+
+    -- GOING BACK TO WHAT THEY WERE DOING. The stage's own done-criterion, in its words:
+    -- "a survivor interrupted while looting kills the zombie and returns to the container".
+    -- The ladder set this aside when it escalated; nothing else remembers it.
+    if mood.unfinished then
+        local job = mood.unfinished
+        mood.unfinished, mood.unfinishedAt = nil, nil
+
+        local back = BanditUtils.DistTo(bandit:getX(), bandit:getY(), job.x + 0.5, job.y + 0.5)
+        -- Only if it is still nearby. Walking back across a street to a drawer reads as
+        -- obsession, not memory, and the ladder would only interrupt them again on the way.
+        if back < 15 then
+            if job.kind == "search" then
+                mood.doing = job
+                SR.Log(string.format("COMP %s goes back to the %s at %d,%d",
+                    name, job.kind, job.x, job.y))
+                return { status = true, next = "Main", tasks = SR.Loot.Search(bandit, mood, job) }
+            elseif job.kind == "bag" and not SR.Loot.HasBag(brain) then
+                mood.doing = job
+                mood.fetchingBag = job.itemType
+                SR.Log(string.format("COMP %s goes back for the %s at %d,%d",
+                    name, tostring(job.itemType), job.x, job.y))
+                return { status = true, next = "Main", tasks = SR.Loot.FetchBag(bandit, job) }
+            end
+        else
+            SR.Log(string.format("COMP %s gives up on the %s -- %.1f tiles away now",
+                name, tostring(job.kind), back))
+        end
+    end
+
     -- A BAG BEATS ANYTHING IT WOULD HOLD. Asked for directly, and it is also simply true:
     -- three items is not a scavenging trip.
     if not SR.Loot.HasBag(brain) then
         local bag = SR.Loot.FindBag(bandit)
         if bag then
             mood.fetchingBag = bag.itemType
+            -- Recorded so the ladder can set it aside rather than lose it if something
+            -- interrupts the walk. `kind` is what makes it resumable; the coordinates are
+            -- what make it the SAME bag rather than any bag.
+            mood.doing = { kind = "bag", itemType = bag.itemType,
+                           x = bag.x, y = bag.y, z = bag.z }
             SR.Log(string.format("COMP %s wants a bag -- %s at %d,%d",
                 name, bag.itemType, bag.x, bag.y))
             return { status = true, next = "Main", tasks = SR.Loot.FetchBag(bandit, bag) }
@@ -295,6 +347,7 @@ local function scenesMain(bandit)
     if mood.indoors and SR.Loot.HasRoom(bandit) then
         local spot = SR.Loot.FindContainer(bandit, mood)
         if spot then
+            mood.doing = { kind = "search", x = spot.x, y = spot.y, z = spot.z }
             SR.Log(string.format("COMP %s searches %d,%d | in=%d out=%d",
                 name, spot.x, spot.y, mood.insiders or 0, mood.outsiders or 0))
             return { status = true, next = "Main", tasks = SR.Loot.Search(bandit, mood, spot) }

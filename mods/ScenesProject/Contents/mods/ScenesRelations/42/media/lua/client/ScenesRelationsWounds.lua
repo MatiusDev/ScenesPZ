@@ -94,6 +94,41 @@ function Wounds.Of(brain)
     return brain.scenesWound
 end
 
+-- Absolute health at which Bandits starts draining somebody (ManageHealth,
+-- BanditUpdate.lua:491). Not a ratio: their bleed test is absolute, so ours is too, or a
+-- frail survivor would be judged healthy while bleeding out.
+local BLEED_FLOOR = 0.7
+
+-- In-game hours before somebody will try dressing a wound again. Without it, a survivor
+-- still under the floor after an improvised dressing would re-dress every few seconds and
+-- burn every rag they own.
+local REDRESS_HOURS = 2
+
+--- Should this person stop and deal with a wound right now?
+---
+--- THIS EXISTS BECAUSE THEIR OWN TRIGGER IS UNREACHABLE. The healing flag is gated on
+--- `if not BanditBrain.HasActionTask(brain)` (BanditUpdate.lua:952), which is false whenever
+--- the queue holds anything that is not Move or GoTo. With the autonomy ladder giving people
+--- something to do, that is almost always. The 04-08 log is the proof: John Jones was opened
+--- in the health panel at `condition 0.02 / 1.80` -- two hundredths of a point from dead,
+--- and infected -- and there is not one `dressed with` line in the entire run.
+---
+--- So the companion program queues the Bandage task itself. Their action, their animation,
+--- their sound; only the decision to start is ours, because theirs cannot fire.
+function Wounds.NeedsDressing(zombie, brain)
+    local ok, now = pcall(function() return zombie:getHealth() end)
+    if not ok or type(now) ~= "number" then return false end
+    if now >= BLEED_FLOOR then return false end
+
+    local wound = brain.scenesWound
+    if wound and wound.day then
+        local hours = (SR.Today() - wound.day) * 24
+        if hours < REDRESS_HOURS then return false end
+    end
+
+    return true
+end
+
 --- Whether this person is walking around with something filthy tied round their arm.
 --- Read by the companion program in stage 3, when washing arrives.
 function Wounds.WantsCleanDressing(brain)

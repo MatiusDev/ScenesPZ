@@ -152,6 +152,38 @@ Half of that problem was upstream of the registry, though: the threat module was
 fifteen-tile net and sending everyone it caught to the nearest window. It now runs only for
 survivors the ladder has already put on rung 1, and only once per episode.
 
+## Third pass — the deliverables that were still missing
+
+**Unfinished business.** The stage's own done-criterion said *"a survivor interrupted while
+looting kills the zombie and returns to the container"*, and nothing implemented it.
+Clearing the queue is what makes the ladder work, and it is also what threw away whatever
+somebody was in the middle of.
+
+The fix separates the tasks from the intention. The companion program records what it
+started (`mood.doing`); the ladder, on its way past, moves that to `mood.unfinished` instead
+of losing it; the companion picks it up again once the rung drops. It expires after twenty
+sweeps or if the spot ends up more than fifteen tiles away — going back across a street to a
+drawer reads as obsession, not memory.
+
+The ladder never invents an intention. It only preserves one somebody else recorded.
+
+**Healing was unreachable, not merely interrupted.** The earlier finding was that our
+watchdog cancelled `Bandage` mid-heal. Fixing that was necessary and not sufficient: the
+healing flag is gated on `if not BanditBrain.HasActionTask(brain)` (`BanditUpdate.lua:952`),
+which is false whenever the queue holds anything that is not `Move` or `GoTo` — and the whole
+point of the ladder is to give people things to do.
+
+The 04-08 log settles it: `HEALTH opened on John Jones | condition 0.02 / 1.80 | infection
+3.47`, and **not one `dressed with` line in the entire session**. So the decision to start is
+now ours, taken when live health drops below the `0.7` at which their own bleed loop begins.
+The action, the animation and the sound stay theirs.
+
+**A building, not a room.** `FindContainer` was bounded by `sq:getRoom() == room`, so a
+companion searched the kitchen and then had nothing left to want — both survivors in the log
+went through four to six spots and stopped. The deliverable was always *"looting a building
+they are inside"*. The bound is now `sq:getBuilding()`, which still cannot wander next door;
+the search radius stays small and they reach new rooms by walking.
+
 ## Instrumentation
 
 The 04-08 log has `AUTO` lines for exactly one survivor out of four, because transitions were

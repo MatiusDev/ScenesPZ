@@ -164,17 +164,27 @@ function Loot.HasRoom(zombie)
     return not full
 end
 
---- The nearest container this NPC has not been through, inside the room it is standing in.
+--- The nearest container this NPC has not been through, anywhere in the building it is
+--- standing in.
 ---
---- Room-bounded on purpose. `square:getRoom()` is how vanilla asks the same question
---- (ISMenuContextWorld.lua:63) and it keeps a companion searching the house you walked into
---- rather than wandering toward the next building's kitchen.
+--- BUILDING-bounded, not room-bounded. The first version stopped at `sq:getRoom() == room`,
+--- which meant a companion searched the kitchen and then had nothing left to want -- the
+--- 04-08 log shows both survivors going through four to six spots and stopping dead. The
+--- stage deliverable was always "looting a building they are inside" (03-idle-life.md), and
+--- one room is not a building.
+---
+--- `square:getBuilding()` is how vanilla draws the same boundary
+--- (ISWorldObjectContextMenu.lua:1694 compares it against the player's). It still cannot
+--- wander next door, which is the property that actually mattered: the search radius stays
+--- small and they reach new rooms by walking, so a whole house gets covered without ever
+--- scanning a whole house at once.
 function Loot.FindContainer(zombie, mood)
     local square = zombie:getSquare()
     if not square then return nil end
 
-    local room = square:getRoom()
-    if not room then return nil end          -- outdoors: nothing to search here
+    -- Outdoors has no building, and that is the gate: nothing to search out here.
+    local building = square:getBuilding()
+    if not building then return nil end
 
     local cell = square:getCell()
     if not cell then return nil end
@@ -187,10 +197,11 @@ function Loot.FindContainer(zombie, mood)
             local dist = dx * dx + dy * dy
             if dist <= SEARCH * SEARCH and (not bestDist or dist < bestDist) then
                 local sq = cell:getGridSquare(zx + dx, zy + dy, zz)
-                -- Same room only. A container visible through a doorway belongs to the
-                -- next room, and walking to it is how an NPC ends up somewhere you did not
+                -- Same building. A container through a doorway is the next room of the
+                -- house you are both standing in and is fair game; one across the street
+                -- is not, and walking to it is how an NPC ends up somewhere you did not
                 -- send it.
-                if sq and sq:getRoom() == room
+                if sq and sq:getBuilding() == building
                    and not alreadySearched(mood, sq:getX(), sq:getY(), sq:getZ()) then
                     local objects = sq:getObjects()
                     if objects then

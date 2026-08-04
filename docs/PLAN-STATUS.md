@@ -10,189 +10,45 @@ Hoja de ruta completa: [`docs/plans/README.md`](plans/README.md).
 
 ---
 
-## Lo que dijo tu log del 04-08
+## Ya confirmado — no lo repitas
 
-Cuatro respuestas, y ninguna era la que yo esperaba.
+Esto salió bien en una corrida real y sólo vuelve a esta lista si lo rompo.
 
-**1. El perro guardián se estaba comiendo el trabajo bueno.** Estas líneas están en tu log:
-
-```
-AUTO Benjamin Morgan | stuck on Smack@10753.5,10276.6 for 3 sweeps -- queue cleared
-AUTO Benjamin Morgan | stuck on Bandage@nil,nil for 3 sweeps -- queue cleared
-AUTO Benjamin Morgan | stuck on Time@nil,nil for 3 sweeps -- queue cleared
-```
-
-`Smack` es un golpe. `Bandage` es curarse. `Time` es una espera a propósito. Les estaba
-cancelando las tres a mitad de camino, cada veinte segundos. Y **ni una sola vez** agarró un
-`OpenWindow`, que era para lo que existía. Mi premisa estaba mal: que una tarea no cambie no
-significa que esté trabada — para casi todas significa que está funcionando. Ahora sólo
-vigila tareas que se completan *llegando a algún lado*, y además exige que el NPC **no se
-haya movido**. Quedarse quieto sí es señal honesta.
-
-**2. El miedo subía y nunca bajaba.** Sólo decaía cuando no había absolutamente nada cerca,
-así que en una calle con zombis trepaba sin freno hasta que todos se quebraban. En tu log hay
-un `fear=82/86` con **un** solo zombi al lado. Ahora es un promedio que decae: se asienta
-donde la situación lo justifica y baja apenas mejora.
-
-**3. `brain.health` no es la vida actual, es el máximo de spawn.** Se escribe una vez cuando
-nace el NPC y no se toca nunca más. O sea que mi modelo de miedo leía una constante, y la
-rueda tenía el mismo error: un tipo frágil te contestaba "I'm hurt. Badly." estando intacto.
-
-**4. Y la que vos sentiste.** Encontré por qué no te siguen. No es mi código:
-
-> `ZPCompanion.Main` — un compañero a menos de 20 tiles tuyo que ve cualquier enemigo a menos
-> de 8 camina **hacia el enemigo** y sale del programa. Nunca llega al código de seguirte,
-> que está al final de la misma función.
-
-Un compañero cruzando una calle con zombis **no puede** estar siguiéndote. Es estructural. No
-toqué su archivo: ahora, cuando se ve que te vas, nuestro código le impone la tarea de
-seguirte y esa rama nunca llega a preguntarse nada.
-
----
-
-## Qué cambió, en una tabla
-
-| Situación | Qué hace ahora |
+| Qué | Evidencia |
 |---|---|
-| algo a menos de 4 tiles | pelea — lo tiene encima, no hay nada que decidir |
-| vos estás pegando y hay algo a menos de 8 | pelea — sumarse a tu pelea es el punto |
-| vos esprintás, o la distancia crece, o pasa los 12 tiles | **te sigue**, y le imponemos la tarea |
-| no tiene master | pelea dentro de 8 — no hay orden que compita |
+| Memoria durable entre descargas de celda | corrida 03-08 |
+| La rueda de interacción | *"ya se comporta mejor"* |
+| Saqueo acotado | `took 3` respetando el tope; `carrying 1.1 → 6.2 / 8.0` y **parando** |
+| Corte con vidrios rotos | `cut on broken glass \| 1.80 -> 1.55` |
+| El censo produce datos | 189 líneas `AUTO` en la corrida 04-08 16:31 |
+| Los doce subsistemas cargan | doce líneas `ready` |
 
-Y dos cosas más:
-
-- **Una persona por ventana.** Registro de reclamos por `x,y,z`. El primero que llega la
-  trabaja; los demás reciben una espera real y hacen fila en vez de amontonarse.
-- **El módulo de amenaza dejó de decidir.** Estaba tirando una red de 15 tiles y mandando a
-  todos a la misma ventana. Ahora sólo actúa sobre quien la escalera ya puso en "sobrevivir",
-  y una sola vez por episodio.
+De ahora en más, la prueba 0 es sólo mirar que estén las líneas `ready` al arrancar. Si falta
+alguna, pará y decime cuál.
 
 ---
 
-## Nuevo: salud del NPC
+## Lo nuevo de la etapa 03
 
-En la rueda hay una tarjeta **Health**. Abre una ventana con lo que el modelo de Bandits
-realmente simula:
+**1. Retomar lo interrumpido.** Era el criterio de cierre de la etapa, escrito hace tres
+sesiones: *"un superviviente interrumpido mientras saquea mata al zombi y vuelve al
+contenedor"*. Vaciar la cola es lo que hace funcionar la escalera, y también era lo que
+borraba lo que estaban haciendo. Ahora la escalera **guarda la intención** antes de vaciar, y
+el compañero la retoma cuando se calma. Caduca a los ~2 minutos o si quedó a más de 15 tiles.
 
-- **Condition** — vida viva sobre el máximo de esa persona. Verde / ámbar / rojo.
-- **Infection** — el contador propio de Bandits; a 100 se convierte.
-- **Weapon** — si tiene munición o no.
-- Y dice en la cara que las necesidades no se simulan, en vez de dibujar barras vacías.
+**2. Ahora sí se curan.** El disparador de curación de Bandits exige que la cola no tenga
+nada más que movimiento — y con la escalera dándoles cosas que hacer, eso no pasa casi nunca.
+En tu log está la prueba: abriste el panel de John Jones en `condition 0.02 / 1.80`, infectado,
+a dos centésimas de morirse, y **no hay una sola línea `dressed with` en toda la corrida**.
+Ahora la decisión de curarse es nuestra; la acción, la animación y el sonido siguen siendo de
+ellos.
 
-El botón **Bandage** te gasta una venda de verdad (alcohol primero, después normal, después
-sábanas), le sube la condición y le pone la venda visible. **Vale 15 de confianza** — contra 4
-de una conversación. No tiene cooldown porque no lo necesita: sólo aparece si está herido y
-cada uso cuesta un ítem.
+**3. Saquean la casa entera, no un cuarto.** Estaba limitado a la habitación donde estaban
+parados — por eso ambos revisaron cuatro o seis muebles y se detuvieron. Ahora el límite es
+el **edificio**. No puede irse a la casa de al lado.
 
-**Por qué no copié el panel del jugador:** el de vanilla es un diagrama de partes del cuerpo
-alimentado por `BodyDamage`. Un NPC de Bandits no corre sobre ese modelo — su daño es un solo
-número en la entidad. Dibujar el diagrama de vanilla habría sido un cuadro de ceros que
-parece una función.
-
----
-
-## Nuevo: pisamos ZPCompanion (sin reemplazarlo)
-
-Capturo `ZombiePrograms.Companion.Main` y la guardo. Nuestra función decide **sólo** los
-casos donde tenemos opinión y le devuelve todo lo demás a la de ellos, intacta. Su combate,
-sus armas, sus guardposts y su código de seguirte siguen corriendo — y siguen arreglándose
-cuando Slayer los arregle.
-
-**Y encontré por qué nunca lootean.** No es configuración:
-
-> `BanditPrograms.Container.Loot` es **código muerto**. La línea 524 lee
-> `enemyCharacter:getX()` y la 541 lee `endurance`, y ninguno de los dos es parámetro ni
-> local de esa función. Son globales indefinidos: la primera llamada revienta.
-
-Por eso todo el bloque de looting en `ZPCompanion.Main` (líneas 120-215) está comentado. No
-está desactivado esperando ajustes — está desactivado porque crashea. **Nadie ha visto nunca
-a un compañero de Bandits saquear una casa.** Hubo que escribirlo.
-
-### Lo que hacen ahora dentro de una casa
-
-| Situación | Actividad |
-|---|---|
-| adentro, nada adentro con ellos, nadie golpeando | **saquean** |
-| algo ya adentro, o **2+** golpeando afuera | **despejan la zona primero** |
-| adentro y peleando | **cambian a cuerpo a cuerpo** — matar en silencio |
-| **4+** ya adentro | el miedo los sube a sobrevivir → se van |
-
-Saquean **acotado**: máximo 3 ítems por contenedor y hasta el 70% de su capacidad. Los dos
-límites son a propósito — el de ítems para que **no te vacíen la casa antes de que llegues**,
-y el de peso para que no se saturen.
-
-**Sin mochila, buscan mochila primero.** `brain.bag` se asigna al spawn y nunca hubo forma de
-conseguir una; el que nació sin ella se llenaba en tres ítems. Ahora una mochila en el suelo
-vale más que cualquier cosa que pudiera cargar.
-
-### Y lo de sentarse
-
-Tenías razón en el diagnóstico pero la causa era otra: no te estaban copiando. Cuando parás,
-su `Main` cae a `BanditPrograms.Idle`, que es una bolsa de animaciones nerviosas —
-`ChewNails`, `Sneeze`, `WipeBrow`. Parecían esperando el colectivo.
-
-Ahora **no copian que te sientes**. Se sientan si:
-
-- **están realmente cansados** (`brain.endurance < 0.55`), o
-- **son de los que se sientan** — uno de cada cinco, fijo de por vida (`brain.rnd[4]`)
-
-Si no, **miran hacia donde vendría el problema**.
-
-> Detalle que encontré: `brain.endurance` **sólo baja**. `Bandit.UpdateEndurance` se llama
-> desde un solo lugar y todos los programas pasan 0 o negativo — nada en Bandits la
-> devuelve nunca. Así que sentarse ahora la **restaura**, usando el mismo campo
-> `task.endurance` que ellos ya aplican. Es lo único en todo el framework que da energía.
-
----
-
-## Lo que dijo tu corrida del 04-08 16:31
-
-Los doce subsistemas cargaron. **Saqueo confirmado** (`took 3` respetando el tope, `carrying`
-subiendo 1.1 → 6.2 / 8.0 y parando) y **vidrios confirmados**
-(`cut on broken glass | 1.80 -> 1.55`). Tres cosas hay que arreglar y el log las nombró.
-
-**1. Se sentaban con la energía llena.** Contado:
-
-```
-23x  COMP John Jones sits down (just the sort) | endurance 1.00
-```
-
-Veintiuno de los treinta y ocho asientos pasaron a **energía 1.00**, y el censo tiene
-`outdoors ... head=Sleep@nil,nil` — sentado en la calle. Tenías razón en la causa exacta: la
-rama del perezoso no miraba el cansancio **para nada**. Ahora estar cansado es obligatorio
-siempre; ser perezoso sólo mueve dónde está la línea:
-
-| Dónde | Se sienta por debajo de |
-|---|---|
-| adentro, perezoso | 0.80 |
-| adentro, normal | 0.55 |
-| **afuera, cualquiera** | **0.25** — hay que estar reventado |
-
-Y el perezoso **sigue haciendo todo lo demás primero**: buscar mochila, saquear, y sólo
-después sentarse. Si además le gusta leer y lleva un libro, se sienta a leer.
-
-**2. Tardaban una eternidad en seguirte.** El log:
-
-```
-following master at 25.9 tiles (Run) -- falling behind
-```
-
-Dos causas, las dos arregladas:
-
-- **La escalera ponía "pelear" por encima de todo si había un zombi a 4 tiles.** Corriendo
-  vos, él seguía peleando. Ahora sólo un zombi a **1.6 tiles o menos** — que literalmente lo
-  tiene encima — le impide irse. Entre 1.6 y 4, si vos corrés, él corre.
-- **Decidía cada seis segundos.** A sprint eso son unos quince tiles. Ahora seguirte tiene
-  **su propio tick, cada 0.8 segundos**, que no mira nada más: sos mío, te estás yendo, voy.
-
-**3. Se traban en ventanas y vallas — y encontré por qué.** `ClimbFence` existe como acción,
-con su handler funcionando, y Bandits la crea en exactamente dos lugares
-(`BanditUpdate.lua:606` y `:715`). **Los dos están comentados.** Ningún NPC de Bandits salta
-nada a propósito nunca; dependen del pathing del motor, y cuando no puede, se quedan mirando.
-
-Por ahora bajé el perro guardián de 3 a 2 barridos: ~12 segundos en vez de ~18. Es un
-paliativo; está anotado en `docs/TODO.md` con el arreglo real y con la razón para
-desconfiar de destapar el código de ellos.
+Y lo del turno anterior, que aún no probaste: seguimiento rápido, la puerta del sentarse, y
+leer.
 
 ---
 
@@ -206,173 +62,83 @@ tools/sync-mods.sh
 
 ## Las pruebas, en orden
 
-### 1. Todo cargó
+### 0. Arrancó todo
 
-**Pasa si** están estas cuatro líneas nuevas:
-
-```
-SREL| AUTO ready -- survive > fight > obey > errand > idle; the player's intent outranks a distant zombie
-SREL| HEALTH ready -- Health on the wheel; bandaging costs an item and moves trust
-SREL| LOOT ready -- bounded searching; upstream Container.Loot is dead code and unused
-SREL| COMP ready -- wraps ZPCompanion.Main: search, bags, quiet indoors, real rest
-SREL| WOUND ready -- healing costs a dressing; broken glass costs blood
-```
-
-La cuarta es la crítica. Si falta, aparecerá en su lugar
-`COMP could not install -- ZombiePrograms.Companion.Main is not there`, y significa que el
-orden de carga de mods cambió y nada de lo nuevo corre.
+Mirá que estén las doce líneas `ready`. Si falta `COMP ready` o `WOUND ready`, nada de lo
+nuevo está corriendo y el resto de las pruebas no significan nada.
 
 ---
 
-### 2. La prueba que más me sirve: salí corriendo **en medio de una pelea**
+### 1. Salí corriendo en medio de una pelea
 
-Esta vez con zombis al lado, que es donde fallaba.
+**La más importante.** Con zombis al lado, esprintá para el otro lado sin pelear.
 
-**Pasa si** aparece la línea nueva, la del tick rápido, y con **pocos** tiles:
+**Pasa si** sale la línea del tick rápido, y con **pocos** tiles:
 
 ```
 AUTO <nombre> | fast follow at 6.4 tiles (Run) -- master sprinting
 ```
 
-Si el número es mayor a 10, decime — significa que el tick rápido no está entrando y hay que
-mirar por qué. La vieja línea `following master at ...` sigue existiendo para el caso lento
-(quedarse atrás caminando), las dos son válidas.
+**Si el número pasa de 10, avisame** — significa que el tick rápido no entró.
+
+Antes esperaba a 25.9 tiles porque un zombi a 4 le ganaba a que vos corrieras. Ahora sólo uno
+a **1.6 tiles** lo clava en el lugar.
 
 ---
 
-### 2b. El seguimiento normal
+### 2. Que vuelva a lo que estaba haciendo
 
-**Hacé:** con un compañero al lado, metete donde haya zombis y **esprintá para el otro lado
-sin pelear**.
+**Hacé:** metelo en una casa a saquear, y cuando esté abriendo un mueble, traele un zombi.
 
-**Pasa si** te sigue corriendo en vez de quedarse peleando. En el log:
+**Pasa si** salen las dos líneas, en este orden:
 
 ```
-AUTO <nombre> | following master at 6.3 tiles (Run) -- master sprinting
+AUTO <nombre> | sets aside search at 10750,10281
+COMP <nombre> goes back to the search at 10750,10281
 ```
 
-Después alejate más de 12 tiles a propósito y mirá si te encuentra. La tarea nueva te
-persigue a **vos**, no a la baldosa donde estabas, así que perderte no debería ser posible.
+La primera es la escalera guardando la intención antes de vaciar la cola. La segunda es él
+volviendo. **Si sale la primera y nunca la segunda, decime** — se está perdiendo en el camino
+de vuelta.
 
 ---
 
-### 3. El censo — esto es lo que me falta
+### 3. Que se cure solo
 
-Cada cinco barridos ahora sale **una línea por cada NPC cerca**, incluso los que no hacen
-nada. En la corrida anterior sólo tenía datos de uno de cuatro.
+**Hacé:** dejá que un compañero baje de 0.7 de vida (el panel de salud te lo dice) y no lo
+vendes vos. Esperá.
+
+**Pasa si** sale:
 
 ```
-AUTO census | <nombre> | rung=obey fear=12/86 hp=0.72 z=1@6.2 friends=0 master=3.1 head=Move@10750,10280
+COMP <nombre> stops to dress a wound
+WOUND <nombre> dressed with bandage | 0.35 -> 1.71 / 1.80 | risky=false
 ```
 
-**Mandame varias de éstas, de NPC distintos.** El número después del `/` es el límite de
-miedo de esa persona y es suyo de por vida: uno con 30 huye mucho antes que uno con 93. Si
-dos se quiebran al mismo tiempo, el modelo está mal.
+`improvised` en vez de `bandage` también pasa — es el piso, se rasgan la ropa. Lo que **no**
+puede pasar es que llegue a 0.02 como John Jones y no salga ninguna de las dos.
 
 ---
 
-### 4. La ventana
+### 4. La casa entera
 
-**Hacé:** buscá NPC cerca de ventanas con zombis alrededor.
+**Hacé:** entrá a una casa de varias habitaciones y quedate quieto.
 
-**Pasa si** ninguno se queda pegado, y si cuando hay dos, **uno espera**. En el log:
-
-```
-AUTO <nombre> | waits, 9306146 is already working 10783,10299,0
-AUTO <nombre> | stuck on OpenWindow@10864,9833 for 3 sweeps without moving -- queue cleared
-```
-
-Ojo con la segunda: si aparece con `Smack`, `Bandage` o `Time`, avisame — significa que el
-filtro nuevo no alcanzó.
-
----
-
-### 5. Pelear sólo cuando hace falta
-
-**Hacé:** caminá con un compañero pasando cerca de zombis sueltos **sin atacarlos**, yendo a
-algún lado concreto (un auto, una casa).
-
-**Pasa si** te acompaña en vez de irse a cazar. Después pegale a uno vos: ahí sí debería
-sumarse.
-
----
-
-### 6. Salud y venda
-
-**Hacé:** encontrá un NPC herido (o dejá que se lastime), abrí la rueda, elegí **Health**.
-
-**Pasa si** la barra de Condition no está llena, el botón dice `Bandage` teniendo una venda
-encima, y al apretarlo sube la barra. En el log:
-
-```
-HEALTH <nombre> bandaged with Base.Bandage | condition 0.90 -> 1.70 / 2.20 | neutral -> friendly
-```
-
-Si el botón dice `No bandage` teniendo vendas, avisame.
-
----
-
-### 7. Saqueo — la prueba nueva más importante
-
-**Hacé:** entrá en sigilo a una casa **limpia**, con un compañero, y quedate quieto un rato.
-
-**Pasa si** se pone a abrir muebles solo. En el log:
+**Pasa si** las coordenadas de las líneas `searches` **cambian de habitación** — antes se
+quedaba en una sola.
 
 ```
 COMP <nombre> searches 10750,10281 | in=0 out=0
-LOOT <nombre> took 3 from 10750,10281 | carrying 4.2 / 8.0
+COMP <nombre> searches 10758,10275 | in=0 out=0
 ```
 
-**Mirá dos cosas concretas:**
-
-- Que **no te vacíe la casa**: `took 3` es el techo por contenedor. Si ves `took` con más
-  de 3, el límite no está funcionando.
-- Que `carrying` **pare** antes del máximo. Si llega al tope y sigue, avisame.
+Y que **no cruce la calle**. Si lo ves entrar a la casa de al lado, es un bug.
 
 ---
 
-### 8. Despejar antes de saquear
+### 5. Sentarse
 
-**Hacé:** lo mismo pero con zombis golpeando la puerta.
-
-**Pasa si** dejan de saquear y van a matar. En el log el rung cambia a `fight` y el censo
-muestra los números que lo decidieron:
-
-```
-AUTO census | <nombre> | rung=fight ... in=0 out=3 indoors ...
-```
-
-Y adentro deberían **guardar el arma de fuego**:
-
-```
-COMP <nombre> goes quiet indoors (try 1) | in=1 out=2
-```
-
-Si ves `try 1` y `try 2` repetidos sin parar para el mismo NPC, avisame — significa que su
-combate le está devolviendo el arma y hay que atacarlo distinto.
-
----
-
-### 9. La mochila
-
-**Hacé:** tirá una mochila al piso cerca de un compañero **que no tenga una** (mirá el censo:
-`bag=false`).
-
-**Pasa si** va a buscarla y se la pone:
-
-```
-COMP <nombre> wants a bag -- Base.Bag_Schoolbag at 10748,10279
-LOOT <nombre> now carries a Base.Bag_Schoolbag
-```
-
-Después el censo debería decir `bag=true` y su `carrying` máximo debería subir.
-
----
-
-### 10. Sentarse — rehecho
-
-**Hacé:** caminá un rato largo con dos compañeros (para gastarles energía), después parate
-adentro de una casa despejada.
+**Hacé:** caminá un rato largo para gastarles energía, después parate adentro de una casa.
 
 **Pasa si** el número de la izquierda es **siempre menor** que el de la derecha:
 
@@ -381,74 +147,65 @@ COMP <nombre> sits down | endurance 0.42 < 0.55 | indoors
 COMP <nombre> sits down | endurance 0.71 < 0.80 | indoors, the lazy sort
 ```
 
-**Nadie debería sentarse con `endurance 1.00`, y nadie afuera salvo por debajo de 0.25.**
-Si ves cualquiera de las dos cosas, el arreglo no alcanzó.
+**Nadie con `endurance 1.00`, y nadie afuera salvo por debajo de 0.25.** Antes eran 21 de 38
+asientos a energía llena.
 
-Y mirá el orden: un perezoso adentro de una casa con muebles sin abrir debería **saquear
-primero** y recién después sentarse. Si se sienta teniendo cajones sin tocar, decime.
+Y mirá el orden: un perezoso en una casa con muebles sin abrir **saquea primero**. Si se
+sienta teniendo cajones sin tocar, decime.
 
 ---
 
-### 10b. Leer
+### 6. Leer
 
-Un cuarto de los NPC lee. **Hacé:** dale un libro a un compañero y metelo en una casa
-tranquila.
-
-**Pasa si** sale:
+Un cuarto de ellos lee. Dale un libro a un compañero y metelo en una casa tranquila.
 
 ```
 COMP <nombre> sits down with a book | endurance 0.90
 ```
 
-Fijate que puede leer **sin estar cansado** — leer es lo único acá que hacen porque quieren,
-no porque las piernas no dan más.
+Puede leer **sin estar cansado** — es lo único que hacen porque quieren.
 
 ---
 
-### 11. Curación con costo
+### 7. La mochila
 
-Antes se curaban **gratis**: por debajo de 0.4 de vida, `setHealth(1.2)` y listo, sin gastar
-nada. Ahora depende de lo que tengan encima.
+Antes el censo decía `bag=?` para todos por un bug mío, así que esto nunca se pudo ver.
 
-**Hacé:** dejá que un compañero se lastime y observá.
-
-**Pasa si** aparece una línea de éstas:
+**Hacé:** tirá una mochila cerca de un compañero que el censo marque `bag=false`.
 
 ```
-WOUND <nombre> dressed with bandage | 0.35 -> 2.09 / 2.20 | risky=false
-WOUND <nombre> dressed with improvised | 0.31 -> 0.88 / 2.20 | risky=true
+COMP <nombre> wants a bag -- Base.Bag_Schoolbag at 10748,10279
+LOOT <nombre> now carries a Base.Bag_Schoolbag
 ```
 
-`improvised` es el piso: **nadie se desangra teniendo una camiseta puesta**. Si ves
-`improvised` en alguien que sí tenía vendas en el inventario, avisame.
-
-> **Y una corrección mía.** Los que se te murieron desangrados fue culpa nuestra. En tu log
-> estaba tres veces `stuck on Bandage@nil,nil for 3 sweeps -- queue cleared`: el perro
-> guardián les cancelaba la curación **a mitad de la curación**, cada veinte segundos. Ya
-> está arreglado — `Bandage` no está en la lista de tareas vigiladas y no va a estarlo.
+Después `bag=true` y su `carrying` máximo sube.
 
 ---
 
-### 12. Los vidrios cortan
+### 8. Las dos que nunca se dispararon
 
-**Hacé:** rompé una ventana sin limpiar los vidrios y hacé que un NPC la cruce.
+Estas dos no aparecieron ni una vez en tu corrida. No sé si funcionan o si nunca se dio la
+situación.
 
-**Pasa si** sale:
+**Guardar el arma adentro de una casa** — pelealo adentro con un arma de fuego encima:
 
 ```
-WOUND <nombre> cut on broken glass at 10783,10299 | 1.80 -> 1.55 / 2.20
+COMP <nombre> goes quiet indoors (try 1) | in=1 out=2
 ```
 
-**Límite conocido, y quiero que lo verifiques vos.** Esto **muestrea** cada seis segundos, no
-intercepta. Bandits no tiene acción de "cruzar ventana" — el motor los pasa por pathing, así
-que no hay evento que enganchar. Si los ves cruzar varias veces y la línea nunca sale, decime
-y le pongo un tick propio más rápido.
+**Uno espera a que el otro pase la ventana** — necesitás dos NPC yendo a la misma ventana:
+
+```
+AUTO <nombre> | waits, 9306146 is already working 10783,10299,0
+```
+
+Si con la situación armada no salen, decímelo y las miro con otro enfoque.
 
 ---
 
 ## Qué mandarme
 
-`console.txt` y una línea por prueba. De la 3, **cuantas líneas `census` puedas** — es lo
+`console.txt` y una línea por prueba. De las líneas `AUTO census`, cuantas puedas — es lo
 único que me deja juzgar a los NPC que no hacen nada llamativo.
 
 ---
@@ -458,9 +215,11 @@ y le pongo un tick propio más rápido.
 | Etapa | Estado |
 |---|---|
 | [00 — Mundo de pruebas](plans/00-test-world.md) | construida, confirmada a medias |
-| [01 — Memoria durable](plans/01-durable-memory.md) | **confirmada en juego** |
-| [02 — Rueda de interacción](plans/02-interaction-wheel.md) | **confirmada en juego** — "ya se comporta mejor" |
-| [03 — Autonomía](plans/03-autonomy.md) | segunda pasada, **sin confirmar** |
+| [01 — Memoria durable](plans/01-durable-memory.md) | **confirmada** |
+| [02 — Rueda de interacción](plans/02-interaction-wheel.md) | **confirmada** |
+| [03 — Autonomía](plans/03-autonomy.md) | saqueo y vidrios confirmados; retomar, curarse y casa entera **sin probar** |
+| [Heridas y curación](plans/wounds-and-healing.md) | etapa 1 construida; 2 y 3 diseñadas |
 
 Anotado y sin construir, en [`docs/TODO.md`](TODO.md): los bandidos no reaniman, los cadáveres
-no retienen a la horda, y el bug de `ZPCompanion` para reportarle a Slayer.
+no retienen a la horda, y `ClimbFence` está comentado en Bandits — por eso se traban en las
+vallas.

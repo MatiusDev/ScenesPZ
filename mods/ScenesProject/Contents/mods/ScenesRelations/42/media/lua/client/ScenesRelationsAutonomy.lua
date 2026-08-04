@@ -539,6 +539,25 @@ local function sweep()
                     -- what you already started is correct, and clearing on every change
                     -- would mean an NPC that never completes anything at all.
                     if now < before then
+                        -- UNFINISHED BUSINESS. Clearing the queue is what makes the ladder
+                        -- work, and it is also what throws away whatever somebody was in
+                        -- the middle of. The tasks are gone either way -- but the INTENT
+                        -- does not have to be, and remembering it is the difference between
+                        -- "a survivor interrupted while looting kills the zombie and returns
+                        -- to the container" and a survivor who forgets the container ever
+                        -- existed. That sentence is the stage's own done-criterion.
+                        --
+                        -- The ladder never invents an intent. The companion program records
+                        -- what it started; this only moves it somewhere it survives.
+                        if mood.doing then
+                            mood.unfinished = mood.doing
+                            mood.unfinishedAt = sweepNumber
+                            mood.doing = nil
+                            SR.Log(string.format("AUTO %s | sets aside %s at %s,%s",
+                                name, tostring(mood.unfinished.kind),
+                                tostring(mood.unfinished.x), tostring(mood.unfinished.y)))
+                        end
+
                         Bandit.ClearTasks(zombie)
                         mood.taskSig, mood.taskTicks = nil, 0
                         SR.Log(string.format(
@@ -607,6 +626,20 @@ local function sweep()
             if (sweepNumber - held.sweep) >= CLAIM_SWEEPS then claims[key] = nil end
         end
     end
+end
+
+-- Sweeps an interrupted intention survives before it stops being worth going back for.
+-- About two minutes: long enough to outlast a fight, short enough that a survivor does not
+-- walk back across a street to a drawer it forgot about half an hour ago.
+local UNFINISHED_SWEEPS = 20
+
+--- Drop stale unfinished business. Expiry lives here rather than in the companion program
+--- because the sweep counter is here; the alternative was exporting it, and one module
+--- owning both the clock and the timeout is the smaller surface.
+function Autonomy.ForgetIfStale(mood)
+    if not mood.unfinished then return end
+    if (sweepNumber - (mood.unfinishedAt or 0)) < UNFINISHED_SWEEPS then return end
+    mood.unfinished, mood.unfinishedAt = nil, nil
 end
 
 Events.EveryOneMinute.Add(sweep)
