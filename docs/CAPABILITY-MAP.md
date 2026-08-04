@@ -106,26 +106,42 @@ Scavenging behaviour is a matter of choosing when, not of building how.
 | `brain.rnd` | 5 stable ints per NPC, free variation | `BanditServerSpawner.lua:375` |
 | `getModData().scenesRel` | ours: trust, memory, posture | ours |
 
-**Settled 2026-08-03: emotion has to be simulated, not read.** `getStats()` hands back a
-real `Stats{` object, and then every accessor on it fails:
+**RETRACTED, same day.** A first probe called `stats:getPanic()`, `stats:getThirst()` and
+four more, got `ok=false` on all six, and the conclusion recorded here was "the binding does
+not exist for a zombie, emotion must be simulated". That was wrong, and the probe was the
+thing at fault.
+
+**Build 42 has no such methods at all — not even for the player.** The real API is one
+generic accessor over an enum:
+
+```lua
+character:getStats():get(CharacterStat.THIRST)
+```
+
+54 callsites in vanilla. And `CharacterStat` carries **24 values**, far more than was being
+asked for:
 
 ```
-PROBE needs | getStats  ok=true  value=Stats{
-PROBE stat  | getPanic     ok=false
-PROBE stat  | getThirst    ok=false
-PROBE stat  | getHunger    ok=false
-PROBE stat  | getFatigue   ok=false
-PROBE stat  | getStress    ok=false
-PROBE stat  | getEndurance ok=false
+PANIC  STRESS  ANGER  MORALE  SANITY  UNHAPPINESS  BOREDOM  IDLENESS
+PAIN   FATIGUE  ENDURANCE  FITNESS  HUNGER  THIRST  WETNESS  TEMPERATURE
+DISCOMFORT  SICKNESS  POISON  INTOXICATION  FOOD_SICKNESS
+NICOTINE_WITHDRAWAL  ZOMBIE_FEVER  ZOMBIE_INFECTION
 ```
 
-Same shape as the `HaloTextHelper` result: the object is there, the Lua binding for a
-zombie is not. `getBodyDamage()` and `getMoodles()` return `nil` for the same reason.
+It is also demonstrably **not** player-only: `ISAnimalContextMenu.lua:30` and
+`ISVehicleAnimalUI.lua:43` call `animal:getStats():get(CharacterStat.HUNGER)` on an animal.
+So the accessor lives on the shared base and is bound for non-player characters — the
+opposite of the `HaloTextHelper` result above.
 
-This closes the question that gated stage 06. Fear, thirst and panic are ours to model on
-`SR.Mood`, exactly as Bandits already models endurance on `brain.endurance` rather than
-asking the engine. That is more work than reading a number, but it also means the emotion
-curve is ours to tune instead of inheriting the player's.
+**Still open, and now askable properly:** does the engine *tick* those values for a zombie,
+or do they sit at their defaults? The rewritten probe prints panic, stress, thirst, hunger
+and endurance for the nearest NPC once per sweep, so a run produces a time series instead
+of a single reading. Ten sweeps of identical zeros is one answer; drift is the other.
+
+**The lesson is the reverse of the one above and worth holding both at once.** `isNPC()`
+failed because an identifier was copied without checking it existed. This failed because
+an identifier was *invented* from a plausible naming convention. Grepping vanilla for how
+it actually calls the thing would have caught both in under a minute.
 
 ## "I want something to happen in the world"
 

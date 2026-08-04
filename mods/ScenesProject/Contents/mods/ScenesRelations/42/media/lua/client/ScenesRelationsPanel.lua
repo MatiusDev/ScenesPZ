@@ -18,6 +18,7 @@
 
 require "ScenesRelations"
 require "ISUI/ISCollapsableWindow"
+require "ISUI/ISScrollingListBox"
 
 local SR = ScenesRelations
 

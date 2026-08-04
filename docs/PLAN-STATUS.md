@@ -14,14 +14,20 @@ Hoja de ruta completa: [`docs/plans/README.md`](plans/README.md).
 
 Revisé `logs/console.txt` yo, como pediste. Tres cosas.
 
+**Los puntos de control sí estaban en el código.** Lo verifiqué porque preguntaste: las
+líneas `PANEL ready`, `GUARD ready` y `MEMTEST ready` existen (`ScenesRelationsPanel.lua:194`,
+`ScenesRelationsGuard.lua:186`, `ScenesRelationsMemoryTest.lua:160`). Lo que pasa es otra
+cosa.
+
 **El log es de la build anterior.** Tiene marca de tiempo 19:45 y el commit con panel,
 escudo y test de memoria es de las 20:02. Lo que corriste fue `accb957` — la rueda sola.
-Por eso no hay ni una línea `PANEL`, `GUARD` ni `MEMTEST` en ningún log, y por eso los
-puntos 1 y 6 no los puedo dar por validados todavía. La prueba está en el propio log: hay
+`git log --diff-filter=A` dice que esos tres archivos nacieron a las 20:02; el log se
+escribió 17 minutos antes de que existieran. Por eso no hay ni una línea `PANEL`, `GUARD`
+ni `MEMTEST`, y por eso los puntos 1 y 6 no los puedo dar por validados todavía. La prueba está en el propio log: hay
 seis `-25 (attacked)` seguidos, que es exactamente lo que el escudo tendría que haber
 impedido.
 
-**Dos preguntas quedaron cerradas, y las dos con la misma forma.**
+**Una pregunta quedó cerrada y otra tuve que corregirla.**
 
 `HaloTextHelper` **no** funciona sobre un NPC:
 
@@ -34,16 +40,36 @@ Los mensajes que viste sobre la cabeza salían sobre **la tuya**, que es lo que 
 y va a seguir haciendo. Saqué esa sonda: tiraba siete excepciones por sesión para
 reaprender algo ya sabido.
 
-`getStats()` sobre un NPC devuelve un objeto `Stats{`… y **todos sus getters fallan**:
-`getPanic`, `getThirst`, `getHunger`, `getFatigue`, `getStress`, `getEndurance` — los seis
-en `ok=false`. Mismo patrón: el objeto existe, el enlace a Lua para un zombi no.
+**Sobre `getStats()` me equivoqué dos veces, y la segunda la encontraste vos.**
 
-Eso decide la etapa 06: **el miedo y la sed hay que simularlos**, no se pueden leer del
-motor. Es más trabajo, pero también significa que la curva emocional es nuestra para
-ajustar en vez de heredar la del jugador.
+Dije que sus getters fallaban y que por eso había que simular las emociones. Falso. La
+sonda llamaba a `stats:getPanic()`, `stats:getThirst()` y cuatro más — **métodos que no
+existen en Build 42 ni siquiera para el jugador.** El error no era del motor, era mío.
 
-**Retiro una afirmación mía.** Dije que `getStats()` "existe y funciona". Existe; no
-funciona. Me quedé en que el objeto volviera sin comprobar que se pudiera leer.
+La API real es un solo accesor genérico sobre un enum:
+
+```lua
+character:getStats():get(CharacterStat.THIRST)
+```
+
+54 llamadas en vanilla. Y `CharacterStat` tiene **24 valores**, muchos más de los que yo
+pedía: `PANIC`, `STRESS`, `ANGER`, `MORALE`, `SANITY`, `PAIN`, `UNHAPPINESS`, `BOREDOM`,
+`FATIGUE`, `ENDURANCE`, `HUNGER`, `THIRST`, `TEMPERATURE` y más.
+
+Y no es exclusivo del jugador: `ISAnimalContextMenu.lua:30` hace
+`animal:getStats():get(CharacterStat.HUNGER)` sobre un **animal**. Así que el accesor vive
+en la clase base y sí está enlazado para personajes que no son el jugador — lo contrario
+del caso de `HaloTextHelper`.
+
+**Sobre tu pregunta de Java: no hace falta, y tampoco se puede.** Un mod de PZ es Lua más
+datos; no hay ninguna vía en `mod.info` ni en la estructura de carpetas para cargar clases
+Java. La única forma sería modificar el JAR del juego, que no se puede publicar en el
+Workshop y se rompe en cada parche. Pero la pregunta quedó sin objeto: la palanca ya
+existía, yo la estaba llamando mal.
+
+Reescribí la sonda. Ahora imprime cinco estadísticas del NPC más cercano **una vez por
+barrido**, así una corrida da una serie en el tiempo en vez de una sola lectura. Diez
+barridos de ceros idénticos es una respuesta; que se muevan es la contraria.
 
 ---
 
@@ -109,6 +135,18 @@ SREL| SIDEBAR ready
 ```
 
 Si falta alguna, decime cuál y paro ahí — el resto de las pruebas no significarían nada.
+
+**Y buscá también estas dos**, que son la sonda de emociones arreglada:
+
+```
+SREL| PROBE stat | PANIC ok=true value=...
+SREL| PROBE tick | <nombre> | panic=... stress=... thirst=...
+```
+
+La línea `PROBE tick` sale una vez por barrido. **Lo que importa no es el valor, es si
+cambia entre barridos.** Si se queda clavado en los mismos números toda la sesión, el motor
+no los mueve para un NPC y hay que simularlos. Si se mueven solos, la mitad de la etapa 06
+desaparece.
 
 ---
 

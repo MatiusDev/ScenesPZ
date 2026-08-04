@@ -84,6 +84,25 @@ local function sweep()
                         tostring(offer),
                         math.sqrt(dx * dx + dy * dy)))
 
+                    -- DOES THE ENGINE TICK THEM? A single reading only proves the accessor
+                    -- works. The question that decides whether emotion is read or
+                    -- simulated is whether the numbers MOVE on their own, so the first
+                    -- NPC of every sweep prints three of them. Ten sweeps of identical
+                    -- zeros is an answer; ten sweeps of drifting values is the opposite
+                    -- answer, and either way it costs one line a minute to find out.
+                    if seen == 1 and CharacterStat then
+                        local sok, stats = pcall(function() return zombie:getStats() end)
+                        if sok and stats then
+                            local function stat(name)
+                                local ok2, v = pcall(function() return stats:get(CharacterStat[name]) end)
+                                return ok2 and string.format("%.3f", v) or "-"
+                            end
+                            SR.Log(string.format("PROBE tick | %s | panic=%s stress=%s thirst=%s hunger=%s endurance=%s",
+                                tostring(brain.fullname), stat("PANIC"), stat("STRESS"),
+                                stat("THIRST"), stat("HUNGER"), stat("ENDURANCE")))
+                        end
+                    end
+
                     -- Brain shape, once. Confirms what personality and rnd really hold,
                     -- rather than trusting the spawner source we read offline.
                     if not shapeDumped then
@@ -109,20 +128,37 @@ local function sweep()
                                 .. " value=" .. tostring(ok and result or "-"))
                         end
 
-                        -- getStats() came back as a real Stats object on 2026-08-03, so
-                        -- an NPC does carry the player's stat container. That only settles
-                        -- that it EXISTS. Whether the engine ticks it for a zombie -- or
-                        -- whether it sits at its defaults forever -- is a different
-                        -- question, and it decides whether needs are read or simulated.
-                        -- Read the fields; a frozen zero is as informative as a number.
+                        -- READING STATS. The first version of this probe called
+                        -- stats:getPanic(), stats:getThirst() and so on, all six came back
+                        -- ok=false, and the conclusion drawn was "the binding does not
+                        -- exist for a zombie". That conclusion was wrong and the probe was
+                        -- the thing at fault: Build 42 has no such methods AT ALL, not even
+                        -- for the player. The real API is a single generic accessor over an
+                        -- enum:
+                        --
+                        --     character:getStats():get(CharacterStat.THIRST)
+                        --
+                        -- 54 callsites in vanilla, and CharacterStat carries 24 values --
+                        -- far more than was being asked for: PANIC, STRESS, ANGER, MORALE,
+                        -- SANITY, PAIN, UNHAPPINESS, BOREDOM and the rest.
+                        --
+                        -- It is also demonstrably not player-only: ISAnimalContextMenu.lua
+                        -- calls animal:getStats():get(CharacterStat.HUNGER) on an animal.
+                        -- So the accessor lives on the shared base and is bound for
+                        -- non-players, which is the opposite of the HaloTextHelper result.
                         local okStats, stats = pcall(function() return zombie:getStats() end)
-                        if okStats and stats then
-                            for _, getter in ipairs({"getPanic", "getThirst", "getHunger",
-                                                     "getFatigue", "getStress", "getEndurance"}) do
-                                local gok, value = pcall(function() return stats[getter](stats) end)
-                                SR.Log("PROBE stat | " .. getter .. " ok=" .. tostring(gok)
+                        if okStats and stats and CharacterStat then
+                            local wanted = {"PANIC", "STRESS", "FATIGUE", "THIRST", "HUNGER",
+                                            "ENDURANCE", "PAIN", "ANGER", "MORALE", "SANITY",
+                                            "UNHAPPINESS", "BOREDOM"}
+                            for _, name in ipairs(wanted) do
+                                local enum = CharacterStat[name]
+                                local gok, value = pcall(function() return stats:get(enum) end)
+                                SR.Log("PROBE stat | " .. name .. " ok=" .. tostring(gok)
                                     .. " value=" .. tostring(gok and value or "-"))
                             end
+                        elseif not CharacterStat then
+                            SR.Log("PROBE stat | CharacterStat enum is not exposed to Lua here")
                         end
 
                         -- HALO ON AN NPC: ANSWERED, 2026-08-03. It does not work.

@@ -20,6 +20,7 @@ require "ScenesRelations"
 require "ScenesRelationsPanel"
 require "ScenesRelationsGuard"
 require "ISUI/ISEquippedItem"
+require "ISUI/ISButton"
 
 local SR = ScenesRelations
 
