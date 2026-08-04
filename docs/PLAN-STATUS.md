@@ -11,13 +11,21 @@ Full roadmap: [`docs/plans/README.md`](plans/README.md).
 
 | Stage | State |
 |---|---|
-| [00 — Test world](plans/00-test-world.md) | built, never run |
-| [01 — Durable memory](plans/01-durable-memory.md) | built (`a7de2dc`), never run |
+| [00 — Test world](plans/00-test-world.md) | built, partially confirmed |
+| [01 — Durable memory](plans/01-durable-memory.md) | built, **the unload test never got run** |
+| [02 — Interaction wheel](plans/02-interaction-wheel.md) | built, never run |
 
-Both are waiting on the same session. **Nothing new gets built until this run comes back**,
-because two answers from it can rewrite several later stages.
+Next up: [03 — Idle life](plans/03-idle-life.md) — picking things up, wearing them, looting
+where they live.
 
-Next up once they pass: [02 — Salience and forgetting](plans/02-salience-and-forgetting.md).
+### What the last run actually told us
+
+- Trust rises properly when you fight beside somebody. That part works.
+- **The right-click menu made everything else hard to test.** That is why stage 02 exists
+  and why it jumped ahead of the rest of the memory work.
+- The NPCs feel empty between fights. Correct, and stage 03 is the answer.
+- Two questions came back unanswered and they are still the two that matter most: the
+  cell-unload test, and whether the halo text appeared on screen.
 
 ---
 
@@ -27,58 +35,78 @@ Next up once they pass: [02 — Salience and forgetting](plans/02-salience-and-f
 tools/sync-mods.sh
 ```
 
-Non-negotiable. Three of the last four test runs measured a build that was one sync behind,
-and each time we spent the session diagnosing something that was already fixed.
+Then open **Options → Key Bindings** and check where `Talk to survivor` landed. Default is
+**V**. If another mod already owns V, rebind it here — no code change needed.
 
-Then: **start a NEW game.** `OnNewGame` fires only on new games, so loading an existing save
-gets you no companion and proves nothing about stage 00.
+A new game is not required this time. Stage 02 works on any save; only the starting
+companion needs a fresh one.
 
 ---
 
 ## What to test, in order
 
-### 1. Somebody is standing next to you
+### 1. The wheel opens
 
-**Do:** start a new game. Look around.
+**Do:** stand near a survivor. **Hold V.**
 
-**Pass:** exactly one survivor is beside you and follows when you walk. `console.txt` has
-`TLOU| new game -- one companion queued` followed by `TLOU| companion requested at …`.
+**Pass:** a wheel appears in the centre of the screen with their name and trust underneath,
+e.g. `Theodore Kaine   neutral 0`.
 
-**If it fails,** the table in [stage 00](plans/00-test-world.md) says what each symptom
-means — no `TLOU|` lines at all, `Spawner unavailable`, `gave up after 200 ticks`, or
-spawned-but-not-following are four different causes.
+`console.txt` shows `SREL| WHEEL opened on … | 2 options`.
 
----
+**If nothing happens:** check the keybinding first. Then look for `SREL| WHEEL ready` at
+startup — if that line is missing, the file did not load.
 
-### 2. Survivors are living in houses
-
-**Do:** walk into an area you have not explored. Give it a few in-game hours.
-
-**Pass:** you find friendly survivors inside houses who stay in them rather than roaming.
-Their `PROBE` lines show `prog=Defend`.
-
-**Expected non-failure:** houses you already entered will never have them. `spawnHouse`
-refuses any building the player visited in the last 7 in-game days. That is by design
-upstream, not our bug.
+**If it says "Nobody close enough":** the wheel needs somebody within 8 tiles that you have
+line of sight to. Talking through a wall is deliberately not allowed.
 
 ---
 
-### 3. Trust still moves — regression
+### 2. Releasing picks the option
 
-**Do:** tests 1, 2 and 3 in [`docs/TEST-RUNS.md`](TEST-RUNS.md), unchanged.
+**Do:** hold V, move the mouse over a wedge, release.
 
-**Pass:** hitting a friendly survivor drops trust, fighting beside one raises it, and the
-right-click label shows the number. Stage 01 was supposed to change *nothing* about how the
-mod plays. If the behaviour moved, the refactor did something it should not have.
+**Pass:** the action runs. Clicking the wedge instead of releasing must also work.
+
+**Interesting failure:** if releasing closes the wheel without doing anything and
+`console.txt` says `WHEEL closed without a selection` every single time, then reading the
+slice under the cursor on release is not working and we fall back to click-to-select. Say
+so — it is a five-line fix, not a redesign.
 
 ---
 
-### 4. **The one that matters — memory across a cell unload**
+### 3. Talking raises trust
 
-Test 10 in [`docs/TEST-RUNS.md`](TEST-RUNS.md). Everything else is a feature; this decides
-whether an NPC can know you at all.
+**Do:** open the wheel on a stranger and pick **Talk**. Repeat.
 
-1. Fight beside the companion until its trust is clearly above zero.
+**Pass:**
+- Trust rises `+4` per conversation. Green text appears over **your** head.
+- Immediately trying again shows `Talk (nothing more to say yet)` — the cooldown is half an
+  in-game hour, roughly three real minutes.
+- After enough conversations, `Follow me (needs 25 trust)` becomes plain `Follow me`.
+
+**This is the answer to "conversations that raise points".** It is deliberately slower than
+fighting beside somebody — what you risk for a person should outrank what you say to them.
+If it feels too slow to be worth doing at all, tell me and the number moves.
+
+---
+
+### 4. Recruit without ever right-clicking
+
+**Do:** take one survivor from stranger to companion using only the wheel.
+
+**Pass:** you never needed the right-click menu once. When that is true I delete it — it
+still exists this build only because a wheel that failed to open would have left you with
+no way to recruit anybody.
+
+---
+
+### 5. **The one that is still owed — memory across a cell unload**
+
+Test 10 in [`docs/TEST-RUNS.md`](TEST-RUNS.md). This did not get done last time and it is
+the single thing that decides whether the mod's premise holds.
+
+1. Get a companion's trust clearly above zero.
 2. In `console.txt`, find its `PROBE` line. Write down **both** `id=` and `trust=`.
 3. Walk at least ten blocks away. Wait for two `PROBE sweep` lines with no `PROBE` line for
    it in between — that is how you know its cell unloaded.
@@ -86,23 +114,21 @@ whether an NPC can know you at all.
 
 **Pass:** same `id`, same `trust`, `known=true`.
 
-**Each failure means something different** and the table in TEST-RUNS test 10 spells it
-out. The one worth knowing in advance: a *different* `id` means recognition needs the fuzzy
-name-plus-traits fallback, and stages 02 onward slip.
+A *different* `id` means recognition needs the fuzzy name-plus-traits fallback and several
+later stages slip. That is worth knowing now rather than in a month.
 
 ---
 
-### 5. Two seconds of looking at the screen
+### 6. Two seconds of looking at the screen — also still owed
 
-Early in the session, `console.txt` prints two `PROBE halo` lines. `threw=false` is not the
-answer — it only means it did not crash.
+Early in the session `console.txt` prints two `PROBE halo` lines.
 
-**Look at the screen** and tell me whether the words *SCENES probe* actually appeared above
-a survivor's head.
+**Look at the screen** and tell me whether the words *SCENES probe* appeared above a
+survivor's head.
 
-That single observation decides whether an NPC's inner state can be shown in the world or
-whether it needs a UI panel — which is the difference between stage 06 being cheap and
-being a rebuild.
+Right now every message goes above **your** head, because that is the only placement proven
+to work. If it works on an NPC, one function moves and the whole thing reads far better.
+One word answers it.
 
 ---
 
@@ -110,7 +136,6 @@ being a rebuild.
 
 `console.txt`, plus one line per test: number, pass or fail, what you saw.
 
-For test 4, the two `id`/`trust` pairs — before and after — are worth more than any
-description. For test 5, one word.
+For test 5, the two `id`/`trust` pairs. For test 6, one word.
 
-Do not delete the log between tests. The frame numbers are how the order gets reconstructed.
+Do not delete the log between tests.
