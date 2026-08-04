@@ -322,6 +322,16 @@ local function open(player)
         end
     end
 
+    -- Diagnostics ride the wheel while debug is on. It needs exactly what the wheel has
+    -- already chosen -- a survivor in front of you that you have a relationship with --
+    -- and Build 42 ships no Lua prompt to type a command into.
+    if SR.DEBUG and SR.MemTest then
+        options[#options + 1] = {
+            label = "Memory test", available = true, reason = "debug",
+            run = function() SR.MemTest() end,
+        }
+    end
+
     wheel = SRWheelPanel:new(SR.Actions.Name(brain), options)
     wheel:initialise()
     wheel:instantiate()

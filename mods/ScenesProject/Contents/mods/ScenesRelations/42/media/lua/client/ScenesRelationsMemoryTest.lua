@@ -13,10 +13,16 @@
 -- the walking. teleportTo is what vanilla's own debug tools use
 -- (ISFastTeleportMove.lua:12, DebugContextMenu.lua:1185).
 --
--- TWO PRESSES, NOT A TIMER
--- Press once to leave, watch the log until the sweeps stop mentioning your survivor, press
--- again to come back. A timer would have to guess how long unloading takes, and guessing
--- is what this whole test exists to stop.
+-- ONE TRIGGER, NOT TWO
+-- The first version needed two presses: leave, wait, come back. That was wrong for a
+-- reason that only shows up when you try to use it -- after the first press you are 700
+-- tiles from anybody, so there is no NPC to open the wheel on and no way to trigger the
+-- second half from the same interface.
+--
+-- It also asked the player to judge when the cell had unloaded, which is the kind of
+-- guessing this test exists to remove. So it now runs itself: leave, wait a fixed number
+-- of in-game minutes, come back, print the verdict. Three minutes is far longer than an
+-- unload needs at 700 tiles and costs about twenty real seconds.
 --
 -- THE ANSWER COMES FROM THE STORE, NOT FROM FINDING THE BODY
 -- On return it asks the store for the id directly. Whether an entity happens to be
@@ -32,6 +38,10 @@ local SR = ScenesRelations
 local AWAY = 700
 
 local pending = nil
+
+-- In-game minutes to stay away. An unload at 700 tiles is immediate; this is slack.
+local WAIT_MINUTES = 3
+local waited = 0
 
 local function nearestSurvivor(player)
     if not BanditZombie or not BanditZombie.GetAllB then return nil end
@@ -90,7 +100,7 @@ local function leave(player)
     player:teleportTo(pending.x + AWAY, pending.y + AWAY, 0)
 
     if HaloTextHelper then
-        HaloTextHelper.addText(player, "Away. Wait, then press the key again")
+        HaloTextHelper.addText(player, "Away. Coming back in " .. WAIT_MINUTES .. " minutes")
     end
 end
 
@@ -139,13 +149,31 @@ local function comeBack(player)
     end
 end
 
---- Typed into the debug Lua console, not bound to a key.
+local function tick()
+    if not pending then
+        Events.EveryOneMinute.Remove(tick)
+        return
+    end
+
+    waited = waited + 1
+    if waited < WAIT_MINUTES then
+        SR.Log(string.format("MEMTEST waiting | %d of %d in-game minutes", waited, WAIT_MINUTES))
+        return
+    end
+
+    Events.EveryOneMinute.Remove(tick)
+
+    local player = getSpecificPlayer(0)
+    if player then comeBack(player) end
+end
+
+--- Runs the whole test. Offered on the interaction wheel while SR.DEBUG is on, because
+--- the wheel already picks exactly what this needs: a survivor standing in front of you
+--- that you have a relationship with.
 ---
---- A test you run three times in a project's lifetime does not deserve a keybinding --
---- vanilla already claims every letter except K, and a diagnostic should not compete with
---- the controls you use to stay alive. Type it, twice:
----
----     ScenesRelations.MemTest()
+--- Not a keybinding: vanilla claims every letter but K, and a diagnostic should not compete
+--- with the controls you use to stay alive. Not a console command either -- Build 42 ships
+--- no Lua prompt. LuaDebugger.lua is a breakpoint debugger, not somewhere you can type.
 function SR.MemTest()
     local player = getSpecificPlayer(0)
     if not player then
@@ -153,9 +181,18 @@ function SR.MemTest()
         return
     end
 
-    if pending then comeBack(player) else leave(player) end
+    if pending then
+        SR.Log("MEMTEST already running -- it comes back on its own")
+        return
+    end
+
+    leave(player)
+    if not pending then return end   -- leave() refused: no survivor, or no record yet
+
+    waited = 0
+    Events.EveryOneMinute.Add(tick)
 end
 
 Events.OnGameStart.Add(function()
-    SR.Log("MEMTEST ready -- type ScenesRelations.MemTest() in the console, twice")
+    SR.Log("MEMTEST ready -- 'Memory test' on the interaction wheel, while debug is on")
 end)
