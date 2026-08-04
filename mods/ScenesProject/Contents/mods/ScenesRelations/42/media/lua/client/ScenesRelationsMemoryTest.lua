@@ -33,8 +33,6 @@ local AWAY = 700
 
 local pending = nil
 
-table.insert(keyBinding, { value = "Memory test", key = Keyboard.KEY_M })
-
 local function nearestSurvivor(player)
     if not BanditZombie or not BanditZombie.GetAllB then return nil end
     local ok, bandits = pcall(BanditZombie.GetAllB)
@@ -141,16 +139,23 @@ local function comeBack(player)
     end
 end
 
-Events.OnKeyPressed.Add(function(key)
-    if not getCore():isKey("Memory test", key) then return end
-
+--- Typed into the debug Lua console, not bound to a key.
+---
+--- A test you run three times in a project's lifetime does not deserve a keybinding --
+--- vanilla already claims every letter except K, and a diagnostic should not compete with
+--- the controls you use to stay alive. Type it, twice:
+---
+---     ScenesRelations.MemTest()
+function SR.MemTest()
     local player = getSpecificPlayer(0)
-    if not player then return end
+    if not player then
+        SR.Log("MEMTEST no player")
+        return
+    end
 
     if pending then comeBack(player) else leave(player) end
-end)
+end
 
 Events.OnGameStart.Add(function()
-    SR.Log("MEMTEST ready -- press the 'Memory test' key (default M) beside a survivor "
-        .. "you have a relationship with, wait, press again")
+    SR.Log("MEMTEST ready -- type ScenesRelations.MemTest() in the console, twice")
 end)

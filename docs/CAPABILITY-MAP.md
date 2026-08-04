@@ -35,9 +35,23 @@ this project lost two sessions to `isNPC()`.
 survivor whose trust just crossed a tier could say so in green above its head, and the
 player would never need to read a log or open a menu.
 
-**Not verified:** whether `HaloTextHelper` accepts an `IsoZombie` as the character. Every
-callsite found passes a player. One probe settles it, and the whole "floating indicator
-above the NPC" idea depends on it.
+**Settled 2026-08-03, and the answer is no.** `HaloTextHelper` does **not** accept an
+`IsoZombie`. The probe threw and the engine said why:
+
+```
+java.lang.RuntimeException: No implementation found for function:
+addText(class zombie.characters.IsoZombie ..., class java.lang.String SCENES probe)
+```
+
+The method exists on the shared base class, every vanilla callsite passes a player, and the
+Java binding simply has no `IsoZombie` overload. So the "floating indicator above the NPC"
+idea is dead in this form — all feedback renders above the **player**. Making an NPC's
+inner state visible in the world needs either `Bandit.Say` (16 fixed phrases, with voice)
+or a custom drawn overlay.
+
+**The wider lesson, worth keeping:** a method existing on `IsoGameCharacter` does not mean
+it is bound for `IsoZombie`. Two separate findings the same day landed on this, so treat
+every character API as player-only until a probe says otherwise.
 
 ## "I want the player to trigger something"
 
@@ -85,17 +99,49 @@ Scavenging behaviour is a matter of choosing when, not of building how.
 
 | Mechanism | State | Verified |
 |---|---|---|
-| `zombie:getStats()` | **returns a real Stats object** | probed 2026-08-03 |
+| `zombie:getStats()` | returns a `Stats{` object, but **every getter on it fails** | probed 2026-08-03 |
 | `zombie:getBodyDamage()` | returns `nil` | probed 2026-08-03 |
 | `zombie:getMoodles()` | returns `nil` | probed 2026-08-03 |
 | `brain.endurance` / `health` / `infection` / `sleep` | Bandits' own parallel model | `Bandit.lua:423` |
 | `brain.rnd` | 5 stable ints per NPC, free variation | `BanditServerSpawner.lua:375` |
 | `getModData().scenesRel` | ours: trust, memory, posture | ours |
 
-**The open question that gates the whole emotion layer:** the Stats object exists, but does
-the engine *tick* it for a zombie, or does it sit at defaults forever? Panic, thirst,
-hunger, fatigue and stress are being read by the probe now. If they move on their own,
-emotions are read rather than simulated and half the design disappears.
+**RETRACTED, same day.** A first probe called `stats:getPanic()`, `stats:getThirst()` and
+four more, got `ok=false` on all six, and the conclusion recorded here was "the binding does
+not exist for a zombie, emotion must be simulated". That was wrong, and the probe was the
+thing at fault.
+
+**Build 42 has no such methods at all — not even for the player.** The real API is one
+generic accessor over an enum:
+
+```lua
+character:getStats():get(CharacterStat.THIRST)
+```
+
+54 callsites in vanilla. And `CharacterStat` carries **24 values**, far more than was being
+asked for:
+
+```
+PANIC  STRESS  ANGER  MORALE  SANITY  UNHAPPINESS  BOREDOM  IDLENESS
+PAIN   FATIGUE  ENDURANCE  FITNESS  HUNGER  THIRST  WETNESS  TEMPERATURE
+DISCOMFORT  SICKNESS  POISON  INTOXICATION  FOOD_SICKNESS
+NICOTINE_WITHDRAWAL  ZOMBIE_FEVER  ZOMBIE_INFECTION
+```
+
+It is also demonstrably **not** player-only: `ISAnimalContextMenu.lua:30` and
+`ISVehicleAnimalUI.lua:43` call `animal:getStats():get(CharacterStat.HUNGER)` on an animal.
+So the accessor lives on the shared base and is bound for non-player characters — the
+opposite of the `HaloTextHelper` result above.
+
+**Still open, and now askable properly:** does the engine *tick* those values for a zombie,
+or do they sit at their defaults? The rewritten probe prints panic, stress, thirst, hunger
+and endurance for the nearest NPC once per sweep, so a run produces a time series instead
+of a single reading. Ten sweeps of identical zeros is one answer; drift is the other.
+
+**The lesson is the reverse of the one above and worth holding both at once.** `isNPC()`
+failed because an identifier was copied without checking it existed. This failed because
+an identifier was *invented* from a plausible naming convention. Grepping vanilla for how
+it actually calls the thing would have caught both in under a minute.
 
 ## "I want something to happen in the world"
 
