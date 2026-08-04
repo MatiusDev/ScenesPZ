@@ -1,6 +1,7 @@
 # Stage 01 — durable memory
 
-**Status: built (commit `a7de2dc`), awaiting confirmation in a real save.**
+**Status: DONE.** The memory test passed in a real session on 2026-08-04: an NPC's record
+survived its cell unloading and came back intact under the same id.
 
 This is the stage the whole mod rests on. Everything else is a feature; this decides
 whether an NPC can know you at all.

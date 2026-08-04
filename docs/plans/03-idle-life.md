@@ -1,6 +1,8 @@
 # Stage 03 — idle life
 
-**Status: next. Not started.**
+**Status: first slice built (ground items -> pick up -> wear), never run.**
+Containers, lost possessions and trading are the rest of the stage and wait on this
+one being confirmed in a real session.
 
 > *"Les hace falta actividades aleatorias… si ven un sombrero en el suelo haya una
 > probabilidad de que lo guste, lo recoja y se lo ponga. Si tiene un sombrero suyo, y se le

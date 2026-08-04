@@ -10,81 +10,58 @@ Hoja de ruta completa: [`docs/plans/README.md`](plans/README.md).
 
 ---
 
-## Lo que salió de la corrida anterior
+## Lo que cambió
 
-**Encontré el fallo que se repetía, y era mío.** 511 excepciones idénticas, una por frame:
+**El memory test pasó — la etapa 01 queda cerrada.** El almacén durable funciona: un NPC te
+recuerda después de que su celda se descarga. Era la pregunta que sostenía todo el mod.
 
-```
-java.lang.RuntimeException: Object tried to call nil in setTextureColor
-  Lua(Vanilla).setTextureColor(ISButton.lua:184)
-  Lua((MOD:ScenesPZ Relations)).prerender(ScenesRelationsSidebar.lua:100)
-```
+**La rueda ya no reacciona al cursor, solo al soltar.** Tenías razón en que se devolvía
+antes de que eligieras: pasar el cursor por algo es lo que hacés *de camino* a otra cosa,
+así que usarlo para confirmar es confirmar por accidente. Ahora:
 
-`getTexture("media/ui/emotes/stop.png")` devolvía `nil`. Esa ruta aparece tal cual en el
-Lua de vanilla, pero el PNG no se resuelve acá — que una cadena esté en un archivo del
-juego no significa que el recurso exista. Botón sin textura, `setTextureColor` explota.
+| Soltás sobre | Pasa |
+|---|---|
+| una acción | se ejecuta y la rueda cierra |
+| **Talk** | abre el anillo de preguntas y **la rueda sigue abierta** |
+| el centro, en un submenú | vuelve al anillo principal |
+| el centro, en el principal | cierra |
 
-Y `pcall` no salvó nada: atrapa el error de Lua, pero **el motor loguea la excepción de
-Java igual**. Por eso el log de 3 MB era casi solo eso, y las líneas `ready` quedaron
-sepultadas.
+Después de abrir el submenú ya no estás manteniendo la tecla, así que volvé a mantener **V**
+y soltá sobre la pregunta — o simplemente hacé clic. Un clic y un soltar hacen exactamente
+lo mismo, es el mismo código.
+
+El centro ahora dice *"release here to go back"*. Es una etiqueta, no un botón: no hace nada
+hasta que soltás encima.
+
+**SAFE y WHO salieron de la columna de vanilla.** No valía la pena pelear la posición:
+`ISEquippedItem` arma su columna con un desplazamiento acumulado y botones que aparecen y
+desaparecen según lo que tengas en la mano, si el debug está activo y si es multijugador.
+Ganar esa discusión una vez no significa ganarla en el próximo parche. Ahora es un panel
+propio, **y lo podés arrastrar a donde quieras**.
+
+**El punto 7 lo resuelve la sonda sola.** Que no supieras cómo probarlo fue culpa de la
+instrucción, no tuya — pedirte comparar cinco números a ojo en un log de 3 MB no era
+razonable. Ahora la sonda guarda su primera lectura y escribe el veredicto sola.
 
 ---
 
-## Lo que cambió ahora
+## Etapa 03 — Vida propia, primera rebanada
 
-**BUG CRÍTICO ARREGLADO: `option.run()` sin argumentos.** Las funciones `runFollow`,
-`runJoin`, `runLeave` en `ScenesRelationsActions.lua` esperan `(player, bandit)`, pero la
-rueda las llamaba como `option.run()` sin argumentos. Eso pasaba `nil` a
-`BanditBrain.Get(nil)` y `BanditMenu.SwitchProgram(nil, nil, ...)`, lo que lanzaba
-`attempted index: getModData of non-table: null` — el error que hacía que Follow me / Join
-me / Leave me no funcionaran. Ahora cada opción de la rueda está envuelta en una closure
-que captura `player` y `bandit`.
+**Lo que hace:** un sobreviviente ve algo en el suelo que le gustaría, camina hasta ahí, lo
+recoge y **se lo pone**.
 
-**Radio de la rueda: 8 → 3 tiles.** Antes se abría a 8 tiles (rango de engagement de
-zombis). Ahora solo se abre a 3 tiles — distancia de conversación natural. Si no hay nadie
-cerca, V es completamente silenciosa: sin mensaje flotante.
+**Lo que todavía no hace:** lootear contenedores, recuperar algo que se le cayó, comerciar.
+Eso es el resto de la etapa 03 y se construye cuando esta rebanada esté confirmada en una
+partida real. Media etapa que funciona vale más que una entera que nunca corrió.
 
-**Submenú Talk: back con delay.** Antes pasar el cursor por el centro cerraba el submenú
-instantáneamente. Ahora el cursor debe permanecer en el centro ~130ms (8 frames a 60fps)
-antes de que el submenú se cierre. Un paso rápido por el medio no te saca.
+**El gusto es un rasgo, no un dado.** Sale de `brain.rnd`, fijo al spawn. Aproximadamente un
+tercio de los sobrevivientes le presta atención a la ropa, y a cuál — sombreros, mochilas o
+chaquetas — también es suyo de por vida. El que recoge todos los sombreros los recoge
+**siempre**, y eso es algo que aprendés de él. Un azar por tick los volvería a todos la misma
+persona comportándose de forma inconsistente, que es lo contrario del objetivo.
 
-**Memory test vuelve a una tecla: K.** En la rueda no funcionaba bien porque cerraba la UI
-y el usuario no podía ver el resultado. Vanilla no reclama la tecla K (es la única letra
-libre del alfabeto en `keyBinding.lua`). Presioná K al lado de un sobreviviente con el que
-tengas relación.
-
-**Rueda propia, dibujada por nosotros.** `ISRadialMenu` no era un problema de estilo: el
-lado Java es dueño del dibujo y solo pinta el texto de un gajo cuando el cursor ya está
-encima. Por eso volvía a lo mismo hicieras lo que hicieras.
-
-Ahora cada opción es una **tarjeta con texto** puesta sobre un círculo. Nosotros las
-colocamos, así que sabemos exactamente dónde están — se acabó el cálculo de ángulos.
-
-**Dos niveles.** Al pasar el cursor por **Talk** se abre un segundo anillo:
-
-| Pregunta | Responde con |
-|---|---|
-| Who are you? | nombre y si pertenece a un grupo |
-| What are you doing? | su programa en palabras, *"I'm holding this place."* |
-| How are you holding up? | su salud en bandas, no en números |
-| What are you like? | **no construido** — necesita la etapa de rasgos |
-
-Las cuatro preguntas cuentan como **una sola conversación**: el descanso se comprueba una
-vez, así que preguntar cuatro cosas seguidas no da 16 puntos.
-
-**Lo no construido lo dice.** `Trade` está en la rueda y contesta *"I can't do that yet -
-trading"* en texto flotante. Igual `What are you like?`. Todo pasa por una única función
-`SR.Wheel.NotYet`, así que cuando algo se construya hay un solo lugar que borrar.
-
-**Los botones de la barra izquierda ya no usan texturas.** Ahora son botones de texto con
-fondo: **SAFE** en verde cuando la protección está activa, **HIT** en rojo cuando no. Todo
-lo que hace ese código ahora es asignar tablas de Lua — no puede reventar.
-
-**Reglas de revisión.** Creé `docs/CODE-REVIEW-RULES.md` con once reglas, cada una escrita
-a partir de un bug real que costó una sesión, y el agente revisor `pz-review` que las
-aplica. Las apliqué a este código antes de commitear: los siete identificadores nuevos
-(`drawRectBorder`, `drawTextCentre`, `UIFont.Medium`, `getMouseX`, `ISPanel:derive`,
-`addToUIManager`, `getPlayerScreenLeft`) tienen callsite verificado en vanilla.
+**La regla que más importa:** nada de esto puede interrumpir una pelea ni una orden. El
+chequeo de ocio es estricto — cola de tareas vacía, ningún zombi cerca, y no está huyendo.
 
 ---
 
@@ -98,124 +75,91 @@ tools/sync-mods.sh
 
 ## Las pruebas, en orden
 
-### 1. Se acabaron las excepciones
+### 1. Todo cargó y nada explota
 
-**Hacé:** entrá, jugá dos minutos, salí y buscá en `console.txt` la palabra
-`setTextureColor`.
+**Hacé:** entrá, jugá dos minutos, salí y buscá `setTextureColor` en `console.txt`.
 
-**Pasa si** no aparece **ninguna vez**. Antes salía 511.
-
-Y confirmá que estén las seis líneas de arranque:
+**Pasa si** no aparece. Y si están las siete líneas de arranque:
 
 ```
-SREL| STORE ready      SREL| GUARD ready
-SREL| WHEEL ready      SREL| MEMTEST ready
-SREL| PANEL ready      SREL| SIDEBAR ready
+SREL| STORE ready    SREL| GUARD ready     SREL| SIDEBAR ready
+SREL| WHEEL ready    SREL| MEMTEST ready   SREL| IDLE ready
+SREL| PANEL ready
 ```
 
 ---
 
-### 2. La rueda, ahora con texto
+### 2. La rueda selecciona al soltar
 
-**Hacé:** acercate a **3 tiles** de un sobreviviente y mantené **V**.
-
-**Pasa si:**
-- Ves **tarjetas con el nombre de cada acción escrito adentro**: `Talk`, `Trade`,
-  `Follow me`. Sin pasar el cursor por encima.
-- En el centro está el nombre del sobreviviente. Sin número de confianza.
-- La tarjeta bajo el cursor se ilumina en verde.
-- `Trade` se ve en rojo apagado con `(not built)` debajo.
-- **Si no hay nadie a 3 tiles, V no hace nada** — sin mensaje flotante.
-
----
-
-### 3. El submenú de conversación
-
-**Hacé:** con la rueda abierta, **poné el cursor sobre Talk**.
+**Hacé:** mantené **V** cerca de alguien, movete sobre una tarjeta, soltá.
 
 **Pasa si:**
-- El anillo se reemplaza por las cuatro preguntas.
-- En el centro aparece el nombre del sobreviviente (no `< back` — eso ya no existe).
-- **Para volver al menú principal, mové el cursor al centro y dejalo ahí un momento**
-  (~1/8 de segundo). Un paso rápido por el centro no cierra el submenú.
-- Soltá **V** sobre una pregunta y la respuesta sale como texto flotante sobre vos.
-- `What are you like?` sale gris con `(traits not built)` y contesta *"I can't do that
-  yet"*.
+- Ya **no** se devuelve solo al pasar el cursor por el centro.
+- Soltar sobre `Talk` abre las preguntas y la rueda **se queda abierta**.
+- Volvé a mantener **V** (o hacé clic) y soltá sobre una pregunta: sale la respuesta.
+- Soltar en el centro dentro del submenú vuelve al anillo principal.
+- Soltar en el centro del anillo principal cierra.
 
 ---
 
-### 4. Los botones de la barra izquierda
+### 3. Los botones ya no tapan nada
 
-**Hacé:** mirá debajo del corazón.
+**Hacé:** mirá el borde izquierdo, a media altura.
 
-**Pasa si** hay dos botones con texto: **SAFE** (verde) y **WHO**. Clic en SAFE lo pone en
-**HIT** rojo. Clic en WHO abre el panel de relaciones.
+**Pasa si** hay un panelito con **SAFE** y **WHO** que **no** se superpone con los íconos de
+construcción, y podés **arrastrarlo**.
 
 ---
 
-### 5. El escudo — sigue pendiente de la corrida anterior
+### 4. Vida propia — la nueva
 
-Con un aliado al lado, pegale a propósito. **Mirá si le baja la vida.** Y buscá en el log:
+**Hacé, en este orden:**
+
+1. Conseguí dos o tres sobrevivientes cerca.
+2. Tirá al suelo delante de ellos **un sombrero, una mochila y una chaqueta**.
+3. Alejate un poco y esperá. Que no haya zombis cerca.
+
+**Pasa si:**
+- **Algunos** van, lo recogen y se lo ponen. **Otros pasan de largo.** Las dos cosas son
+  correctas — solo un tercio son así.
+- En el log: `IDLE <nombre> wants Base.Hat_... at x,y` y después
+  `IDLE <nombre> put on Base.Hat_...`.
+- **El mismo sobreviviente se comporta igual la segunda vez.** Eso es lo que prueba que es
+  un rasgo y no un azar.
+
+**Y la prueba que de verdad importa:** mientras uno va caminando hacia el objeto, **traé un
+zombi**. Tiene que abandonarlo. Si sigue caminando hacia el sombrero mientras algo te está
+mordiendo, eso es un fallo y hay que arreglarlo antes que nada.
+
+---
+
+### 5. El escudo — sigue pendiente
+
+Con un aliado al lado, pegale a propósito. **¿Le baja la vida?** Y buscá:
 
 ```
 GUARD setInvincible is not available on IsoZombie
 ```
 
-Si aparece, la invulnerabilidad tampoco funciona sobre NPC.
-
 ---
 
-### 6. El test de memoria
+### 6. Las emociones, ahora con veredicto automático
 
-**Hacé:** parate al lado de un sobreviviente con el que ya tengas relación (confianza > 0).
-Presioná **K**.
-
-**Pasa si:**
-- Aparece texto flotante: *"Away. Coming back in 3 minutes"*.
-- Esperás ~20 segundos reales (3 minutos in-game).
-- Aparece el veredicto como texto flotante: *"Remembered: [nombre] [trust]"* o
-  *"Forgotten: [nombre]"*.
-- En el log aparece `MEMTEST VERDICT PASS` (o `PARTIAL` / `FAIL`).
-
-**Si K no hace nada:** probablemente no tenés relación con ese NPC todavía — hablá o
-peleá junto a él primero.
-
----
-
-### 7. ¿El motor mueve las emociones de un NPC?
-
-Buscá las líneas `PROBE tick` — sale una por barrido:
+No tenés que comparar nada. Buscá una de estas dos líneas:
 
 ```
-SREL| PROBE tick | Luca Cruz | panic=0.000 stress=0.000 thirst=0.100 ...
+PROBE stat VERDICT MOVES   -- el motor sí las mueve, se pueden leer
+PROBE stat VERDICT FROZEN  -- diez barridos sin cambio, hay que simularlas
 ```
 
-**Lo que importa no es el valor, es si cambia entre barridos.** Si queda clavado toda la
-sesión, hay que simular las emociones. Si se mueve solo, media etapa 06 desaparece.
-
----
-
-### 8. Follow me / Join me / Leave me funcionan desde la rueda
-
-**Hacé:** con la rueda abierta sobre un sobreviviente que no te sigue, soltá **V** sobre
-**Follow me**.
-
-**Pasa si:**
-- Aparece texto flotante: *"[nombre] will walk with you"*.
-- En el log: `ACT [nombre] | follow | trust=... loyal=false master=...`
-- El NPC empieza a seguirte.
-
-**Repetí** para **Join me** (cuando ya te sigue y tenés 60+ de confianza) y **Leave me**
-(cuando te sigue). Cada uno debe producir su propio texto flotante y una línea `ACT` en el
-log. Si alguno lanza un error de Java (`RuntimeException`), reportalo inmediatamente —
-eso era el bug que acabamos de arreglar.
+Sale sola después de unos minutos con un NPC cerca.
 
 ---
 
 ## Qué mandarme
 
-`console.txt` y una línea por prueba. De la 5, si le bajó la vida. De la 7, dos líneas
-`PROBE tick` separadas en el tiempo para poder compararlas.
+`console.txt` y una línea por prueba. De la 4, si alguno abandonó el objeto al llegar un
+zombi. De la 5, si le bajó la vida. De la 6, cuál de las dos líneas salió.
 
 ---
 

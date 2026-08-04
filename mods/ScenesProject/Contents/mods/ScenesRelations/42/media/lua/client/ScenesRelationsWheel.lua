@@ -13,10 +13,21 @@
 -- a rectangle check instead of an angle guess. The old version had to compute where slice
 -- zero began because Java would not say; here we place the cards, so we know.
 --
--- TWO LEVELS
--- Hovering an option that has questions behind it opens a second ring in place of the
--- first. Talk is the one that does today: who are you, what are you doing, how are you
--- holding up. Moving the cursor back to the middle returns to the top level.
+-- TWO LEVELS, AND WHY NOTHING HAPPENS ON HOVER
+-- The first version opened the question ring the moment the cursor crossed Talk, and
+-- closed it the moment the cursor crossed the middle. Reported from play: it would jump
+-- back before you had finished choosing. That is not a tuning problem -- hovering is
+-- something you do on the way somewhere, so using it to commit means committing by
+-- accident.
+--
+-- Nothing here reacts to hover any more. Releasing is the only thing that acts:
+--
+--   release on an action    -> run it, close
+--   release on Talk         -> open the question ring, stay open
+--   release on the middle   -> go back one level, or close if already at the top
+--
+-- The wheel stays open after opening a submenu, so hold the key again (or just click) to
+-- pick a question. A mouse click does exactly what a release does -- same code path.
 --
 -- HONEST ABOUT WHAT DOES NOT EXIST YET
 -- Trade is on the wheel and does nothing, on purpose. So is asking what somebody is like,
@@ -188,9 +199,11 @@ function SRWheelPanel:render()
     -- panel, where it can be a bar you read rather than a figure you decode mid-swing.
     self:drawTextCentre(self.subject, self.width / 2, self.height / 2 - 8,
         1, 1, 1, 1, UIFont.Medium)
+    -- The middle is the way back, and it has to say so or nobody would find it. It is a
+    -- label, not a button: it does nothing until you release on it.
     if self.inSubmenu then
-        self:drawTextCentre("< back", self.width / 2, self.height / 2 + 10,
-            0.6, 0.6, 0.6, 1, UIFont.Small)
+        self:drawTextCentre("release here to go back", self.width / 2, self.height / 2 + 10,
+            0.55, 0.55, 0.55, 1, UIFont.Small)
     end
 
     for i, option in ipairs(self.options) do
@@ -238,23 +251,41 @@ function SRWheelPanel:leaveSubmenu()
     self.inSubmenu = false
 end
 
---- Runs whatever the cursor is on. Returns true if something happened.
+--- Acts on whatever the cursor is over. Returns what happened, so the caller knows
+--- whether the wheel should close: "ran", "opened", "back", "close" or "nothing".
 function SRWheelPanel:choose()
     local index = self:hovered()
-    if not index then return false end
+
+    -- Nothing under the cursor means either the middle or outside the ring. In a submenu
+    -- the middle is the way back; at the top level there is nowhere further back to go, so
+    -- it closes.
+    if not index then
+        if self.inSubmenu then
+            self:leaveSubmenu()
+            return "back"
+        end
+        return "close"
+    end
 
     local option = self.options[index]
-    if not option then return false end
+    if not option then return "nothing" end
 
-    -- A submenu parent is a doorway, not a choice. Releasing on it does nothing rather
-    -- than firing something the player did not pick.
-    if option.submenu then return false end
+    if option.submenu then
+        self:enterSubmenu(option.submenu)
+        return "opened"
+    end
 
     if option.run then
         option.run()
-        return true
+        return "ran"
     end
-    return false
+    return "nothing"
+end
+
+--- A click is the same commitment as a release, so it runs the same code. Without this,
+--- the wheel would be unusable after a submenu opens and the key is no longer held.
+function SRWheelPanel:onMouseUp(x, y)
+    if self.onCommit then self.onCommit() end
 end
 
 function SRWheelPanel:new(subject, options)
@@ -299,6 +330,8 @@ local function nearestSurvivor(player)
     end
     return best
 end
+
+local commit   -- defined below; open() stores it on the widget for mouse clicks
 
 local function close()
     if wheel then
@@ -349,6 +382,7 @@ local function open(player)
     -- result. A dedicated key is cleaner. See ScenesRelationsMemoryTest.lua.
 
     wheel = SRWheelPanel:new(SR.Actions.Name(brain), options)
+    wheel.onCommit = commit
     wheel:initialise()
     wheel:instantiate()
     wheel:addToUIManager()
@@ -372,19 +406,31 @@ local function onKeyKeep(key)
     open(player)
 end
 
+--- One place decides what a commitment means, whether it arrived as a key release or a
+--- mouse click.
+function commit()
+    if not wheel then return end
+
+    local ok, verdict = pcall(function() return wheel:choose() end)
+    if not ok then
+        SR.Log("WHEEL selection failed: " .. tostring(verdict))
+        close()
+        return
+    end
+
+    -- Only running an action or backing out of the top level ends the interaction.
+    -- Opening a submenu and stepping back into the root both leave it on screen.
+    if verdict == "ran" or verdict == "close" then
+        close()
+    else
+        SR.Log("WHEEL " .. tostring(verdict))
+    end
+end
+
 local function onKeyRelease(key)
     if not isOurKey(key) then return end
     pressedMs = nil
-    if not wheel then return end
-
-    local ok, chose = pcall(function() return wheel:choose() end)
-    if not ok then
-        SR.Log("WHEEL selection failed: " .. tostring(chose))
-    elseif not chose then
-        SR.Log("WHEEL closed without a selection")
-    end
-
-    close()
+    commit()
 end
 
 Events.OnKeyStartPressed.Add(onKeyStart)

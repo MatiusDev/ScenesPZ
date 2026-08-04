@@ -23,6 +23,11 @@ local SR = ScenesRelations
 local PROBE_RANGE = 30          -- tiles. Wide enough to catch NPCs before they matter.
 local shapeDumped = false       -- brain shape is dumped once, not every sweep.
 
+-- Stat drift is decided by the probe itself rather than by the player reading a log.
+local statBaseline = nil
+local statSweeps = 0
+local statVerdict = false
+
 --- Recreates the exact gate BanditMenu.lua:210-215 uses, so the log reports what the
 --- player would really see on a right-click instead of what we assume.
 local function wouldOfferJoinMe(brain)
@@ -91,15 +96,41 @@ local function sweep()
                     -- zeros is an answer; ten sweeps of drifting values is the opposite
                     -- answer, and either way it costs one line a minute to find out.
                     if seen == 1 and CharacterStat then
+                        -- ANSWERING IT OURSELVES. Asking the player to eyeball whether
+                        -- five numbers drifted across a 3 MB log was a bad instruction --
+                        -- reported, correctly, as "no sé bien cómo se puede probar". The
+                        -- probe now remembers its first reading and states the verdict.
                         local sok, stats = pcall(function() return zombie:getStats() end)
                         if sok and stats then
                             local function stat(name)
                                 local ok2, v = pcall(function() return stats:get(CharacterStat[name]) end)
                                 return ok2 and string.format("%.3f", v) or "-"
                             end
-                            SR.Log(string.format("PROBE tick | %s | panic=%s stress=%s thirst=%s hunger=%s endurance=%s",
-                                tostring(brain.fullname), stat("PANIC"), stat("STRESS"),
-                                stat("THIRST"), stat("HUNGER"), stat("ENDURANCE")))
+                            local line = string.format("panic=%s stress=%s thirst=%s hunger=%s endurance=%s",
+                                stat("PANIC"), stat("STRESS"), stat("THIRST"),
+                                stat("HUNGER"), stat("ENDURANCE"))
+                            SR.Log(string.format("PROBE tick | %s | %s",
+                                tostring(brain.fullname), line))
+
+                            -- The verdict, so nobody has to compare numbers by hand.
+                            -- Ten sweeps of the identical string means the engine does not
+                            -- tick these for an NPC and emotion has to be simulated; any
+                            -- difference means it does and half of stage 06 disappears.
+                            if not statBaseline then
+                                statBaseline, statSweeps = line, 0
+                            elseif not statVerdict then
+                                statSweeps = statSweeps + 1
+                                if line ~= statBaseline then
+                                    statVerdict = true
+                                    SR.Log("PROBE stat VERDICT MOVES -- the engine ticks "
+                                        .. "NPC stats. Emotion can be read, not simulated.")
+                                elseif statSweeps >= 10 then
+                                    statVerdict = true
+                                    SR.Log("PROBE stat VERDICT FROZEN -- ten sweeps, no "
+                                        .. "change. The engine does not tick these for an "
+                                        .. "NPC; emotion must be simulated on SR.Mood.")
+                                end
+                            end
                         end
                     end
 
