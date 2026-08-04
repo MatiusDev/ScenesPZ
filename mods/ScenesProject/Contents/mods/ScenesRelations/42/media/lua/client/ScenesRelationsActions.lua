@@ -50,6 +50,15 @@ Actions.JOIN_MIN_TRUST = 60
 Actions.TALK_REWARD = 4
 Actions.TALK_COOLDOWN_HOURS = 0.5
 
+-- Bandaging is the largest single move available, and it should be. Trust here tracks what
+-- you RISK for somebody, not what you say to them: you stood still next to a wounded person
+-- and spent an item you might need yourself.
+--
+-- It needs no cooldown, which is the part worth noticing. Talking is rate-limited because
+-- it is free and would otherwise be farmed; this is gated by reality -- it is only offered
+-- while they are actually hurt, and every use costs a bandage. The situation is the limit.
+Actions.BANDAGE_REWARD = 15
+
 local function hoursNow()
     local gt = getGameTime()
     if not gt then return 0 end
@@ -125,6 +134,27 @@ function Actions.RewardTalk(player, bandit)
     return true
 end
 
+--- The trust move behind patching somebody up. Lives here rather than in the health panel
+--- for the same reason RewardTalk does: one place owns what an act is worth, so a second
+--- surface cannot quietly disagree about the same relationship.
+---
+--- The panel has already spent the item and changed their condition by the time this runs.
+--- This is only the relationship half, and it says so out loud on the player.
+function Actions.RewardBandage(player, bandit)
+    local before, after = SR.Adjust(bandit, Actions.BANDAGE_REWARD, "bandaged")
+    logAction(bandit, "bandage")
+
+    if HaloTextHelper and player then
+        local name = nameOf(BanditBrain.Get(bandit))
+        if before ~= after then
+            HaloTextHelper.addGoodText(player, name .. " now sees you as " .. tostring(after))
+        else
+            HaloTextHelper.addGoodText(player, "You patch up " .. name)
+        end
+    end
+    return before, after
+end
+
 --- The flat Talk action, used by the context menu. The wheel uses the question ring
 --- instead, but both end in the same place -- two copies of the cooldown rule is exactly
 --- how two surfaces start disagreeing about the same relationship.
@@ -155,6 +185,19 @@ local function runLeave(player, bandit)
     setLoyal(bandit, false)
     logAction(bandit, "leave")
     say(player, nameOf(BanditBrain.Get(bandit)) .. " goes their own way")
+end
+
+--- Opens the health window. Resolved at call time rather than required at the top of the
+--- file: ScenesRelationsHealth requires THIS module for RewardBandage, and requiring it
+--- back would be a cycle. Every file under media/lua/client is loaded by the game anyway,
+--- so the lookup always succeeds by the time a player can click anything.
+local function runHealth(player, bandit)
+    if not SR.Health or not SR.Health.Open then
+        SR.Log("ACT health panel is not loaded")
+        return
+    end
+    logAction(bandit, "health")
+    SR.Health.Open(player, bandit)
 end
 
 -- THE LIST --------------------------------------------------------------------------
@@ -198,6 +241,12 @@ function Actions.List(player, bandit)
     else
         list[#list + 1] = { label = "Talk", available = true, run = runTalk }
     end
+
+    -- HEALTH. Never gated on trust: looking at somebody and seeing that they are bleeding
+    -- is not a favour they grant you, it is something you can see. What trust gates is
+    -- whether they walk with you, not whether you may notice they are hurt -- and helping a
+    -- stranger you have no standing with is precisely how standing gets earned.
+    list[#list + 1] = { label = "Health", available = true, run = runHealth }
 
     local program = brain.program and brain.program.name
     local following = program == "Companion" or program == "CompanionGuard"

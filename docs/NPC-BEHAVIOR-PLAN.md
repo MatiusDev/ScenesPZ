@@ -254,9 +254,28 @@ Values we have chosen and why, so the next session does not re-litigate them.
 | `WITNESS_RADIUS_SQ = 144` | `ScenesRelationsEvents.lua` | 2026-08-02 | 12 tiles, matches `BanditPlayer.lua:97` |
 | `ENGAGE_RANGE = 8` | `ScenesRelationsEngagement.lua` | 2026-08-03 | user's call; close enough to read as defence |
 | `HELP_REWARD = 2` | `ScenesRelationsEvents.lua` | 2026-08-03 | per swing, not per kill; ~13 swings to `friendly` |
+| `ENGAGE_RANGE = 4` | `ScenesRelationsAutonomy.lua` | 2026-08-04 | **was 10.** At 10, any zombie in the street outranked every order given. 4 means "it is on them" |
+| `ASSIST_RANGE = 8` | `ScenesRelationsAutonomy.lua` | 2026-08-04 | they join a fight *you* started, or fight freely if nobody's companion |
+| `LEASH = 12` | `ScenesRelationsAutonomy.lua` | 2026-08-04 | `ZPCompanion` switches to Run at 10; 12 leaves it room to do its own job first |
+| `FEAR_KEEP = 0.6` | `ScenesRelationsAutonomy.lua` | 2026-08-04 | **replaced `FEAR_DECAY = 12`.** A decaying average settles; a subtract-only-if-quiet accumulator ratcheted to 100 and stayed |
+| `FEAR_RADIUS = 9` | `ScenesRelationsAutonomy.lua` | 2026-08-04 | wider than ENGAGE: you can fear what you are not yet obliged to fight |
+| `STUCK_SWEEPS = 3` + whitelist + `MOVED_EPSILON = 0.6` | `ScenesRelationsAutonomy.lua` | 2026-08-04 | 3 was never the problem; the missing guards were |
+| `CLAIM_SWEEPS = 6` | `ScenesRelationsAutonomy.lua` | 2026-08-04 | ~36s to hold a window; long enough to finish, short enough that a corpse cannot lock it |
+| `CENSUS_EVERY = 5` | `ScenesRelationsAutonomy.lua` | 2026-08-04 | ~30s per NPC. Transition-only logging left 3 of 4 survivors invisible in the 04-08 log |
+| `BANDAGE_REWARD = 15` | `ScenesRelationsActions.lua` | 2026-08-04 | ~4x a conversation. Trust tracks what you risk; needs no cooldown because the situation is the limit |
+| `BANDAGE_HEAL = 0.8` | `ScenesRelationsHealth.lua` | 2026-08-04 | additive, capped at that person's max. Their own action snaps to a flat 1.2, which downgrades a tough survivor |
 
 Resolved 2026-08-03: five observed beatings to flip a witness was confirmed in a real log
 and left as is for now — it reads as a person taking a while to give up on you.
+
+Resolved 2026-08-04, from a real log: the fear model's hurt term was reading `brain.health`,
+which is the **spawn maximum** and never changes (`BanditServerSpawner.lua:332`). Live
+condition is `bandit:getHealth()`. Anything comparing an NPC's health to a threshold must
+compare the ratio of the two, or it is comparing a constant.
+
+Still on `ENGAGE_RANGE = 8` in `ScenesRelationsEngagement.lua`, deliberately: that file
+decides who counts as *defending you* for trust purposes, which is a different question from
+who decides to swing. The two numbers are allowed to differ and now clearly do.
 
 Open question: `HELP_REWARD` is measured per swing because `Events.OnZombieDead` carries
 no attacker argument, so a slow weapon earns trust faster than a fast one. If that shows

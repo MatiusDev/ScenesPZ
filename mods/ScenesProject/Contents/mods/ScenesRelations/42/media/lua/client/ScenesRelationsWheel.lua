@@ -20,11 +20,20 @@
 -- something you do on the way somewhere, so using it to commit means committing by
 -- accident.
 --
--- Nothing here reacts to hover any more. Releasing is the only thing that acts:
+-- The rule that survived, and it is narrower than "nothing reacts to hover". Hover may
+-- only WIDEN the choice; it may never commit one and it may never take one away. So
+-- crossing Talk opens the question ring (more options, nothing decided), and returning to
+-- the middle closes it only after dwelling there ~8 frames, because a quick sweep across
+-- the centre on your way to a card is not a decision to leave. Nothing is ever RUN except
+-- by a release or a full click.
 --
 --   release on an action    -> run it, close
 --   release on Talk         -> open the question ring, stay open
 --   release on the middle   -> go back one level, or close if already at the top
+--
+-- Confirmed in play on 04-08: "la rueda de acciones ya se comporta mejor". The earlier
+-- comment here claimed hover was inert, which the render function directly contradicted --
+-- a comment that disagrees with its own file is worse than no comment.
 --
 -- The wheel stays open after opening a submenu, so hold the key again (or just click) to
 -- pick a question. A mouse click does exactly what a release does -- same code path.
@@ -110,13 +119,23 @@ local function answerWhatAreYouDoing(brain)
     return PROGRAM_WORDS[program] or "Surviving. Same as you."
 end
 
-local function answerHowAreYou(brain)
+--- How they are, from live condition rather than the spawn maximum.
+---
+--- This used to compare brain.health against fixed thresholds, which was wrong twice over:
+--- brain.health is written once at spawn (BanditServerSpawner.lua:332) and never updated,
+--- and it is a per-person MAXIMUM, so a frail survivor answered "I'm hurt. Badly." while
+--- untouched and a tough one answered "I'm holding up." while bleeding out. Live health is
+--- bandit:getHealth(); the honest question is what fraction of their own maximum is left.
+local function answerHowAreYou(bandit, brain)
     if not brain then return "I'm fine." end
-    -- brain.health is Bandits' own scale (Bandit.lua:423), not the player's, so this
-    -- reports bands rather than a number we would be pretending to understand.
-    local health = tonumber(brain.health) or 2
-    if health < 1.2 then return "I'm hurt. Badly." end
-    if health < 2.0 then return "I've been better." end
+
+    local max = tonumber(brain.health) or 2
+    local ok, now = pcall(function() return bandit:getHealth() end)
+    if not ok or type(now) ~= "number" or max <= 0 then return "I'm fine." end
+
+    local ratio = now / max
+    if ratio < 0.4 then return "I'm hurt. Badly." end
+    if ratio < 0.8 then return "I've been better." end
     return "I'm holding up."
 end
 
@@ -136,7 +155,7 @@ local function talkOptions(player, bandit, brain)
         { label = "What are you doing?", available = true,
           run = function() say(answerWhatAreYouDoing(brain)) end },
         { label = "How are you holding up?", available = true,
-          run = function() say(answerHowAreYou(brain)) end },
+          run = function() say(answerHowAreYou(bandit, brain)) end },
         -- Needs the traits stage: whether somebody is fearful, or a carpenter, is not
         -- modelled yet. Saying so is more useful than inventing an answer.
         { label = "What are you like?", available = false,
