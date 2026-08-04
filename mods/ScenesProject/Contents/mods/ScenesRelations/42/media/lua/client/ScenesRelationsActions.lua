@@ -104,19 +104,36 @@ end
 
 -- ACTIONS ---------------------------------------------------------------------------
 
-local function runTalk(player, bandit)
-    local brain = BanditBrain.Get(bandit)
+--- The trust move behind a conversation, on its own so the wheel's question ring can
+--- call it without duplicating the cooldown rule. Asking four questions in a row is one
+--- conversation, not four: the cooldown is checked here, so only the first pays out.
+function Actions.RewardTalk(player, bandit)
     local mood = SR.Mood(bandit)
-    if mood then mood.lastTalk = hoursNow() end
+    local now = hoursNow()
+    if mood and mood.lastTalk and (now - mood.lastTalk) < Actions.TALK_COOLDOWN_HOURS then
+        return false
+    end
+    if mood then mood.lastTalk = now end
 
     local before, after = SR.Adjust(bandit, Actions.TALK_REWARD, "talked")
     logAction(bandit, "talk")
 
-    if before ~= after then
-        say(player, nameOf(brain) .. " now sees you as " .. tostring(after), true)
-    else
-        say(player, "You talk with " .. nameOf(brain), true)
+    if before ~= after and HaloTextHelper and player then
+        HaloTextHelper.addGoodText(player,
+            nameOf(BanditBrain.Get(bandit)) .. " now sees you as " .. tostring(after))
     end
+    return true
+end
+
+--- The flat Talk action, used by the context menu. The wheel uses the question ring
+--- instead, but both end in the same place -- two copies of the cooldown rule is exactly
+--- how two surfaces start disagreeing about the same relationship.
+local function runTalk(player, bandit)
+    if not Actions.RewardTalk(player, bandit) then
+        say(player, nameOf(BanditBrain.Get(bandit)) .. " has nothing more to say yet")
+        return
+    end
+    say(player, "You talk with " .. nameOf(BanditBrain.Get(bandit)), true)
 end
 
 local function runFollow(player, bandit)

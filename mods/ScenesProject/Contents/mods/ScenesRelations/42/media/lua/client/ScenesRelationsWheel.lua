@@ -1,41 +1,49 @@
--- ScenesPZ -- the interaction wheel. Hold a key near somebody, choose, release.
+-- ScenesPZ -- our own interaction wheel. Hold a key near somebody, choose, release.
 --
--- WHY THIS REPLACES THE RIGHT-CLICK MENU
--- Play testing settled it: recruiting through a context menu means clicking a moving
--- target, then finding our entry below Bandits' and vanilla's. It works and it is
--- unusable, which is worse than broken -- it made every other test harder to run.
+-- WHY WE STOPPED USING ISRadialMenu
+-- Two rounds of play testing said the same thing: you cannot tell what the wheel offers
+-- without hovering every wedge in turn. That is not a styling problem, it is what
+-- ISRadialMenu is: the Java side owns the drawing and only paints a slice's text once the
+-- cursor is already on it. Icons were tried as a workaround and made it worse -- the
+-- texture paths that appear in vanilla's Lua do not resolve to loadable textures here, so
+-- the buttons came back empty and setTextureColor threw 511 times in one session.
 --
--- The wheel fixes the actual problem. You do not aim at anybody: hold the key and the
--- nearest survivor you can see is the one you are talking to. Vanilla ships the pattern
--- (ISEmoteRadialMenu.lua:199-268) and four files use it.
+-- So this draws itself. Every option is a labelled card placed on a circle, which is
+-- fully expressible with drawRect and drawTextCentre, needs no art, and makes hit-testing
+-- a rectangle check instead of an angle guess. The old version had to compute where slice
+-- zero began because Java would not say; here we place the cards, so we know.
 --
--- OUR OWN MENU INSTANCE, NOT THE SHARED ONE
--- Vanilla's emote wheel calls getPlayerRadialMenu(n), which returns a single menu shared
--- by everything that wants a wheel. Using it would mean fighting the emote menu for the
--- same object. ISRadialMenu:new gives us our own, and the collision disappears.
+-- TWO LEVELS
+-- Hovering an option that has questions behind it opens a second ring in place of the
+-- first. Talk is the one that does today: who are you, what are you doing, how are you
+-- holding up. Moving the cursor back to the middle returns to the top level.
 --
--- RELEASE-TO-SELECT, WHICH VANILLA DOES NOT DO ON KEYBOARD
--- ISRadialMenu only acts on a mouse click (line 18) or a joypad button release (line 106).
--- On keyboard, releasing the emote key just hides the wheel. Asking the slice under the
--- cursor ourselves on release costs three lines and is what makes hold-and-release work
--- the way a wheel should. Clicking still works too -- that path is untouched.
+-- HONEST ABOUT WHAT DOES NOT EXIST YET
+-- Trade is on the wheel and does nothing, on purpose. So is asking what somebody is like,
+-- which needs the traits stage. Both say so out loud rather than being hidden: an option
+-- that is missing reads as a bug, an option that answers "I cannot do that yet" reads as
+-- a roadmap. Every unbuilt path goes through SR.Wheel.NotYet so there is exactly one
+-- place to delete when it stops being true.
 
 require "ScenesRelations"
 require "ScenesRelationsActions"
-require "ISUI/ISRadialMenu"
+require "ISUI/ISPanel"
 
 local SR = ScenesRelations
 
--- Held rather than tapped, so a stray press does nothing. Vanilla uses 450ms before its
--- emote wheel appears; 250 feels immediate without firing on a tap.
+SR.Wheel = SR.Wheel or {}
+
+-- Held rather than tapped, so a stray press does nothing.
 local HOLD_MS = 250
 
--- Tiles. Deliberately the same 8 as the zombie engagement range: it is roughly "near
--- enough to matter", and one number the player can learn beats two they cannot.
+-- Tiles. Same 8 as the zombie engagement range: one number the player can learn beats two
+-- they cannot.
 local RANGE = 8
 
--- Registered so the player can rebind it in Options. V is free in vanilla 42.20; if
--- another mod claims it, rebinding is a menu away rather than a code change.
+local RADIUS = 110          -- distance from centre to the middle of each card
+local CARD_W, CARD_H = 130, 36
+local CENTRE_R = 46         -- inside this, nothing is selected and a submenu closes
+
 table.insert(keyBinding, { value = "[ScenesPZ]" })
 table.insert(keyBinding, { value = "Talk to survivor", key = Keyboard.KEY_V })
 
@@ -46,12 +54,218 @@ local function isOurKey(key)
     return getCore():isKey("Talk to survivor", key)
 end
 
---- Nearest bandit within RANGE that the player can actually see.
----
---- Line of sight is not decoration. Without it you would be talking through a wall to
---- somebody in the next room, which reads as a bug the first time it happens and as magic
---- the second. BanditZombie keeps the proximity cache already, so this is a walk over a
---- list that exists rather than a scan of the cell.
+--- The single place that says "not built yet". One function so that when a feature lands
+--- there is one call site to delete rather than a search.
+function SR.Wheel.NotYet(what)
+    local player = getSpecificPlayer(0)
+    if HaloTextHelper and player then
+        HaloTextHelper.addBadText(player, "I can't do that yet - " .. tostring(what))
+    end
+    SR.Log("WHEEL not-yet: " .. tostring(what))
+end
+
+-- WHAT AN NPC CAN ACTUALLY ANSWER TODAY -----------------------------------------------
+-- Only from brain fields that exist. Nothing here invents a fact about a person: if we
+-- cannot answer something, the answer is that we cannot answer it.
+
+local PROGRAM_WORDS = {
+    Companion = "I'm with you.",
+    CompanionGuard = "I'm watching your back.",
+    Defend = "I'm holding this place.",
+    Looter = "Looking for anything useful.",
+    Camper = "Just camped up here.",
+    Thief = "Keeping to myself.",
+    Roadblock = "Watching this road.",
+    Bandit = "None of your business.",
+}
+
+local function answerWhoAreYou(brain)
+    local name = tostring(brain and brain.fullname or "nobody")
+    if brain and brain.clan then
+        return name .. ", and I run with my own people."
+    end
+    return name .. ". That's all you need."
+end
+
+local function answerWhatAreYouDoing(brain)
+    local program = brain and brain.program and brain.program.name
+    return PROGRAM_WORDS[program] or "Surviving. Same as you."
+end
+
+local function answerHowAreYou(brain)
+    if not brain then return "I'm fine." end
+    -- brain.health is Bandits' own scale (Bandit.lua:423), not the player's, so this
+    -- reports bands rather than a number we would be pretending to understand.
+    local health = tonumber(brain.health) or 2
+    if health < 1.2 then return "I'm hurt. Badly." end
+    if health < 2.0 then return "I've been better." end
+    return "I'm holding up."
+end
+
+--- The Talk ring. Each entry answers from the brain, or admits it cannot.
+local function talkOptions(player, bandit, brain)
+    local function say(text)
+        if HaloTextHelper and player then HaloTextHelper.addText(player, text) end
+        SR.Log("WHEEL answer: " .. tostring(text))
+        -- Any real exchange counts as talking, so it moves trust on the same terms and the
+        -- same cooldown. Asking four questions in a row is one conversation, not four.
+        SR.Actions.RewardTalk(player, bandit)
+    end
+
+    return {
+        { label = "Who are you?", available = true,
+          run = function() say(answerWhoAreYou(brain)) end },
+        { label = "What are you doing?", available = true,
+          run = function() say(answerWhatAreYouDoing(brain)) end },
+        { label = "How are you holding up?", available = true,
+          run = function() say(answerHowAreYou(brain)) end },
+        -- Needs the traits stage: whether somebody is fearful, or a carpenter, is not
+        -- modelled yet. Saying so is more useful than inventing an answer.
+        { label = "What are you like?", available = false,
+          reason = "traits not built",
+          run = function() SR.Wheel.NotYet("asking what someone is like") end },
+    }
+end
+
+-- THE WIDGET ---------------------------------------------------------------------------
+
+SRWheelPanel = ISPanel:derive("SRWheelPanel")
+
+--- Card centre for option i of n, starting at the top and going clockwise. We place them,
+--- so unlike the old version there is nothing to guess about where they are.
+local function cardCentre(self, i, n)
+    local angle = -math.pi / 2 + (i - 1) * (2 * math.pi / n)
+    return self.width / 2 + math.cos(angle) * RADIUS,
+           self.height / 2 + math.sin(angle) * RADIUS
+end
+
+--- Which card the cursor is over, or nil. Returns nil inside the centre circle too, which
+--- is what closes a submenu.
+function SRWheelPanel:hovered()
+    local mx, my = self:getMouseX(), self:getMouseY()
+    local dx, dy = mx - self.width / 2, my - self.height / 2
+    if dx * dx + dy * dy < CENTRE_R * CENTRE_R then return nil end
+
+    for i = 1, #self.options do
+        local cx, cy = cardCentre(self, i, #self.options)
+        if math.abs(mx - cx) <= CARD_W / 2 and math.abs(my - cy) <= CARD_H / 2 then
+            return i
+        end
+    end
+    return nil
+end
+
+function SRWheelPanel:render()
+    local hover = self:hovered()
+
+    -- Opening a submenu on hover, and closing it by returning to the middle. Done here
+    -- because render is the only place the cursor position is guaranteed fresh: ISPanel
+    -- gives no mouse-move event we can rely on while a key is held down.
+    if hover and self.options[hover] and self.options[hover].submenu and not self.inSubmenu then
+        self:enterSubmenu(self.options[hover].submenu)
+    elseif self.inSubmenu and not hover then
+        local dx = self:getMouseX() - self.width / 2
+        local dy = self:getMouseY() - self.height / 2
+        if dx * dx + dy * dy < CENTRE_R * CENTRE_R then
+            self:leaveSubmenu()
+        end
+    end
+
+    hover = self:hovered()
+
+    -- Centre: who you are talking to. No trust number -- that lives in the relationship
+    -- panel, where it can be a bar you read rather than a figure you decode mid-swing.
+    self:drawTextCentre(self.subject, self.width / 2, self.height / 2 - 8,
+        1, 1, 1, 1, UIFont.Medium)
+    if self.inSubmenu then
+        self:drawTextCentre("< back", self.width / 2, self.height / 2 + 10,
+            0.6, 0.6, 0.6, 1, UIFont.Small)
+    end
+
+    for i, option in ipairs(self.options) do
+        local cx, cy = cardCentre(self, i, #self.options)
+        local x, y = cx - CARD_W / 2, cy - CARD_H / 2
+        local on = (i == hover)
+
+        local r, g, b = 0.16, 0.16, 0.18
+        if not option.available then
+            r, g, b = 0.18, 0.14, 0.14
+        elseif on then
+            r, g, b = 0.22, 0.34, 0.24
+        end
+
+        self:drawRect(x, y, CARD_W, CARD_H, 0.92, r, g, b)
+        self:drawRectBorder(x, y, CARD_W, CARD_H, on and 0.9 or 0.35, 1, 1, 1)
+
+        -- Refused options stay, dimmed, with the reason under them. Hiding an option makes
+        -- the relationship invisible; showing why it is closed makes it a goal.
+        local shade = option.available and 1 or 0.5
+        local textY = option.reason and (cy - 12) or (cy - 6)
+        self:drawTextCentre(tostring(option.label), cx, textY,
+            shade, shade, shade, 1, UIFont.Small)
+        if option.reason then
+            self:drawTextCentre("(" .. tostring(option.reason) .. ")", cx, cy + 2,
+                0.5, 0.5, 0.5, 1, UIFont.Small)
+        end
+    end
+end
+
+function SRWheelPanel:enterSubmenu(builder)
+    local ok, built = pcall(builder)
+    if not ok or type(built) ~= "table" then
+        SR.Log("WHEEL submenu failed to build: " .. tostring(built))
+        return
+    end
+    self.rootOptions = self.options
+    self.options = built
+    self.inSubmenu = true
+end
+
+function SRWheelPanel:leaveSubmenu()
+    if not self.rootOptions then return end
+    self.options = self.rootOptions
+    self.inSubmenu = false
+end
+
+--- Runs whatever the cursor is on. Returns true if something happened.
+function SRWheelPanel:choose()
+    local index = self:hovered()
+    if not index then return false end
+
+    local option = self.options[index]
+    if not option then return false end
+
+    -- A submenu parent is a doorway, not a choice. Releasing on it does nothing rather
+    -- than firing something the player did not pick.
+    if option.submenu then return false end
+
+    if option.run then
+        option.run()
+        return true
+    end
+    return false
+end
+
+function SRWheelPanel:new(subject, options)
+    local size = (RADIUS + CARD_H) * 2 + 40
+    local x = getPlayerScreenLeft(0) + getPlayerScreenWidth(0) / 2 - size / 2
+    local y = getPlayerScreenTop(0) + getPlayerScreenHeight(0) / 2 - size / 2
+
+    local o = ISPanel.new(self, x, y, size, size)
+    o.subject = subject
+    o.options = options
+    o.rootOptions = nil
+    o.inSubmenu = false
+    o.backgroundColor = { r = 0, g = 0, b = 0, a = 0.35 }
+    o.borderColor = { r = 0, g = 0, b = 0, a = 0 }
+    o.moveWithMouse = false
+    return o
+end
+
+-- OPENING AND CLOSING ------------------------------------------------------------------
+
+--- Nearest bandit within RANGE that the player can actually see. Line of sight matters:
+--- without it you would be talking through a wall to somebody in the next room.
 local function nearestSurvivor(player)
     if not BanditZombie or not BanditZombie.GetAllB then return nil end
 
@@ -71,60 +285,7 @@ local function nearestSurvivor(player)
             end
         end
     end
-
     return best
-end
-
--- NO ICONS. Tried them, and the answer from play was that a picture makes you guess:
--- the words are the thing. Every wedge carries its action name as small text and nothing
--- else, which is also the only version that stays readable when an action is greyed out
--- with a reason underneath it.
-
--- Where slice 0 sits and which way the wheel counts. The Java side draws the wedges and
--- does not tell us, so this is the one number that may need a visual correction: if the
--- labels read one wedge out of step, change these two and nothing else.
-local FIRST_SLICE_ANGLE = -math.pi / 2   -- top of the circle
-local CLOCKWISE = true
-
---- Draws the name under the wheel and the action name inside every wedge.
----
---- Both are ours because ISRadialMenu gives neither. It has no centre label at all, and it
---- only shows a slice's text when the cursor is already over it -- which is useless: you
---- have to hover each wedge in turn to find out what the wheel even offers. Reported from
---- play as "se ve bastante confuso", and it was right.
----
---- The trust number deliberately does NOT appear here. A wheel is for choosing an action;
---- the state of the relationship belongs in the relationship panel, where it can be a bar
---- you read rather than a number you decode mid-swing.
-local function renderWithHeader(self)
-    ISRadialMenu.render(self)
-
-    local cx, cy = self.width / 2, self.height / 2
-    local radius = (self.innerRadius + self.outerRadius) / 2
-    local count = #self.slices
-
-    if count > 0 then
-        local step = (2 * math.pi) / count
-        for i, slice in ipairs(self.slices) do
-            local angle = FIRST_SLICE_ANGLE + (CLOCKWISE and 1 or -1) * (i - 1) * step
-            local x = cx + math.cos(angle) * radius
-            local y = cy + math.sin(angle) * radius
-
-            -- Refused actions are drawn dim rather than hidden, same reason as everywhere
-            -- else: a missing option reads as a bug, a greyed one reads as a person.
-            local shade = slice.srAvailable and 1 or 0.45
-            self:drawTextCentre(slice.srLabel or "", x, y - 6,
-                shade, shade, shade, 1, UIFont.Small)
-            if slice.srReason then
-                self:drawTextCentre("(" .. slice.srReason .. ")", x, y + 6,
-                    0.45, 0.45, 0.45, 1, UIFont.Small)
-            end
-        end
-    end
-
-    if self.srHeader then
-        self:drawTextCentre(self.srHeader, cx, self.height + 4, 1, 1, 1, 1, UIFont.Small)
-    end
 end
 
 local function close()
@@ -134,76 +295,41 @@ local function close()
     end
 end
 
---- Fires the slice the cursor is over. Returns true if something ran.
-local function fireHovered()
-    if not wheel or not wheel.javaObject then return false end
-
-    local index = wheel.javaObject:getSliceIndexFromMouse(wheel:getMouseX(), wheel:getMouseY())
-    if not index or index < 0 then return false end
-
-    local command = wheel:getSliceCommand(index + 1)
-    if not command or not command[1] then return false end
-
-    command[1](command[2], command[3])
-    return true
-end
-
 local function open(player)
     local bandit = nearestSurvivor(player)
     if not bandit then
-        -- Silence here would be indistinguishable from a broken keybinding, and on a
-        -- machine with no hot reload that costs a session to tell apart.
-        if HaloTextHelper then
-            HaloTextHelper.addText(player, "Nobody close enough")
-        end
+        if HaloTextHelper then HaloTextHelper.addText(player, "Nobody close enough") end
         return
     end
 
-    local list, brain, trust, tier = SR.Actions.List(player, bandit)
+    local list, brain = SR.Actions.List(player, bandit)
     if not list then
-        if HaloTextHelper then
-            HaloTextHelper.addBadText(player, "They are not listening")
-        end
+        if HaloTextHelper then HaloTextHelper.addBadText(player, "They are not listening") end
         return
     end
 
-    local x = getPlayerScreenLeft(0) + getPlayerScreenWidth(0) / 2
-    local y = getPlayerScreenTop(0) + getPlayerScreenHeight(0) / 2
+    -- The root ring: Talk opens the questions, Trade is a placeholder that says so out
+    -- loud, and the rest are the real actions from SR.Actions.List.
+    local options = {
+        { label = "Talk", available = true,
+          submenu = function() return talkOptions(player, bandit, brain) end },
+        { label = "Trade", available = false, reason = "not built",
+          run = function() SR.Wheel.NotYet("trading") end },
+    }
+    for _, action in ipairs(list) do
+        if action.label ~= "Talk" then
+            options[#options + 1] = action
+        end
+    end
 
-    wheel = ISRadialMenu:new(x - 100, y - 100, 40, 100, 0)
+    wheel = SRWheelPanel:new(SR.Actions.Name(brain), options)
     wheel:initialise()
     wheel:instantiate()
-    -- Name only. The trust number moved to the relationship panel.
-    wheel.srHeader = SR.Actions.Name(brain)
-    wheel.render = renderWithHeader
-
-    for _, action in ipairs(list) do
-        if action.available then
-            wheel:addSlice(action.label, nil, action.run, player, bandit)
-        else
-            -- Refused actions stay on the wheel, labelled with what is missing. Hiding
-            -- them would make the relationship invisible: the player would never learn
-            -- that Follow me is four conversations away rather than impossible.
-            wheel:addSlice(action.label, nil, function() end)
-        end
-
-        -- Our renderer needs the pieces separately; the slice text belongs to Java and is
-        -- only shown on hover.
-        local slice = wheel.slices[#wheel.slices]
-        slice.srLabel = action.label
-        slice.srAvailable = action.available
-        slice.srReason = (not action.available) and action.reason or nil
-    end
-
     wheel:addToUIManager()
 
-    SR.Log(string.format("WHEEL opened on %s | %s %d | %d options",
-        wheel.srHeader, tostring(tier), trust, #list))
+    SR.Log(string.format("WHEEL opened on %s | %d options",
+        tostring(SR.Actions.Name(brain)), #options))
 end
-
--- KEY HANDLING ----------------------------------------------------------------------
--- Three events, same shape as ISEmoteRadialMenu.lua:266-268. Start records the moment,
--- Keep opens once the hold threshold passes, and the release both selects and closes.
 
 local function onKeyStart(key)
     if not isOurKey(key) then return end
@@ -217,7 +343,6 @@ local function onKeyKeep(key)
 
     local player = getSpecificPlayer(0)
     if not player or player:isDead() then return end
-
     open(player)
 end
 
@@ -226,10 +351,10 @@ local function onKeyRelease(key)
     pressedMs = nil
     if not wheel then return end
 
-    local ok, fired = pcall(fireHovered)
+    local ok, chose = pcall(function() return wheel:choose() end)
     if not ok then
-        SR.Log("WHEEL selection failed: " .. tostring(fired))
-    elseif not fired then
+        SR.Log("WHEEL selection failed: " .. tostring(chose))
+    elseif not chose then
         SR.Log("WHEEL closed without a selection")
     end
 

@@ -24,19 +24,16 @@ require "ISUI/ISButton"
 
 local SR = ScenesRelations
 
--- Vanilla's own icon strings, taken from files rather than invented. The stop sign reads
--- as "do not hit these people" and the speech icon as "who I know", which is as close to
--- self-explanatory as a 24-pixel square gets.
-local ICON_GUARD = "media/ui/emotes/stop.png"
-local ICON_PANEL = "media/ui/Traits/trait_talkative.png"
-
+-- NO TEXTURES. The first version used the icon paths that appear in vanilla's own Lua --
+-- media/ui/emotes/stop.png and friends -- on the reasonable assumption that a string
+-- present in a shipped file resolves to a shipped image. It does not: getTexture returned
+-- nil, the buttons drew as nothing, and setTextureColor on a texture-less ISButton threw
+-- 511 times in a single session (ISButton.lua:184), once per frame, filling a 3 MB log.
+--
+-- So these are text buttons with a background. Short labels, real tooltips, and the guard
+-- state shown by the label itself rather than by tinting an image that may not exist.
+-- Everything below is plain Lua table assignment and cannot throw.
 local SPACING = 5
-
-local function iconOr(path)
-    local ok, texture = pcall(getTexture, path)
-    if ok and texture then return texture end
-    return nil
-end
 
 --- Called by both buttons; ISButton hands us the button itself.
 local function onClick(self, button)
@@ -47,16 +44,18 @@ local function onClick(self, button)
     end
 end
 
-local function addButton(owner, y, internal, texture, tooltip)
+local function addButton(owner, y, internal, title, tooltip)
     local size = owner.healthBtn and owner.healthBtn:getWidth() or 24
 
-    local btn = ISButton:new(0, y, size, size, "", owner, onClick)
-    btn:setImage(texture)
+    local btn = ISButton:new(0, y, size, size, title, owner, onClick)
     btn.internal = internal
     btn:initialise()
     btn:instantiate()
-    btn:setDisplayBackground(false)
-    btn.borderColor = { r = 1, g = 1, b = 1, a = 0.1 }
+    -- Background ON, unlike vanilla's icon buttons: without an image there would be
+    -- nothing to see or click.
+    btn:setDisplayBackground(true)
+    btn.backgroundColor = { r = 0.15, g = 0.15, b = 0.17, a = 0.8 }
+    btn.borderColor = { r = 1, g = 1, b = 1, a = 0.35 }
     btn:ignoreWidthChange()
     btn:ignoreHeightChange()
     owner:addChild(btn)
@@ -77,32 +76,35 @@ function ISEquippedItem:createChildren()
     -- so the height here is the bottom of the last real button rather than a guess.
     local y = self:getHeight() + SPACING
 
-    self.scenesGuardBtn = addButton(self, y, "SCENES_GUARD",
-        iconOr(ICON_GUARD), "Protect survivors from your own attacks")
+    self.scenesGuardBtn = addButton(self, y, "SCENES_GUARD", "SAFE",
+        "Survivors are protected from your own attacks. Click to allow hitting them.")
     y = self.scenesGuardBtn:getBottom() + SPACING
 
-    self.scenesPanelBtn = addButton(self, y, "SCENES_PANEL",
-        iconOr(ICON_PANEL), "Relationships")
+    self.scenesPanelBtn = addButton(self, y, "SCENES_PANEL", "WHO",
+        "Relationships - who you know and how they feel about you")
 
     self:shrinkWrap()
 end
 
 local originalPrerender = ISEquippedItem.prerender
 
---- Green while the guard is on, dull red while it is off, so the state is readable without
---- clicking anything. Same trick vanilla uses on its own safety toggle
---- (ISEquippedItem.lua:906-914, setTextureColor on safetyBtn).
+--- SAFE in green while the guard is on, HIT in red while it is off, so the state is
+--- readable without clicking anything.
+---
+--- This writes Lua tables and calls setTitle -- no setTextureColor, which is what threw
+--- once per frame in the previous build. A prerender hook runs on every frame of the
+--- game: anything in here that can fail, fails thousands of times.
 function ISEquippedItem:prerender()
     originalPrerender(self)
 
-    if self.scenesGuardBtn then
-        local on = SR.Guard and SR.Guard.enabled
-        pcall(function()
-            self.scenesGuardBtn:setTextureColor(
-                on and { r = 0.4, g = 0.9, b = 0.4, a = 1 }
-                   or { r = 0.9, g = 0.3, b = 0.3, a = 1 })
-        end)
-    end
+    local btn = self.scenesGuardBtn
+    if not btn then return end
+
+    local on = SR.Guard and SR.Guard.enabled
+    btn:setTitle(on and "SAFE" or "HIT")
+    btn.backgroundColor = on
+        and { r = 0.13, g = 0.28, b = 0.15, a = 0.85 }
+        or  { r = 0.32, g = 0.12, b = 0.12, a = 0.85 }
 end
 
 Events.OnGameStart.Add(function()

@@ -41,6 +41,7 @@ These are not style preferences — each one maps to a specific way PZ mods brea
 | `mod.info`, `scripts/*.txt`, `clothing/*.xml`, bandits `.txt` | `pz-data` |
 | anything under `media/lua/` | `pz-lua` |
 | headless server smoke test, log triage | `pz-verify` |
+| reviewing a diff before the user tests it | `pz-review` |
 
 Orchestrator (me) handles: architecture decisions, folder layout, cross-cutting naming,
 git, network/deploy, and reading `console.txt` the user pastes. Research before writing —
@@ -90,6 +91,9 @@ of truth for both machines and is committed on every version change.
 
 ## Reference
 
+- `docs/CODE-REVIEW-RULES.md` — eleven rules, each written after a real bug that cost
+  a play session. `pz-review` reads it before every review; read it before writing code
+  that touches the engine.
 - `docs/PLAN-STATUS.md` — **start here.** Which stage is open, and exactly what the user
   must test in game to close it. One page, kept current.
 - `docs/plans/` — the staged roadmap from here to the full PRD. `README.md` lists all
