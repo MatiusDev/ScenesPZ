@@ -12,28 +12,34 @@
 -- mid-fight. Deciding to hurt an ally has to be a deliberate act. So the guard now tries
 -- to stop the damage rather than merely forgive it.
 --
--- HOW, GIVEN THE ENGINE GIVES US NO VETO
--- There is no cancellable pre-damage event in 42.20. The complete list of hit-adjacent
--- events is OnHitZombie, OnWeaponSwingHitPoint, OnPlayerAttackFinished, OnWeaponHitTree
--- and OnWeaponHitXp, and none can abort a swing. What we can do is make the target
--- untouchable for the fraction of a second the player's own swing is landing:
+-- THE INVINCIBILITY ATTEMPT, AND WHY IT IS GONE
+-- The second version made protected NPCs invincible for the few frames the player's swing
+-- was landing. It did not work, and it failed in the worst possible way: setInvincible
+-- never threw, so the log said "absorbed a hit" while the survivor bled and eventually
+-- died. Reported from play as exactly that.
 --
---   swing connects  -> protected NPCs nearby become invincible
---   attack finishes -> invincibility cleared
+-- The likely reason is that OnWeaponSwingHitPoint fires AFTER the engine has applied
+-- damage, not before. Everything hung off that event was therefore a fraction of a second
+-- too late: the health snapshot recorded the already-reduced value, and restoring to it
+-- was a no-op. setInvincible is removed rather than kept "just in case" -- a lever that
+-- does nothing is worse than no lever, because it looks like protection.
 --
--- The window is a few frames wide, so a zombie biting that same survivor is unaffected in
--- any way you could notice. Three independent paths clear the flag, because an NPC left
--- permanently immortal would be a far worse bug than the one being fixed.
+-- WHAT ACTUALLY WORKS, AND WHY WE KNOW
+-- getHealth and setHealth are real on a Bandits NPC: Bandits itself calls
+-- bandit:setHealth(health - 0.00005) every tick for bleed-out (BanditUpdate.lua:500).
+-- The API was never the problem. The problem was feeding it a value captured too late.
 --
--- WHAT IS PROVEN AND WHAT IS NOT
--- setInvincible is real and vanilla uses it (DebugContextMenu.lua:1123, Tutorial1.lua:230)
--- -- but always on a PLAYER, never on a zombie. Today's HaloTextHelper result is the
--- reason that distinction gets respect: the Java side rejected addText for an IsoZombie
--- even though the method exists on the shared base class. So every call here is wrapped,
--- reported once on failure, and backed by restoring hit points from a snapshot.
+-- So health is now sampled on a slow tick that has nothing to do with swings, which means
+-- it cannot be poisoned by the ordering of an event we do not control. On a player hit the
+-- survivor is put back to the highest health we have seen recently. Sampling that lags by
+-- up to a minute also undoes a zombie bite taken in that window -- an inaccuracy that
+-- errs toward the ally living, which is the entire point of the button.
 --
--- Guaranteed regardless: no trust penalty and no hostility escalation. That part is our
--- own state and cannot fail.
+-- MY OWN RULE, BROKEN
+-- The previous version restored only `if before then` and said nothing when there was no
+-- snapshot, so a total failure printed the same cheerful line as a success. That is R7 in
+-- docs/CODE-REVIEW-RULES.md -- every path announces itself -- and it cost a session. Every
+-- branch below logs what it actually did, with the numbers.
 
 require "ScenesRelations"
 
@@ -52,23 +58,17 @@ local Guard = SR.Guard
 -- know to check.
 Guard.enabled = true
 
--- Tiles. Only NPCs this close to the player could plausibly be caught by a swing, and
--- snapshotting the whole cache on every swing would be waste.
-local SNAPSHOT_RANGE = 3
+-- Tiles. How far from the player we bother sampling health.
+local WATCH_RANGE = 20
 
-local snapshots = {}
-local shielded = {}
-local restoreFailed = false
-local shieldFailed = false
+-- id -> the healthiest we have recently seen this survivor. Deliberately not captured
+-- from any swing event: see the header.
+local lastKnown = {}
 
---- Puts everyone back the way they were found. Called from three places on purpose: the
---- end of the attack, the start of the next swing, and a slow sweep. Any one of them is
---- enough; all three together mean no plausible failure leaves an immortal NPC behind.
-local function unshieldAll()
-    for _, zombie in pairs(shielded) do
-        pcall(function() zombie:setInvincible(false) end)
-    end
-    shielded = {}
+local function healthOf(zombie)
+    local ok, health = pcall(function() return zombie:getHealth() end)
+    if ok and type(health) == "number" then return health end
+    return nil
 end
 
 local function isProtected(zombie)
@@ -80,49 +80,36 @@ local function isProtected(zombie)
     return not (brain.hostile or brain.hostileP)
 end
 
---- Health before the swing lands, for everyone close enough to be caught by it.
+--- Remembers how healthy every nearby protected survivor is.
 ---
---- OnWeaponSwingHitPoint fires at the moment the swing connects. Whether that is before
---- or after the engine applies damage is NOT verified -- vanilla only uses it for reload
---- bookkeeping (ISReloadWeaponAction.lua:542). If the snapshot turns out to be the
---- post-damage value the restore quietly becomes a no-op, which the log will show; moving
---- this to OnPlayerAttackFinished is then a one-line change.
-local function snapshot(character)
-    -- Clear first. If the previous attack never reported finishing, this is the line that
-    -- stops the flag from sticking.
-    unshieldAll()
-
+--- On a slow tick on purpose. The whole failure of the previous version was hanging this
+--- on a swing event whose ordering relative to damage we do not control and cannot check
+--- from Lua. A sample taken a few seconds before the swing is stale; a sample taken after
+--- it is worthless, and worthless is what we had.
+function Guard.Watch()
     if not Guard.enabled then return end
-    if not character or not instanceof(character, "IsoPlayer") then return end
-    if not BanditZombie or not BanditZombie.GetAllB then return end
 
-    snapshots = {}
+    local player = getSpecificPlayer(0)
+    if not player then return end
+    if not BanditZombie or not BanditZombie.GetAllB then return end
 
     local ok, bandits = pcall(BanditZombie.GetAllB)
     if not ok or type(bandits) ~= "table" then return end
 
-    local px, py = character:getX(), character:getY()
+    local px, py = player:getX(), player:getY()
     for id, _ in pairs(bandits) do
         local zombie = BanditZombie.GetInstanceById(id)
         if zombie and isProtected(zombie) then
             local dx, dy = zombie:getX() - px, zombie:getY() - py
-            if dx * dx + dy * dy <= SNAPSHOT_RANGE * SNAPSHOT_RANGE then
+            if dx * dx + dy * dy <= WATCH_RANGE * WATCH_RANGE then
                 local zid = SR.IdOf(zombie)
-
-                local hok, health = pcall(function() return zombie:getHealth() end)
-                if hok and type(health) == "number" then
-                    snapshots[zid] = health
-                end
-
-                -- The actual protection. Everything else in this file is the fallback for
-                -- when this line turns out not to work on an IsoZombie.
-                local sok = pcall(function() zombie:setInvincible(true) end)
-                if sok then
-                    shielded[zid] = zombie
-                elseif not shieldFailed then
-                    shieldFailed = true
-                    SR.Log("GUARD setInvincible is not available on IsoZombie -- falling "
-                        .. "back to restoring hit points after the fact")
+                local health = healthOf(zombie)
+                if zid and health then
+                    -- Highest recently seen, not latest. A survivor healing is real; a
+                    -- survivor lower than we remember is either a zombie bite -- which we
+                    -- are content to undo -- or the very hit we are about to reverse.
+                    local best = lastKnown[zid]
+                    if not best or health > best then lastKnown[zid] = health end
                 end
             end
         end
@@ -139,21 +126,34 @@ function Guard.Blocks(zombie, attacker)
     if not attacker or not instanceof(attacker, "IsoPlayer") then return false end
     if not isProtected(zombie) then return false end
 
+    local brain = BanditBrain.Get(zombie)
+    local name = tostring(brain and brain.fullname)
     local id = SR.IdOf(zombie)
-    local before = id and snapshots[id]
+    local now = healthOf(zombie)
+    local best = id and lastKnown[id]
 
-    if before then
-        local ok = pcall(function() zombie:setHealth(before) end)
-        if not ok and not restoreFailed then
-            restoreFailed = true
-            SR.Log("GUARD setHealth is not available on IsoZombie -- accidental hits still "
-                .. "wound, but they no longer cost trust")
+    -- Every branch says what it did, with numbers. The previous version printed the same
+    -- reassuring line whether it had healed the survivor or done nothing at all, which is
+    -- how a total failure survived a whole play session.
+    if not now then
+        SR.Log(string.format("GUARD %s | trust kept, but getHealth failed -- the wound stands", name))
+    elseif not best then
+        -- Never sampled: they walked in and got hit inside the same minute. Take the
+        -- current value so the NEXT hit in this fight is covered.
+        lastKnown[id] = now
+        SR.Log(string.format("GUARD %s | trust kept, no health sample yet (%.3f) -- this "
+            .. "first wound stands, later ones will not", name, now))
+    elseif now >= best then
+        SR.Log(string.format("GUARD %s | trust kept, no damage to undo (%.3f)", name, now))
+    else
+        local ok = pcall(function() zombie:setHealth(best) end)
+        if ok then
+            SR.Log(string.format("GUARD %s | healed %.3f -> %.3f, trust kept", name, now, best))
+        else
+            SR.Log(string.format("GUARD %s | trust kept, but setHealth failed at %.3f", name, now))
         end
     end
 
-    local brain = BanditBrain.Get(zombie)
-    SR.Log(string.format("GUARD absorbed a hit on %s -- no trust lost",
-        tostring(brain and brain.fullname)))
     return true
 end
 
@@ -162,8 +162,9 @@ end
 --- the wrong trade.
 function Guard.Toggle()
     Guard.enabled = not Guard.enabled
-    -- Turning it off must take effect on the swing already in flight, not the next one.
-    if not Guard.enabled then unshieldAll() end
+    -- Turning it off must take effect immediately: no stale samples to heal anyone back
+    -- to after the player has decided they mean it.
+    if not Guard.enabled then lastKnown = {} end
     local player = getSpecificPlayer(0)
     if HaloTextHelper and player then
         if Guard.enabled then
@@ -175,13 +176,9 @@ function Guard.Toggle()
     SR.Log("GUARD " .. (Guard.enabled and "on" or "off"))
 end
 
-Events.OnWeaponSwingHitPoint.Add(snapshot)
-Events.OnPlayerAttackFinished.Add(unshieldAll)
-
--- Last line of defence. If both of the above ever fail to fire, an NPC would otherwise
--- stay immortal for the rest of the session; this costs one empty loop a minute.
-Events.EveryOneMinute.Add(unshieldAll)
+-- Sampling only. Nothing here is attached to a swing, which is the whole fix.
+Events.EveryOneMinute.Add(Guard.Watch)
 
 Events.OnGameStart.Add(function()
-    SR.Log("GUARD ready -- friendly fire blocked. Toggle from the left-hand button column")
+    SR.Log("GUARD ready -- friendly fire undone by healing. Toggle on the SAFE button")
 end)
