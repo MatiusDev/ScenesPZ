@@ -99,10 +99,13 @@ Scavenging behaviour is a matter of choosing when, not of building how.
 
 | Mechanism | State | Verified |
 |---|---|---|
-| `zombie:getStats()` | returns a `Stats{` object, but **every getter on it fails** | probed 2026-08-03 |
-| `zombie:getBodyDamage()` | returns `nil` | probed 2026-08-03 |
-| `zombie:getMoodles()` | returns `nil` | probed 2026-08-03 |
-| `brain.endurance` / `health` / `infection` / `sleep` | Bandits' own parallel model | `Bandit.lua:423` |
+| `zombie:getStats():get(CharacterStat.X)` | **binds fine, never ticks** — 12 stats frozen over 10 sweeps | probed 2026-08-04 |
+| `zombie:getBodyDamage()` | binds, but nothing in Bandits writes to it | probed 2026-08-04 |
+| `zombie:getMoodles()` | binds; unused by the framework | probed 2026-08-04 |
+| `zombie:getHealth()` / `setHealth()` | **the real live condition**, scale 0..`brain.health` | `BanditUpdate.lua:500`, `ZABandage.lua:50` |
+| `zombie:addVisualBandage(BodyPartType.X, true)` | works on an NPC | `ZABandage.lua:51` |
+| `brain.health` | **spawn MAXIMUM, not live health** — set once, never updated | `BanditServerSpawner.lua:332` |
+| `brain.endurance` / `infection` / `sleep` | Bandits' own parallel model | `Bandit.lua:423` |
 | `brain.rnd` | 5 stable ints per NPC, free variation | `BanditServerSpawner.lua:375` |
 | `getModData().scenesRel` | ours: trust, memory, posture | ours |
 
@@ -133,10 +136,42 @@ It is also demonstrably **not** player-only: `ISAnimalContextMenu.lua:30` and
 So the accessor lives on the shared base and is bound for non-player characters — the
 opposite of the `HaloTextHelper` result above.
 
-**Still open, and now askable properly:** does the engine *tick* those values for a zombie,
-or do they sit at their defaults? The rewritten probe prints panic, stress, thirst, hunger
-and endurance for the nearest NPC once per sweep, so a run produces a time series instead
-of a single reading. Ten sweeps of identical zeros is one answer; drift is the other.
+**ANSWERED 2026-08-04: `PROBE stat VERDICT FROZEN`.** The engine does **not** tick those
+values for a zombie. Ten sweeps, twelve stats, zero movement:
+
+```
+PROBE stat | PANIC ok=true value=0        PROBE stat | PAIN ok=true value=0
+PROBE stat | STRESS ok=true value=0       PROBE stat | ANGER ok=true value=0
+PROBE stat | FATIGUE ok=true value=0      PROBE stat | MORALE ok=true value=1
+PROBE stat | THIRST ok=true value=0       PROBE stat | SANITY ok=true value=1
+PROBE stat | HUNGER ok=true value=0       PROBE stat | UNHAPPINESS ok=true value=0
+PROBE stat | ENDURANCE ok=true value=1    PROBE stat | BOREDOM ok=true value=0
+```
+
+Note what the verdict is and is not. **The binding works** — `ok=true` on all twelve, which
+is the correction above holding up. What does not happen is the simulation: nothing in the
+engine writes to those fields for an `IsoZombie`, so they are a readable surface with no
+author. A hunger bar for an NPC would be a bar that never moves.
+
+**Consequences, both already taken:**
+
+- Emotion is **simulated by us**, on `SR.Mood`, and half of stage 06 stays in scope.
+  `ScenesRelationsAutonomy.lua` carries fear as a decaying average because there was no
+  engine value to read instead.
+- The NPC health panel shows Bandits' own model — `getHealth`, `brain.infection` — and says
+  on its face that needs are not simulated, rather than drawing empty bars that look broken.
+
+`getBodyDamage()` deserves the same caveat: it answers `ok=true` under the corrected probe,
+but nothing in Bandits ever writes to it, so a vanilla-style body diagram for an NPC would
+render zeroes forever.
+
+**And one field that is NOT what its name suggests.** `brain.health` is the SPAWN MAXIMUM,
+written once as `BanditUtils.Lerp(health, 1, 9, 1, 2.6)` at `BanditServerSpawner.lua:332`
+and never touched again. Live condition is `bandit:getHealth()` — that is what the bleed-out
+loop drains (`BanditUpdate.lua:500`) and what their own Bandage action resets
+(`ZABandage.lua:50`). Reading `brain.health` as current health cost this project a whole
+session: the fear model's hurt term and the wheel's "how are you holding up" were both
+reading a per-person constant.
 
 **The lesson is the reverse of the one above and worth holding both at once.** `isNPC()`
 failed because an identifier was copied without checking it existed. This failed because

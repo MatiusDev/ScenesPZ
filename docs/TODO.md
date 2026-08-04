@@ -44,13 +44,42 @@ designing anything.
 
 ---
 
-## Two systems both decide posture
+## ~~Two systems both decide posture~~ — CLOSED 2026-08-04
 
-**Seen in the code, not in play.** `ScenesRelationsThreat.lua` decides fight-or-flee on its
-own sweep, and `ScenesRelationsAutonomy.lua` decides a priority rung on another. That is
-two places owning one rule, which is what rule R6 in `docs/CODE-REVIEW-RULES.md` exists to
-stop, and it is how the talk cooldown already drifted once.
+The 04-08 log made it visible instead of theoretical: `THREAT ... -> flee` fired forty-odd
+times for three survivors on a fifteen-tile radius, while `AUTO` said nothing about any of
+them. Two modules watching different radii, reporting to nobody, sending everyone they
+caught to the same window — which is also where "van 2 al mismo tiempo a abrir la misma
+ventana" came from.
 
-**The intended end state:** autonomy owns the decision and threat becomes the executor it
-calls for the shelter behaviour. Deliberately not done in the same pass that introduced the
-ladder, so that if the ladder is wrong there is one thing to revert rather than two.
+The ladder now owns the decision. `ScenesRelationsThreat.lua` runs only for survivors
+already on rung 1 and owns only the verb: find the nearest way inside, go through it, once.
+
+---
+
+## A companion cannot follow you past a zombie — upstream, worked around
+
+**Where it lives:** `ZPCompanion.Main`. A companion within 20 tiles of its master that sees
+any enemy within 8 walks *to that enemy* and returns from the program — it never reaches the
+follow-the-master code at the bottom of the same function. So a companion crossing a street
+with zombies in it is structurally unable to be following you. This is the whole of
+"cuando yo salía corriendo, no salian corriendo detras de mi".
+
+**What we did:** did not touch their file. `ScenesRelationsAutonomy` asserts a
+target-tracking follow task itself when the master is plainly disengaging, so the engage
+branch is never asked.
+
+**Why it stays on this list:** the workaround is ours to maintain forever, and it fights the
+program rather than cooperating with it. Worth reporting upstream to Slayer with the two
+line numbers; a leash guard on that branch would fix it for everybody.
+
+---
+
+## Fear is simulated, and stage 06 has to live with that
+
+`PROBE stat VERDICT FROZEN` (04-08). The engine binds `getStats()` on an NPC but never ticks
+it — twelve stats, ten sweeps, no movement. Every emotional value this mod will ever have
+must be written by us, on `SR.Mood`.
+
+Not a bug — a scope fact, recorded because stage 06 was written assuming the probe might go
+the other way and halve it. It did not.

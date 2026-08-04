@@ -22,8 +22,22 @@
 -- Doors are not broken down yet. The Destroy action takes an `idx` parameter whose
 -- meaning is not verified, and inventing it is how this project has lost sessions before.
 -- Windows only, until Destroy is read properly.
+--
+-- WHO IS IN CHARGE, SETTLED 04-08
+-- This file and ScenesRelationsAutonomy both used to decide what a frightened survivor
+-- does, on their own numbers, at the same cadence. The log proved it: THREAT lines saying
+-- "flee" for three survivors while AUTO said nothing about any of them, because the two
+-- modules were watching different radii and reporting to nobody. That is R6 in
+-- docs/CODE-REVIEW-RULES.md, and it is also why several of them piled onto one window --
+-- fifteen tiles is a wide net, and everybody it caught was sent to the same place.
+--
+-- The ladder now owns the decision. This file owns only the VERB -- where the nearest way
+-- inside is and how to get there -- and it runs only for survivors the ladder has already
+-- put on rung 1. Fleeing to a window is what surviving looks like; deciding to survive is
+-- not this file's job any more.
 
 require "ScenesRelations"
+require "ScenesRelationsAutonomy"
 
 local SR = ScenesRelations
 
@@ -137,60 +151,62 @@ local function seekShelter(zombie, brain)
     return true
 end
 
---- One pass over every friendly NPC in the cache.
+--- One pass over every friendly NPC the ladder has put on rung 1.
+---
+--- There is no decision left to make here. Fear already weighed the numbers against this
+--- person's own limit, and that limit is derived from the same brain.rnd[2] this file used
+--- to read for bravery -- so the brave still hold and the cautious still break, by exactly
+--- the same field, decided in exactly one place.
 local function assess()
     local cache, bandits = BanditZombie.Cache, BanditZombie.CacheLightB
     if not cache or not bandits then return end
+    if not SR.Autonomy then return end
 
     for _, light in pairs(bandits) do
         local brain = light.brain
         if brain and not brain.hostile and not brain.hostileP then
-            local threat = countZombiesNear(light.x, light.y)
+            local zombie = cache[light.id]
+            -- Mood, not the trust record. Posture is transient and belongs to the entity;
+            -- asking for the record here would create a permanent one for every NPC that
+            -- ever saw a zombie near the player.
+            local mood = zombie and SR.Mood(zombie)
 
-            if threat > 0 then
-                local friends = countFriendsNear(light.x, light.y, light.id)
-                local zombie = cache[light.id]
-                -- Mood, not the trust record. Posture is transient and belongs to the
-                -- entity; asking for the record here would create a permanent one for
-                -- every NPC that ever saw a zombie near the player.
-                local mood = zombie and SR.Mood(zombie)
-                local previous = mood and mood.posture
+            if mood and mood.rung == SR.Autonomy.SURVIVE then
+                -- Once. Re-queuing a route to the same window every sweep is how an NPC
+                -- ends up walking to a latch forever, which is the bug this whole session
+                -- is about. They keep the tasks they were given until the rung changes.
+                if not mood.sheltering then
+                    mood.sheltering = true
+                    mood.posture = "flee"
 
-                -- The whole decision, in one line. Outnumbered means the group cannot
-                -- absorb the hit; then bravery decides who buys time and who gets inside.
-                local outnumbered = threat > friends + 1
-                local posture = "fight"
-                if outnumbered and not isBrave(brain) then posture = "flee" end
+                    local threat = countZombiesNear(light.x, light.y)
+                    local friends = countFriendsNear(light.x, light.y, light.id)
 
-                if zombie and posture ~= previous then
-                    if mood then mood.posture = posture end
-
-                    -- Phrase keys are not free text. These three are the only ones used
-                    -- here that appear in Bandits' own Say calls; "PANIC" and "COVER"
-                    -- read better and do not exist. Bandit.Say also self-limits to 14
-                    -- tiles from the player (Bandit.lua:1171), so this cannot become
-                    -- noise from across the map.
-                    if posture == "flee" then
-                        if seekShelter(zombie, brain) then
-                            Bandit.Say(zombie, "INSIDE")
-                        else
-                            -- Nowhere to go. Standing and fighting is not courage here,
-                            -- it is the only option left, and it should look like that.
-                            if mood then mood.posture = "fight" end
-                            Bandit.Say(zombie, "OUTSIDE")
-                        end
-                    else
-                        -- Someone holding while the others run is the moment worth
-                        -- hearing. Also the seam where calming each other will attach.
-                        Bandit.Say(zombie, "SPOTTED")
-                    end
-
-                    if SR.DEBUG then
-                        SR.Log(string.format("THREAT %s | zombies=%d friends=%d brave=%s -> %s",
+                    -- Phrase keys are not free text. These are the only ones used here
+                    -- that appear in Bandits' own Say calls; "PANIC" and "COVER" read
+                    -- better and do not exist. Bandit.Say also self-limits to 14 tiles
+                    -- from the player (Bandit.lua:1171), so this cannot become noise from
+                    -- across the map.
+                    if seekShelter(zombie, brain) then
+                        Bandit.Say(zombie, "INSIDE")
+                        SR.Log(string.format(
+                            "THREAT %s | survive -> shelter | zombies=%d friends=%d brave=%s",
                             tostring(brain.fullname), threat, friends,
-                            tostring(isBrave(brain)), posture))
+                            tostring(isBrave(brain))))
+                    else
+                        -- Nowhere to go. Standing and fighting is not courage here, it is
+                        -- the only option left, and it should look like that.
+                        mood.posture = "fight"
+                        Bandit.Say(zombie, "OUTSIDE")
+                        SR.Log(string.format(
+                            "THREAT %s | survive but cornered, no way inside | zombies=%d friends=%d",
+                            tostring(brain.fullname), threat, friends))
                     end
                 end
+            elseif mood then
+                -- Off rung 1: they may look for shelter again next time they need it.
+                mood.sheltering = nil
+                mood.posture = nil
             end
         end
     end
