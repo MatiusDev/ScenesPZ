@@ -1,6 +1,8 @@
 # Stage 03 — idle life
 
-**Status: first slice built (ground items -> pick up -> wear), never run.**
+**Status: built, and FOLDED INTO [03-autonomy.md](03-autonomy.md) as rung 5.**
+The code stands; what changed is its place. Play showed that adding idle behaviour without
+an arbitration layer above it just gives an NPC one more thing to be doing while it dies.
 Containers, lost possessions and trading are the rest of the stage and wait on this
 one being confirmed in a real session.
 

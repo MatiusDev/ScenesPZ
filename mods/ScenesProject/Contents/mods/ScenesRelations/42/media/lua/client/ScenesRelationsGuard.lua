@@ -108,6 +108,29 @@ local function setUntouchable(zombie, on)
     return ok
 end
 
+--- Puts back what shoving knocked off.
+---
+--- setNoDamage stops the damage but not the shove: pushing a protected survivor still
+--- flicks their hat off and still paints blood on them, and neither has a Lua veto. Same
+--- shape as the damage problem, same answer -- restore rather than prevent.
+---
+--- brain.clothing is what Bandits believes they are wearing, and ApplyVisuals is how it
+--- dresses them (called from banditize at BanditServerSpawner.lua:420). Re-running it puts
+--- the hat back on somebody the engine has just undressed. Only for the handful of NPCs
+--- close enough to be armed, on the slow tick.
+local redressFailed = false
+
+local function redress(zombie)
+    local brain = BanditBrain.Get(zombie)
+    if not brain or not brain.clothing then return end
+
+    local ok, err = pcall(function() Bandit.ApplyVisuals(zombie, brain) end)
+    if not ok and not redressFailed then
+        redressFailed = true
+        SR.Log("GUARD could not restore clothing: " .. tostring(err))
+    end
+end
+
 --- Takes the flag off everyone. Called whenever the guard is switched off, and every slow
 --- tick before re-arming, so a survivor cannot keep it by drifting out of range.
 local function disarmAll()
@@ -168,6 +191,7 @@ function Guard.Watch()
                 -- rather than a wound undone a moment later.
                 if zid and (dx * dx + dy * dy) <= ARM_RANGE * ARM_RANGE then
                     if setUntouchable(zombie, true) then armed[zid] = zombie end
+                    redress(zombie)
                 end
 
                 local health = healthOf(zombie)

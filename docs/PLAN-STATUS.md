@@ -12,56 +12,71 @@ Hoja de ruta completa: [`docs/plans/README.md`](plans/README.md).
 
 ## Lo que cambió
 
-**El memory test pasó — la etapa 01 queda cerrada.** El almacén durable funciona: un NPC te
-recuerda después de que su celda se descarga. Era la pregunta que sostenía todo el mod.
+**El escudo quedó bien** — confirmado por vos. `setNoDamage` + `setImmortalTutorialZombie`
+sobre el NPC: sin daño, sin reacción de golpe. Y lo de los sombreros: empujar sigue
+tumbándolos porque el empujón no es daño y no tiene veto en Lua. Misma forma que el
+problema anterior, misma respuesta — ahora los vuelvo a vestir desde `brain.clothing` cada
+tick lento mientras estés cerca. La sangre es una calcomanía del motor; esa no la puedo
+quitar, solo la ropa vuelve a su sitio.
 
-**La rueda ya no reacciona al cursor, solo al soltar.** Tenías razón en que se devolvía
-antes de que eligieras: pasar el cursor por algo es lo que hacés *de camino* a otra cosa,
-así que usarlo para confirmar es confirmar por accidente. Ahora:
+**El sidebar se fue al borde inferior**, y en fila en vez de en columna. Cualquier
+porcentaje de la altura era una adivinanza: esa columna crece hacia abajo y hasta dónde
+llega depende de qué tengas en la mano. El borde de abajo no es una adivinanza.
 
-| Soltás sobre | Pasa |
-|---|---|
-| una acción | se ejecuta y la rueda cierra |
-| **Talk** | abre el anillo de preguntas y **la rueda sigue abierta** |
-| el centro, en un submenú | vuelve al anillo principal |
-| el centro, en el principal | cierra |
+**La rueda:**
 
-Después de abrir el submenú ya no estás manteniendo la tecla, así que volvé a mantener **V**
-y soltá sobre la pregunta — o simplemente hacé clic. Un clic y un soltar hacen exactamente
-lo mismo, es el mismo código.
-
-El centro ahora dice *"release here to go back"*. Es una etiqueta, no un botón: no hace nada
-hasta que soltás encima.
-
-**SAFE y WHO salieron de la columna de vanilla.** No valía la pena pelear la posición:
-`ISEquippedItem` arma su columna con un desplazamiento acumulado y botones que aparecen y
-desaparecen según lo que tengas en la mano, si el debug está activo y si es multijugador.
-Ganar esa discusión una vez no significa ganarla en el próximo parche. Ahora es un panel
-propio, **y lo podés arrastrar a donde quieras**.
-
-**El punto 7 lo resuelve la sonda sola.** Que no supieras cómo probarlo fue culpa de la
-instrucción, no tuya — pedirte comparar cinco números a ojo en un log de 3 MB no era
-razonable. Ahora la sonda guarda su primera lectura y escribe el veredicto sola.
+- **El desbordamiento era aritmética mía.** Las tarjetas llegan a `RADIUS + CARD_W/2` del
+  centro y yo dimensionaba el panel con `CARD_H`. Por eso *"What are you like?"* se salía
+  por la izquierda en `caps/circle-menu-2.png`.
+- **Fuera el recuadro oscuro.** No enmarcaba nada y encima recortaba. Las tarjetas ya tienen
+  su propio contraste.
+- **El nombre y el "back" ya no se pisan.** Antes los dibujaba en el mismo punto, encima de
+  las tarjetas. Ahora el centro es un recuadro propio con el nombre arriba y `back` debajo,
+  y **se ilumina** cuando el cursor está en él.
+- **El hover ahora es inequívoco**: relleno verde y borde doble. Era lo que pediste y
+  además es lo que hace que "¿cuál voy a elegir?" se responda antes de confirmar.
+- **El clic exige presionar y soltar sobre la misma tarjeta.** Actuar solo al soltar hacía
+  que un clic empezado en otro lado — o un botón ya presionado cuando la rueda aparece —
+  confirmara lo que hubiera bajo el cursor. Eso es lo que describiste.
 
 ---
 
-## Etapa 03 — Vida propia, primera rebanada
+## Lo grande: la etapa 03 cambió de sentido
 
-**Lo que hace:** un sobreviviente ve algo en el suelo que le gustaría, camina hasta ahí, lo
-recoge y **se lo pone**.
+Lo que dijiste es lo más útil que se ha dicho sobre este mod:
 
-**Lo que todavía no hace:** lootear contenedores, recuperar algo que se le cayó, comerciar.
-Eso es el resto de la etapa 03 y se construye cuando esta rebanada esté confirmada en una
-partida real. Media etapa que funciona vale más que una entera que nunca corrió.
+> *"no ordenan bien su cola de actividades y no las priorizan, algunos hasta se buguean
+> abriendo una ventana y se quedan abriéndola, y terminan siendo mordidos por la espalda"*
 
-**El gusto es un rasgo, no un dado.** Sale de `brain.rnd`, fijo al spawn. Aproximadamente un
-tercio de los sobrevivientes le presta atención a la ropa, y a cuál — sombreros, mochilas o
-chaquetas — también es suyo de por vida. El que recoge todos los sombreros los recoge
-**siempre**, y eso es algo que aprendés de él. Un azar por tick los volvería a todos la misma
-persona comportándose de forma inconsistente, que es lo contrario del objetivo.
+Tenés razón y replantea el problema entero. **Bandits ya tiene las conductas** — 49 acciones
+y 8 programas; ya lootean, trepan, abren ventanas, se refugian y pelean. Lo que no tienen es
+alguien que decida **cuál importa ahora**. El síntoma no es una función que falta: es un NPC
+peleando con el pestillo mientras algo se lo come.
 
-**La regla que más importa:** nada de esto puede interrumpir una pelea ni una orden. El
-chequeo de ocio es estricto — cola de tareas vacía, ningún zombi cerca, y no está huyendo.
+Así que la etapa 03 ya no es "más cosas que hacer". Es la escalera que elige:
+
+| Escalón | Se activa cuando | Hace |
+|---|---|---|
+| 1. Sobrevivir | acorralado, malherido, o el miedo pasa su límite | romper el cerco, meterse tras una puerta, quedarse |
+| 2. Pelear | hay amenaza cerca y no le tiene tanto miedo | pelear — y **parar** cuando se resolvió |
+| 3. Obedecer | le diste una orden y la aceptó | seguirte, esperar, venir |
+| 4. Recado | quiere algo concreto — una venda, su mochila | ir por ello, y soltarlo si algo sube de escalón |
+| 5. Ocio | nada más | el sombrero, la mochila, el armario |
+
+**Vaciar la cola es el mecanismo entero.** `Bandit.ClearTasks` ya existe y Bandits la usa
+cuando un NPC se convierte. Sin esa llamada, una intención nueva simplemente hace fila
+detrás de la vieja — que es exactamente tu bug de la ventana.
+
+Y el miedo es lo que mueve a alguien entre escalones. Eso es "las emociones deben servir en
+las decisiones", hecho mecanismo en vez de adorno.
+
+**El rango de 8 se queda por ahora**, como dijiste: sube cuando el escalón 2 ceda de verdad
+ante el 1 y el 3. Ampliarlo hoy solo los hace perseguir más lejos.
+
+El diseño completo está en `docs/plans/03-autonomy.md`, con qué produce cada escalón y cómo
+se prueba. **No lo construí en esta pasada** — es la pieza más grande hasta ahora y prefiero
+que primero confirmes que la rueda y el sidebar quedaron bien, porque son lo que usás para
+probar todo lo demás.
 
 ---
 
@@ -75,122 +90,62 @@ tools/sync-mods.sh
 
 ## Las pruebas, en orden
 
-### 1. Todo cargó y nada explota
+### 1. El sidebar ya no estorba
 
-**Hacé:** entrá, jugá dos minutos, salí y buscá `setTextureColor` en `console.txt`.
-
-**Pasa si** no aparece. Y si están las siete líneas de arranque:
-
-```
-SREL| STORE ready    SREL| GUARD ready     SREL| SIDEBAR ready
-SREL| WHEEL ready    SREL| MEMTEST ready   SREL| IDLE ready
-SREL| PANEL ready
-```
+**Pasa si** los botones **SAFE** y **WHO** están en fila en la esquina inferior izquierda,
+sin tocar la columna de íconos de vanilla. Se arrastran.
 
 ---
 
-### 2. La rueda selecciona al soltar
+### 2. La rueda entra en su sitio
 
-**Hacé:** mantené **V** cerca de alguien, movete sobre una tarjeta, soltá.
+**Hacé:** mantené **V** cerca de alguien.
 
 **Pasa si:**
-- Ya **no** se devuelve solo al pasar el cursor por el centro.
-- Soltar sobre `Talk` abre las preguntas y la rueda **se queda abierta**.
-- Volvé a mantener **V** (o hacé clic) y soltá sobre una pregunta: sale la respuesta.
-- Soltar en el centro dentro del submenú vuelve al anillo principal.
-- Soltar en el centro del anillo principal cierra.
+- **Ninguna tarjeta se sale.** Comparalo con `caps/circle-menu-2.png`.
+- Ya no hay recuadro gris de fondo.
+- El nombre está en el centro, dentro de su propio recuadro, **sin texto encima**.
 
 ---
 
-### 3. Los botones ya no tapan nada
+### 3. El hover se ve, y nada pasa solo
 
-**Hacé:** mirá el borde izquierdo, a media altura.
-
-**Pasa si** hay un panelito con **SAFE** y **WHO** que **no** se superpone con los íconos de
-construcción, y podés **arrastrarlo**.
-
----
-
-### 4. Vida propia — la nueva
-
-**Hacé, en este orden:**
-
-1. Conseguí dos o tres sobrevivientes cerca.
-2. Tirá al suelo delante de ellos **un sombrero, una mochila y una chaqueta**.
-3. Alejate un poco y esperá. Que no haya zombis cerca.
+**Hacé:** movete sobre las tarjetas sin soltar ni hacer clic.
 
 **Pasa si:**
-- **Algunos** van, lo recogen y se lo ponen. **Otros pasan de largo.** Las dos cosas son
-  correctas — solo un tercio son así.
-- En el log: `IDLE <nombre> wants Base.Hat_... at x,y` y después
-  `IDLE <nombre> put on Base.Hat_...`.
-- **El mismo sobreviviente se comporta igual la segunda vez.** Eso es lo que prueba que es
-  un rasgo y no un azar.
-
-**Y la prueba que de verdad importa:** mientras uno va caminando hacia el objeto, **traé un
-zombi**. Tiene que abandonarlo. Si sigue caminando hacia el sombrero mientras algo te está
-mordiendo, eso es un fallo y hay que arreglarlo antes que nada.
+- La tarjeta bajo el cursor se pone **verde con borde doble**. El centro se ilumina en
+  ámbar cuando estás en un submenú.
+- **No pasa nada** hasta que soltás **V** o hacés un clic completo.
+- Un clic que empieza en una tarjeta y termina en otra **no** ejecuta nada.
 
 ---
 
-### 5. El escudo — ahora sí, ingolpeables
+### 4. Ropa y empujones
 
-Preguntaste si se podía hacer que el golpe **no exista**, en vez de curar después. Sí se
-puede, y era la pregunta correcta: curar es un parche, y encima mi versión anterior ni
-siquiera curaba.
+**Hacé:** con **SAFE** verde, empujá a un aliado con sombrero varias veces.
 
-El motor lo tiene, y vanilla lo llama **sobre un zombi** — que es lo que lo distingue de
-todo lo que probé antes:
-
-```lua
--- pzserver/media/lua/client/Tutorial/Steps.lua:848, 934
-FightStep.momzombie:setNoDamage(true)
-FightStep.momzombie:setImmortalTutorialZombie(true)
-```
-
-El tutorial las usa para volver intocable a un zombi concreto durante un momento guionado.
-Por eso `setInvincible` fallaba en silencio: esa solo aparece sobre jugadores.
-
-**Una consecuencia que tenés que saber.** `setNoDamage` es una bandera general: un NPC que
-la lleva tampoco puede ser mordido por zombis. Un aliado inmordible es otro juego. Por eso
-**solo se activa mientras estás a 4 tiles o menos** — cuando el accidente es posible — y se
-apaga en cuanto te alejás. Tres caminos distintos la apagan, porque un aliado inmortal
-permanente sería peor bug que el que arreglo.
-
-**Hacé:** con **SAFE** verde y un aliado al lado, pegale seis o siete veces seguidas.
-
-**Pasa si:**
-- **No hay animación de golpe, no hay sangre, no baja la vida.** Nada.
-- En el log: `GUARD <nombre> | trust kept, no damage to undo`.
-- Alejate 10 tiles, traé un zombi y comprobá que **sí lo puede morder**. Si es inmune a los
-  zombis lejos tuyo, la bandera se quedó pegada y eso es un fallo.
-- Poné **HIT** (rojo) y comprobá que ahí sí le hacés daño.
-
-**Si aparece esta línea**, la bandera no funciona sobre un bandido y volvemos a curar:
-
-```
-GUARD setNoDamage is not available on this NPC
-```
+**Pasa si** el sombrero vuelve a su cabeza en menos de un minuto de juego. La sangre va a
+seguir apareciendo — es una calcomanía del motor sin gancho en Lua, y no le hace nada.
 
 ---
 
-### 6. Las emociones, ahora con veredicto automático
+### 5. ¿El motor mueve las emociones? — sigue pendiente
 
-No tenés que comparar nada. Buscá una de estas dos líneas:
+Buscá una de estas dos, sale sola:
 
 ```
-PROBE stat VERDICT MOVES   -- el motor sí las mueve, se pueden leer
-PROBE stat VERDICT FROZEN  -- diez barridos sin cambio, hay que simularlas
+PROBE stat VERDICT MOVES    PROBE stat VERDICT FROZEN
 ```
 
-Sale sola después de unos minutos con un NPC cerca.
+Esa línea decide cómo se construye el miedo de la etapa 03, así que es la que más me
+sirve de esta corrida.
 
 ---
 
 ## Qué mandarme
 
-`console.txt` y una línea por prueba. De la 4, si alguno abandonó el objeto al llegar un
-zombi. De la 5, si le bajó la vida. De la 6, cuál de las dos líneas salió.
+`console.txt`, una línea por prueba, y una captura de la rueda para comparar con la
+anterior.
 
 ---
 

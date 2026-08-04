@@ -49,7 +49,7 @@ function SRSidebar:createChildren()
     self.guardBtn:setTooltip("Survivors are protected from your own attacks. Click to allow hitting them.")
     self:addChild(self.guardBtn)
 
-    self.panelBtn = ISButton:new(PAD, PAD * 2 + BTN_H, BTN_W, BTN_H, "WHO", self, onPanel)
+    self.panelBtn = ISButton:new(PAD * 2 + BTN_W, PAD, BTN_W, BTN_H, "WHO", self, onPanel)
     self.panelBtn:initialise()
     self.panelBtn:instantiate()
     self.panelBtn:setDisplayBackground(true)
@@ -78,9 +78,14 @@ function SRSidebar:new()
     -- Left edge, below where vanilla's column ends on any reasonable resolution, and
     -- draggable from there. Deliberately not anchored to another panel -- the whole reason
     -- this file was rewritten is that sharing space with vanilla is a losing game.
+    -- Bottom-left, side by side. At 55% of the screen height the previous version landed
+    -- in the middle of vanilla's icon column -- see caps/side-bar.png. That column grows
+    -- downward from the top and how far it reaches depends on what the player is holding,
+    -- so any fraction of the height is a guess. The bottom edge is not: nothing vanilla
+    -- puts an icon there, and two buttons in a row need half the height of two stacked.
     local x = 6
-    local y = math.floor(getCore():getScreenHeight() * 0.55)
-    local o = ISPanel.new(self, x, y, BTN_W + PAD * 2, BTN_H * 2 + PAD * 3)
+    local y = getCore():getScreenHeight() - (BTN_H + PAD * 2) - 8
+    local o = ISPanel.new(self, x, y, BTN_W * 2 + PAD * 3, BTN_H + PAD * 2)
     o.backgroundColor = { r = 0, g = 0, b = 0, a = 0.55 }
     o.borderColor = { r = 1, g = 1, b = 1, a = 0.2 }
     o.moveWithMouse = true

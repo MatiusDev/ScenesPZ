@@ -51,9 +51,16 @@ local HOLD_MS = 250
 -- 3 tiles is conversational distance; 8 was the zombie engagement range and felt wrong here.
 local RANGE = 3
 
-local RADIUS = 110          -- distance from centre to the middle of each card
-local CARD_W, CARD_H = 130, 36
-local CENTRE_R = 46         -- inside this, nothing is selected and a submenu closes
+local RADIUS = 128          -- distance from centre to the middle of each card
+local CARD_W, CARD_H = 150, 40
+local CENTRE_R = 52         -- inside this is the middle: back out, or close
+local MARGIN = 16           -- breathing room between the outermost card and the edge
+
+-- The panel has to contain the cards. The first version sized itself from RADIUS + CARD_H
+-- and the wide cards ran straight off the left edge -- visible in caps/circle-menu-2.png.
+-- A card reaches RADIUS + CARD_W/2 horizontally, so that is what the half-size must be.
+local HALF = RADIUS + math.max(CARD_W, CARD_H) / 2 + MARGIN
+local SIZE = HALF * 2
 
 table.insert(keyBinding, { value = "[ScenesPZ]" })
 table.insert(keyBinding, { value = "Talk to survivor", key = Keyboard.KEY_V })
@@ -195,15 +202,24 @@ function SRWheelPanel:render()
 
     hover = self:hovered()
 
-    -- Centre: who you are talking to. No trust number -- that lives in the relationship
-    -- panel, where it can be a bar you read rather than a figure you decode mid-swing.
-    self:drawTextCentre(self.subject, self.width / 2, self.height / 2 - 8,
-        1, 1, 1, 1, UIFont.Medium)
-    -- The middle is the way back, and it has to say so or nobody would find it. It is a
-    -- label, not a button: it does nothing until you release on it.
+    local cx, cy = self.width / 2, self.height / 2
+    local inCentre = (hover == nil)
+
+    -- The middle. Drawn as a real target with its own hover state, because it IS one:
+    -- releasing here backs out. The previous version stacked the name and the words
+    -- "release here to go back" on top of each other in the same spot, over the cards --
+    -- see caps/circle-menu-2.png.
+    local cr, cg, cb = 0.10, 0.10, 0.12
+    if inCentre and self.inSubmenu then cr, cg, cb = 0.30, 0.22, 0.12 end
+    self:drawRect(cx - CENTRE_R, cy - CENTRE_R, CENTRE_R * 2, CENTRE_R * 2, 0.85, cr, cg, cb)
+    self:drawRectBorder(cx - CENTRE_R, cy - CENTRE_R, CENTRE_R * 2, CENTRE_R * 2,
+        (inCentre and self.inSubmenu) and 0.95 or 0.25, 1, 1, 1)
+
+    -- Who you are talking to, in the middle where there is now room for it. No trust
+    -- number -- that lives in the relationship panel, as a bar you read.
+    self:drawTextCentre(self.subject, cx, cy - 16, 1, 1, 1, 1, UIFont.Small)
     if self.inSubmenu then
-        self:drawTextCentre("release here to go back", self.width / 2, self.height / 2 + 10,
-            0.55, 0.55, 0.55, 1, UIFont.Small)
+        self:drawTextCentre("back", cx, cy + 2, 0.85, 0.75, 0.45, 1, UIFont.Medium)
     end
 
     for i, option in ipairs(self.options) do
@@ -211,15 +227,23 @@ function SRWheelPanel:render()
         local x, y = cx - CARD_W / 2, cy - CARD_H / 2
         local on = (i == hover)
 
-        local r, g, b = 0.16, 0.16, 0.18
+        -- Hover has to be unmistakable. Asked for directly, and it is also what makes
+        -- "which one am I about to pick" answerable before committing rather than after.
+        local r, g, b = 0.10, 0.10, 0.12
         if not option.available then
-            r, g, b = 0.18, 0.14, 0.14
+            r, g, b = 0.16, 0.10, 0.10
+            if on then r, g, b = 0.30, 0.16, 0.16 end
         elseif on then
-            r, g, b = 0.22, 0.34, 0.24
+            r, g, b = 0.16, 0.42, 0.24
         end
 
-        self:drawRect(x, y, CARD_W, CARD_H, 0.92, r, g, b)
-        self:drawRectBorder(x, y, CARD_W, CARD_H, on and 0.9 or 0.35, 1, 1, 1)
+        self:drawRect(x, y, CARD_W, CARD_H, 0.95, r, g, b)
+        -- A second border inset by one pixel reads as a thick one without needing a draw
+        -- call ISPanel does not have.
+        self:drawRectBorder(x, y, CARD_W, CARD_H, on and 1 or 0.30, 1, 1, 1)
+        if on then
+            self:drawRectBorder(x + 1, y + 1, CARD_W - 2, CARD_H - 2, 0.9, 1, 1, 1)
+        end
 
         -- Refused options stay, dimmed, with the reason under them. Hiding an option makes
         -- the relationship invisible; showing why it is closed makes it a goal.
@@ -284,22 +308,39 @@ end
 
 --- A click is the same commitment as a release, so it runs the same code. Without this,
 --- the wheel would be unusable after a submenu opens and the key is no longer held.
+---
+--- It requires a full press AND release over the same target, the way every button in
+--- every program works. Acting on the release alone meant a click begun elsewhere -- or a
+--- button already down when the wheel appeared -- committed whatever the cursor happened
+--- to be over, which is what "it happens without me selecting" describes.
+function SRWheelPanel:onMouseDown(x, y)
+    self.pressedOn = self:hovered() or "centre"
+    return true
+end
+
 function SRWheelPanel:onMouseUp(x, y)
+    local pressed = self.pressedOn
+    self.pressedOn = nil
+    if pressed == nil then return end
+
+    if (self:hovered() or "centre") ~= pressed then return end   -- dragged off, not a click
+
     if self.onCommit then self.onCommit() end
 end
 
 function SRWheelPanel:new(subject, options)
-    local size = (RADIUS + CARD_H) * 2 + 40
-    local x = getPlayerScreenLeft(0) + getPlayerScreenWidth(0) / 2 - size / 2
-    local y = getPlayerScreenTop(0) + getPlayerScreenHeight(0) / 2 - size / 2
+    local x = getPlayerScreenLeft(0) + getPlayerScreenWidth(0) / 2 - SIZE / 2
+    local y = getPlayerScreenTop(0) + getPlayerScreenHeight(0) / 2 - SIZE / 2
 
-    local o = ISPanel.new(self, x, y, size, size)
+    local o = ISPanel.new(self, x, y, SIZE, SIZE)
     o.subject = subject
     o.options = options
     o.rootOptions = nil
     o.inSubmenu = false
     o.centreFrames = 0
-    o.backgroundColor = { r = 0, g = 0, b = 0, a = 0.35 }
+    -- No backdrop. A dark square behind a ring of cards frames nothing, and the cards
+    -- were spilling out of it anyway. The cards carry their own contrast.
+    o.backgroundColor = { r = 0, g = 0, b = 0, a = 0 }
     o.borderColor = { r = 0, g = 0, b = 0, a = 0 }
     o.moveWithMouse = false
     return o

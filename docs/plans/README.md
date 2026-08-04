@@ -29,7 +29,7 @@ is the tempting mistake and we are not making it.
 | 00 | [Test world](00-test-world.md) | Somebody to practise on, from the first minute | — |
 | 01 | [Durable memory](01-durable-memory.md) | An NPC still knows you after the map unloads | — |
 | 02 | [Interaction wheel](02-interaction-wheel.md) | Hold a key, choose, release — no clicking a moving target | — |
-| 03 | [Idle life](03-idle-life.md) | They pick things up, wear them, and loot where they live | 02 |
+| 03 | [Autonomy](03-autonomy.md) | They decide what matters right now, and fear is what decides it | 02 |
 | 04 | [Salience and forgetting](04-salience-and-forgetting.md) | They remember the shooting, not the fifty zombies | 01 |
 | 05 | Traits | Two survivors in the same spot react differently, and consistently | 01 |
 | 06 | Emotion | Fear and tension that rise from events and settle on their own | 05 |
@@ -40,6 +40,12 @@ is the tempting mistake and we are not making it.
 | 11 | The social graph | They have opinions about each other, and you can disturb them | 04 |
 | 12 | Gossip | What one of them believes about you reaches the others, imperfectly | 11 |
 | 13 | The settlement | A group that holds a place, divides work, and takes people in | 06, 11 |
+
+**Stage 03 was reframed after the second play test.** It was "idle life" — more things
+for NPCs to do. Play showed the behaviours already exist in Bandits and that the real gap
+is arbitration: nothing decides which of them matters right now, so an NPC works a window
+latch while being bitten. [03-idle-life.md](03-idle-life.md) survives as the lowest rung of
+that ladder.
 
 **Stage 02 was promoted from near the end after the first real play test.** The reason is in
 its own file and is worth reading before objecting that it contradicts the memory-first
