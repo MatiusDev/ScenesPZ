@@ -36,9 +36,9 @@ SR.Wheel = SR.Wheel or {}
 -- Held rather than tapped, so a stray press does nothing.
 local HOLD_MS = 250
 
--- Tiles. Same 8 as the zombie engagement range: one number the player can learn beats two
--- they cannot.
-local RANGE = 8
+-- Tiles. The wheel should only open when you are close enough to talk naturally.
+-- 3 tiles is conversational distance; 8 was the zombie engagement range and felt wrong here.
+local RANGE = 3
 
 local RADIUS = 110          -- distance from centre to the middle of each card
 local CARD_W, CARD_H = 130, 36
@@ -158,17 +158,28 @@ end
 function SRWheelPanel:render()
     local hover = self:hovered()
 
-    -- Opening a submenu on hover, and closing it by returning to the middle. Done here
-    -- because render is the only place the cursor position is guaranteed fresh: ISPanel
-    -- gives no mouse-move event we can rely on while a key is held down.
+    -- Opening a submenu on hover. Done here because render is the only place the cursor
+    -- position is guaranteed fresh: ISPanel gives no mouse-move event we can rely on
+    -- while a key is held down.
     if hover and self.options[hover] and self.options[hover].submenu and not self.inSubmenu then
         self:enterSubmenu(self.options[hover].submenu)
+    -- Closing the submenu by returning to the middle -- but not instantly. A quick sweep
+    -- across the centre should not kick you out; you must dwell there briefly. At 60 fps
+    -- 8 frames is ~130 ms, long enough to be intentional, short enough to feel responsive.
     elseif self.inSubmenu and not hover then
         local dx = self:getMouseX() - self.width / 2
         local dy = self:getMouseY() - self.height / 2
         if dx * dx + dy * dy < CENTRE_R * CENTRE_R then
-            self:leaveSubmenu()
+            self.centreFrames = (self.centreFrames or 0) + 1
+            if self.centreFrames >= 8 then
+                self:leaveSubmenu()
+                self.centreFrames = 0
+            end
+        else
+            self.centreFrames = 0
         end
+    elseif self.inSubmenu then
+        self.centreFrames = 0
     end
 
     hover = self:hovered()
@@ -256,6 +267,7 @@ function SRWheelPanel:new(subject, options)
     o.options = options
     o.rootOptions = nil
     o.inSubmenu = false
+    o.centreFrames = 0
     o.backgroundColor = { r = 0, g = 0, b = 0, a = 0.35 }
     o.borderColor = { r = 0, g = 0, b = 0, a = 0 }
     o.moveWithMouse = false
@@ -298,7 +310,8 @@ end
 local function open(player)
     local bandit = nearestSurvivor(player)
     if not bandit then
-        if HaloTextHelper then HaloTextHelper.addText(player, "Nobody close enough") end
+        -- Silent: the user is just pressing the key. A message every time they hit V in
+        -- an empty room would train them to ignore all wheel feedback.
         return
     end
 
@@ -318,19 +331,22 @@ local function open(player)
     }
     for _, action in ipairs(list) do
         if action.label ~= "Talk" then
-            options[#options + 1] = action
+            options[#options + 1] = {
+                label = action.label,
+                available = action.available,
+                reason = action.reason,
+                run = action.run and function()
+                    SR.Log("WHEEL action | " .. tostring(action.label) .. " on "
+                        .. tostring(SR.Actions.Name(brain)))
+                    action.run(player, bandit)
+                end,
+            }
         end
     end
 
-    -- Diagnostics ride the wheel while debug is on. It needs exactly what the wheel has
-    -- already chosen -- a survivor in front of you that you have a relationship with --
-    -- and Build 42 ships no Lua prompt to type a command into.
-    if SR.DEBUG and SR.MemTest then
-        options[#options + 1] = {
-            label = "Memory test", available = true, reason = "debug",
-            run = function() SR.MemTest() end,
-        }
-    end
+    -- Memory test removed from the wheel: it needs the same survivor the wheel already
+    -- picked, but running it from the wheel closes the UI and the user cannot see the
+    -- result. A dedicated key is cleaner. See ScenesRelationsMemoryTest.lua.
 
     wheel = SRWheelPanel:new(SR.Actions.Name(brain), options)
     wheel:initialise()
@@ -376,5 +392,5 @@ Events.OnKeyKeepPressed.Add(onKeyKeep)
 Events.OnKeyPressed.Add(onKeyRelease)
 
 Events.OnGameStart.Add(function()
-    SR.Log("WHEEL ready -- hold the 'Talk to survivor' key (default V) near somebody")
+    SR.Log("WHEEL ready -- hold V near somebody (3 tiles) to open the interaction wheel")
 end)

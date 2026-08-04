@@ -32,6 +32,27 @@ sepultadas.
 
 ## Lo que cambió ahora
 
+**BUG CRÍTICO ARREGLADO: `option.run()` sin argumentos.** Las funciones `runFollow`,
+`runJoin`, `runLeave` en `ScenesRelationsActions.lua` esperan `(player, bandit)`, pero la
+rueda las llamaba como `option.run()` sin argumentos. Eso pasaba `nil` a
+`BanditBrain.Get(nil)` y `BanditMenu.SwitchProgram(nil, nil, ...)`, lo que lanzaba
+`attempted index: getModData of non-table: null` — el error que hacía que Follow me / Join
+me / Leave me no funcionaran. Ahora cada opción de la rueda está envuelta en una closure
+que captura `player` y `bandit`.
+
+**Radio de la rueda: 8 → 3 tiles.** Antes se abría a 8 tiles (rango de engagement de
+zombis). Ahora solo se abre a 3 tiles — distancia de conversación natural. Si no hay nadie
+cerca, V es completamente silenciosa: sin mensaje flotante.
+
+**Submenú Talk: back con delay.** Antes pasar el cursor por el centro cerraba el submenú
+instantáneamente. Ahora el cursor debe permanecer en el centro ~130ms (8 frames a 60fps)
+antes de que el submenú se cierre. Un paso rápido por el medio no te saca.
+
+**Memory test vuelve a una tecla: K.** En la rueda no funcionaba bien porque cerraba la UI
+y el usuario no podía ver el resultado. Vanilla no reclama la tecla K (es la única letra
+libre del alfabeto en `keyBinding.lua`). Presioná K al lado de un sobreviviente con el que
+tengas relación.
+
 **Rueda propia, dibujada por nosotros.** `ISRadialMenu` no era un problema de estilo: el
 lado Java es dueño del dibujo y solo pinta el texto de un gajo cuando el cursor ya está
 encima. Por eso volvía a lo mismo hicieras lo que hicieras.
@@ -48,9 +69,8 @@ colocamos, así que sabemos exactamente dónde están — se acabó el cálculo 
 | How are you holding up? | su salud en bandas, no en números |
 | What are you like? | **no construido** — necesita la etapa de rasgos |
 
-Volver al centro sale del submenú. Las cuatro preguntas cuentan como **una sola
-conversación**: el descanso se comprueba una vez, así que preguntar cuatro cosas seguidas
-no da 16 puntos.
+Las cuatro preguntas cuentan como **una sola conversación**: el descanso se comprueba una
+vez, así que preguntar cuatro cosas seguidas no da 16 puntos.
 
 **Lo no construido lo dice.** `Trade` está en la rueda y contesta *"I can't do that yet -
 trading"* en texto flotante. Igual `What are you like?`. Todo pasa por una única función
@@ -97,7 +117,7 @@ SREL| PANEL ready      SREL| SIDEBAR ready
 
 ### 2. La rueda, ahora con texto
 
-**Hacé:** mantené **V** cerca de alguien.
+**Hacé:** acercate a **3 tiles** de un sobreviviente y mantené **V**.
 
 **Pasa si:**
 - Ves **tarjetas con el nombre de cada acción escrito adentro**: `Talk`, `Trade`,
@@ -105,6 +125,7 @@ SREL| PANEL ready      SREL| SIDEBAR ready
 - En el centro está el nombre del sobreviviente. Sin número de confianza.
 - La tarjeta bajo el cursor se ilumina en verde.
 - `Trade` se ve en rojo apagado con `(not built)` debajo.
+- **Si no hay nadie a 3 tiles, V no hace nada** — sin mensaje flotante.
 
 ---
 
@@ -114,8 +135,9 @@ SREL| PANEL ready      SREL| SIDEBAR ready
 
 **Pasa si:**
 - El anillo se reemplaza por las cuatro preguntas.
-- En el centro aparece `< back`.
-- Mové el cursor al centro y vuelve al anillo principal.
+- En el centro aparece el nombre del sobreviviente (no `< back` — eso ya no existe).
+- **Para volver al menú principal, mové el cursor al centro y dejalo ahí un momento**
+  (~1/8 de segundo). Un paso rápido por el centro no cierra el submenú.
 - Soltá **V** sobre una pregunta y la respuesta sale como texto flotante sobre vos.
 - `What are you like?` sale gris con `(traits not built)` y contesta *"I can't do that
   yet"*.
@@ -143,16 +165,20 @@ Si aparece, la invulnerabilidad tampoco funciona sobre NPC.
 
 ---
 
-### 6. El test de memoria — sigue pendiente
+### 6. El test de memoria
 
-En la consola, dos veces:
+**Hacé:** parate al lado de un sobreviviente con el que ya tengas relación (confianza > 0).
+Presioná **K**.
 
-```lua
-ScenesRelations.MemTest()
-```
+**Pasa si:**
+- Aparece texto flotante: *"Away. Coming back in 3 minutes"*.
+- Esperás ~20 segundos reales (3 minutos in-game).
+- Aparece el veredicto como texto flotante: *"Remembered: [nombre] [trust]"* o
+  *"Forgotten: [nombre]"*.
+- En el log aparece `MEMTEST VERDICT PASS` (o `PARTIAL` / `FAIL`).
 
-Entre una y otra, esperá a que las líneas `PROBE sweep` dejen de nombrar a esa persona. El
-log da el veredicto: `PASS`, `PARTIAL` o `FAIL`.
+**Si K no hace nada:** probablemente no tenés relación con ese NPC todavía — hablá o
+peleá junto a él primero.
 
 ---
 
@@ -169,6 +195,23 @@ sesión, hay que simular las emociones. Si se mueve solo, media etapa 06 desapar
 
 ---
 
+### 8. Follow me / Join me / Leave me funcionan desde la rueda
+
+**Hacé:** con la rueda abierta sobre un sobreviviente que no te sigue, soltá **V** sobre
+**Follow me**.
+
+**Pasa si:**
+- Aparece texto flotante: *"[nombre] will walk with you"*.
+- En el log: `ACT [nombre] | follow | trust=... loyal=false master=...`
+- El NPC empieza a seguirte.
+
+**Repetí** para **Join me** (cuando ya te sigue y tenés 60+ de confianza) y **Leave me**
+(cuando te sigue). Cada uno debe producir su propio texto flotante y una línea `ACT` en el
+log. Si alguno lanza un error de Java (`RuntimeException`), reportalo inmediatamente —
+eso era el bug que acabamos de arreglar.
+
+---
+
 ## Qué mandarme
 
 `console.txt` y una línea por prueba. De la 5, si le bajó la vida. De la 7, dos líneas
@@ -182,7 +225,7 @@ sesión, hay que simular las emociones. Si se mueve solo, media etapa 06 desapar
 |---|---|
 | [00 — Mundo de pruebas](plans/00-test-world.md) | construida, confirmada a medias |
 | [01 — Memoria durable](plans/01-durable-memory.md) | construida, **sin confirmar** |
-| [02 — Rueda de interacción](plans/02-interaction-wheel.md) | rueda aprobada; panel a rediseñar; escudo y barra lateral sin probar |
+| [02 — Rueda de interacción](plans/02-interaction-wheel.md) | rueda arreglada (bug de closures fixed); radio reducido a 3; submenú con delay; memory test en K. **Pendiente de confirmar en juego** |
 
 Sigue: [03 — Vida propia](plans/03-idle-life.md) — que recojan cosas, se las pongan y
 looteen donde viven.

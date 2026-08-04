@@ -167,13 +167,12 @@ local function tick()
     if player then comeBack(player) end
 end
 
---- Runs the whole test. Offered on the interaction wheel while SR.DEBUG is on, because
---- the wheel already picks exactly what this needs: a survivor standing in front of you
---- that you have a relationship with.
+--- Runs the whole test. Bound to K -- the only letter of the alphabet vanilla does not
+--- claim (keyBinding.lua lists A-Z except K). A diagnostic should not compete with the
+--- controls you use to stay alive, and K is far enough from WASD to avoid accidents.
 ---
---- Not a keybinding: vanilla claims every letter but K, and a diagnostic should not compete
---- with the controls you use to stay alive. Not a console command either -- Build 42 ships
---- no Lua prompt. LuaDebugger.lua is a breakpoint debugger, not somewhere you can type.
+--- Not a console command -- Build 42 ships no Lua prompt. LuaDebugger.lua is a breakpoint
+--- debugger, not somewhere you can type.
 function SR.MemTest()
     local player = getSpecificPlayer(0)
     if not player then
@@ -193,6 +192,29 @@ function SR.MemTest()
     Events.EveryOneMinute.Add(tick)
 end
 
+-- KEYBINDING ---------------------------------------------------------------------------
+
+-- K is the only unclaimed letter in vanilla's keyBinding.lua. Every other A-Z key is
+-- taken. Numbers and F-keys are also available but K is the most memorable for a
+-- diagnostic you run a few times per project.
+table.insert(keyBinding, { value = "[ScenesPZ]" })
+table.insert(keyBinding, { value = "Memory test", key = Keyboard.KEY_K })
+
+local function isMemTestKey(key)
+    return getCore():isKey("Memory test", key)
+end
+
+-- Tap, not hold: a diagnostic is a deliberate action and there is no harm in a stray press
+-- (it just says "no survivor nearby" if you are not near one).
+Events.OnKeyPressed.Add(function(key)
+    if not isMemTestKey(key) then return end
+    if pending then
+        SR.Log("MEMTEST already running -- it comes back on its own")
+        return
+    end
+    SR.MemTest()
+end)
+
 Events.OnGameStart.Add(function()
-    SR.Log("MEMTEST ready -- 'Memory test' on the interaction wheel, while debug is on")
+    SR.Log("MEMTEST ready -- press K beside a survivor you have a relationship with")
 end)
