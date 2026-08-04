@@ -477,6 +477,14 @@ local function sweep()
                         scanSurroundings(cell, zx, zy, zombie:getZ())
                     mood.insiders, mood.outsiders = insiders, outsiders
 
+                    -- Standing in a broken window frame costs blood. Done here rather than
+                    -- on its own tick because this loop already holds the square, and a
+                    -- second sweep over the same NPCs to ask one more question about the
+                    -- same tile would be waste.
+                    if SR.Wounds then
+                        SR.Wounds.CheckGlass(zombie, brain, mood, square)
+                    end
+
                     local friends = friendsNear(zx, zy, id)
                     local hpRatio = healthRatio(zombie, brain)
 

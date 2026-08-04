@@ -164,6 +164,7 @@ SREL| AUTO ready -- survive > fight > obey > errand > idle; the player's intent 
 SREL| HEALTH ready -- Health on the wheel; bandaging costs an item and moves trust
 SREL| LOOT ready -- bounded searching; upstream Container.Loot is dead code and unused
 SREL| COMP ready -- wraps ZPCompanion.Main: search, bags, quiet indoors, real rest
+SREL| WOUND ready -- healing costs a dressing; broken glass costs blood
 ```
 
 La cuarta es la crítica. Si falta, aparecerá en su lugar
@@ -315,6 +316,47 @@ COMP <nombre> sits down (just the sort) | endurance 0.88
 
 Los demás deberían quedarse mirando hacia el peligro más cercano, no haciendo tics
 nerviosos. **Y si algo se les acerca a 4 tiles, se levantan y se defienden.**
+
+---
+
+### 11. Curación con costo
+
+Antes se curaban **gratis**: por debajo de 0.4 de vida, `setHealth(1.2)` y listo, sin gastar
+nada. Ahora depende de lo que tengan encima.
+
+**Hacé:** dejá que un compañero se lastime y observá.
+
+**Pasa si** aparece una línea de éstas:
+
+```
+WOUND <nombre> dressed with bandage | 0.35 -> 2.09 / 2.20 | risky=false
+WOUND <nombre> dressed with improvised | 0.31 -> 0.88 / 2.20 | risky=true
+```
+
+`improvised` es el piso: **nadie se desangra teniendo una camiseta puesta**. Si ves
+`improvised` en alguien que sí tenía vendas en el inventario, avisame.
+
+> **Y una corrección mía.** Los que se te murieron desangrados fue culpa nuestra. En tu log
+> estaba tres veces `stuck on Bandage@nil,nil for 3 sweeps -- queue cleared`: el perro
+> guardián les cancelaba la curación **a mitad de la curación**, cada veinte segundos. Ya
+> está arreglado — `Bandage` no está en la lista de tareas vigiladas y no va a estarlo.
+
+---
+
+### 12. Los vidrios cortan
+
+**Hacé:** rompé una ventana sin limpiar los vidrios y hacé que un NPC la cruce.
+
+**Pasa si** sale:
+
+```
+WOUND <nombre> cut on broken glass at 10783,10299 | 1.80 -> 1.55 / 2.20
+```
+
+**Límite conocido, y quiero que lo verifiques vos.** Esto **muestrea** cada seis segundos, no
+intercepta. Bandits no tiene acción de "cruzar ventana" — el motor los pasa por pathing, así
+que no hay evento que enganchar. Si los ves cruzar varias veces y la línea nunca sale, decime
+y le pongo un tick propio más rápido.
 
 ---
 

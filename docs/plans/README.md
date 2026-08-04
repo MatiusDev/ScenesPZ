@@ -41,6 +41,13 @@ is the tempting mistake and we are not making it.
 | 12 | Gossip | What one of them believes about you reaches the others, imperfectly | 11 |
 | 13 | The settlement | A group that holds a place, divides work, and takes people in | 06, 11 |
 
+**[Wounds and healing](wounds-and-healing.md) is not numbered on purpose.** It cuts across 03
+and 07 and is sequenced by what has been proven in play. Stage 1 (healing costs a dressing,
+broken glass cuts) is built; stages 2 and 3 (going to find one, washing a dirty rag at a
+sink) are designed. Read it before touching anything to do with NPC health — it records that
+there are **no body parts at all**, that bleeding is one line, and that their healing used to
+be free and unreachable.
+
 **Stage 03 was reframed after the second play test.** It was "idle life" — more things
 for NPCs to do. Play showed the behaviours already exist in Bandits and that the real gap
 is arbitration: nothing decides which of them matters right now, so an NPC works a window

@@ -273,6 +273,17 @@ Values we have chosen and why, so the next session does not re-litigate them.
 | idler = `rnd[4] % 100 < 20` | `ScenesRelationsCompanion.lua` | 2026-08-04 | one in five sits when nothing is happening, the same one every time. rnd[4] is ZombRand(1000) and unused elsewhere |
 | quiet-swap cap = 2 per building | `ScenesRelationsCompanion.lua` | 2026-08-04 | their combat re-equips the primary itself (BanditUpdate.lua:1126). A permanent preference would be a deadlock over the same hands |
 
+| `RESTORE` 1.00/0.95/0.80/0.55/0.40 | `ScenesRelationsWounds.lua` | 2026-08-04 | a FRACTION of that person's own maximum. Their flat 1.2 is a downgrade for a 2.6 survivor and a full heal for a 1.0 one |
+| `GLASS_DAMAGE = 0.25` | `ScenesRelationsWounds.lua` | 2026-08-04 | a reason to open the window properly, not an execution |
+| `CUT_COOLDOWN = 10` sweeps | `ScenesRelationsWounds.lua` | 2026-08-04 | ~60s. Without it, an NPC loitering in a broken frame is shredded every six seconds |
+| risk-taker = `rnd[1] == 1` | `ScenesRelationsWounds.lua` | 2026-08-04 | ZombRand(2), the last free slot. Half will tie a filthy rag on rather than bleed; the cautious half improvise from clean clothing |
+
+**Dressings are ranked, never listed.** `item:getBandagePower() > 0` is how vanilla decides
+something is a bandage (`ISHealthPanel.lua:1154`) and `>= 2` how it separates a bandage from
+a rag (`:1722`); `item:isAlcoholic()` is sterility (`ISApplyBandage.lua:119`). Any future
+dressing, vanilla or modded, is covered with no id list to go stale. **`brain.rnd` is now
+nearly fully allocated:** [1] risk, [2] bravery, [3] taste in clothes, [4] idler, [5] free.
+
 **`brain.endurance` only ever decreases.** `Bandit.UpdateEndurance` is called from exactly
 one place — `BanditUpdate.lua:1823`, applying `task.endurance` — and every program in the
 framework passes `0.00` or a negative (`-0.07` to Run, `-0.01` to SneakWalk). Nothing in
