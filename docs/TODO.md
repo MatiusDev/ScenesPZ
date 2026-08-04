@@ -105,6 +105,37 @@ behaviour confirmed in play first so there is one new thing being judged at a ti
 
 ---
 
+## They stand at fences and windows because Bandits never climbs them
+
+**Photographed twice** — `caps/npc-window.png`, `caps/npc-fence.png`: a survivor standing at
+a barrier, bat raised, going nowhere, with the player on the other side.
+
+**The cause is upstream and it is a comment.** `ClimbFence` is a real task action with a
+working handler, and Bandits builds it in exactly two places — `BanditUpdate.lua:606` and
+`:715` — and **both are commented out**:
+
+```lua
+--[[local task = {action="ClimbFence", anim="ClimbFenceEnd", lock=true}
+--[[local task = {action="ClimbFence", anim="ClimbWindow", lock=true}
+```
+
+So no Bandits NPC ever deliberately climbs anything. They rely entirely on the engine's
+pathing to carry them over, and when it cannot, they stand there until something clears the
+queue.
+
+**What we do today:** the watchdog notices the movement task is not progressing and empties
+the queue. `STUCK_SWEEPS` dropped from 3 to 2 on 04-08, so that is now about twelve seconds
+rather than eighteen — better, still visible, and still a workaround. The 04-08 log caught
+it seven times: `stuck on GoTo` ×3, `stuck on Move` ×4.
+
+**The real fix, not yet built:** when the watchdog clears a stalled `Move`/`GoTo`, look at
+what is between the NPC and the destination and queue the climb explicitly. The action and
+its animations already exist; only the decision is missing. Worth reading why Slayer
+disabled it before turning it back on — a `lock=true` climb that fails would be unclearable
+by `Bandit.ClearTasks`, which may be exactly why it is commented.
+
+---
+
 ## Fear is simulated, and stage 06 has to live with that
 
 `PROBE stat VERDICT FROZEN` (04-08). The engine binds `getStats()` on an NPC but never ticks

@@ -278,6 +278,12 @@ Values we have chosen and why, so the next session does not re-litigate them.
 | `CUT_COOLDOWN = 10` sweeps | `ScenesRelationsWounds.lua` | 2026-08-04 | ~60s. Without it, an NPC loitering in a broken frame is shredded every six seconds |
 | risk-taker = `rnd[1] == 1` | `ScenesRelationsWounds.lua` | 2026-08-04 | ZombRand(2), the last free slot. Half will tie a filthy rag on rather than bleed; the cautious half improvise from clean clothing |
 
+| `GRABBED_RANGE = 1.6` | `ScenesRelationsAutonomy.lua` | 2026-08-04 | **new tier.** Only this overrides leaving. Log showed `following master at 25.9 tiles` because a zombie 4 tiles away outranked a sprinting player |
+| `FAST_MS = 800`, `CHASE_NOW = 5` | `ScenesRelationsAutonomy.lua` | 2026-08-04 | following gets its own tick. A sprinting player covers ~15 tiles per six-second sweep, so that cadence answers a street too late |
+| `STUCK_SWEEPS` 3 → 2 | `ScenesRelationsAutonomy.lua` | 2026-08-04 | 18s of standing at a fence was photographed twice. Nothing on the STALLABLE list needs 12s to get nowhere |
+| `TIRED = 0.55`, `IDLER_TIRED = 0.80`, `OUTDOOR_TIRED = 0.25` | `ScenesRelationsCompanion.lua` | 2026-08-04 | **tiredness is now REQUIRED to sit.** 21 of the 38 sits in the 04-08 log happened at endurance 1.00, several outdoors. Being lazy moves the line, it does not remove it |
+| reader = `rnd[5] % 100 < 25` | `ScenesRelationsCompanion.lua` | 2026-08-04 | a quarter will sit with a book if carrying one. `instanceof(item, "Literature")` is vanilla's own test — **`brain.rnd` is now fully allocated** |
+
 **Dressings are ranked, never listed.** `item:getBandagePower() > 0` is how vanilla decides
 something is a bandage (`ISHealthPanel.lua:1154`) and `>= 2` how it separates a bandage from
 a rag (`:1722`); `item:isAlcoholic()` is sterility (`ISApplyBandage.lua:119`). Any future

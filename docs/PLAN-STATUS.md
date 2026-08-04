@@ -145,6 +145,57 @@ Si no, **miran hacia donde vendría el problema**.
 
 ---
 
+## Lo que dijo tu corrida del 04-08 16:31
+
+Los doce subsistemas cargaron. **Saqueo confirmado** (`took 3` respetando el tope, `carrying`
+subiendo 1.1 → 6.2 / 8.0 y parando) y **vidrios confirmados**
+(`cut on broken glass | 1.80 -> 1.55`). Tres cosas hay que arreglar y el log las nombró.
+
+**1. Se sentaban con la energía llena.** Contado:
+
+```
+23x  COMP John Jones sits down (just the sort) | endurance 1.00
+```
+
+Veintiuno de los treinta y ocho asientos pasaron a **energía 1.00**, y el censo tiene
+`outdoors ... head=Sleep@nil,nil` — sentado en la calle. Tenías razón en la causa exacta: la
+rama del perezoso no miraba el cansancio **para nada**. Ahora estar cansado es obligatorio
+siempre; ser perezoso sólo mueve dónde está la línea:
+
+| Dónde | Se sienta por debajo de |
+|---|---|
+| adentro, perezoso | 0.80 |
+| adentro, normal | 0.55 |
+| **afuera, cualquiera** | **0.25** — hay que estar reventado |
+
+Y el perezoso **sigue haciendo todo lo demás primero**: buscar mochila, saquear, y sólo
+después sentarse. Si además le gusta leer y lleva un libro, se sienta a leer.
+
+**2. Tardaban una eternidad en seguirte.** El log:
+
+```
+following master at 25.9 tiles (Run) -- falling behind
+```
+
+Dos causas, las dos arregladas:
+
+- **La escalera ponía "pelear" por encima de todo si había un zombi a 4 tiles.** Corriendo
+  vos, él seguía peleando. Ahora sólo un zombi a **1.6 tiles o menos** — que literalmente lo
+  tiene encima — le impide irse. Entre 1.6 y 4, si vos corrés, él corre.
+- **Decidía cada seis segundos.** A sprint eso son unos quince tiles. Ahora seguirte tiene
+  **su propio tick, cada 0.8 segundos**, que no mira nada más: sos mío, te estás yendo, voy.
+
+**3. Se traban en ventanas y vallas — y encontré por qué.** `ClimbFence` existe como acción,
+con su handler funcionando, y Bandits la crea en exactamente dos lugares
+(`BanditUpdate.lua:606` y `:715`). **Los dos están comentados.** Ningún NPC de Bandits salta
+nada a propósito nunca; dependen del pathing del motor, y cuando no puede, se quedan mirando.
+
+Por ahora bajé el perro guardián de 3 a 2 barridos: ~12 segundos en vez de ~18. Es un
+paliativo; está anotado en `docs/TODO.md` con el arreglo real y con la razón para
+desconfiar de destapar el código de ellos.
+
+---
+
 ## Antes de empezar
 
 ```bash
@@ -173,7 +224,23 @@ orden de carga de mods cambió y nada de lo nuevo corre.
 
 ---
 
-### 2. La prueba que más me sirve: salí corriendo
+### 2. La prueba que más me sirve: salí corriendo **en medio de una pelea**
+
+Esta vez con zombis al lado, que es donde fallaba.
+
+**Pasa si** aparece la línea nueva, la del tick rápido, y con **pocos** tiles:
+
+```
+AUTO <nombre> | fast follow at 6.4 tiles (Run) -- master sprinting
+```
+
+Si el número es mayor a 10, decime — significa que el tick rápido no está entrando y hay que
+mirar por qué. La vieja línea `following master at ...` sigue existiendo para el caso lento
+(quedarse atrás caminando), las dos son válidas.
+
+---
+
+### 2b. El seguimiento normal
 
 **Hacé:** con un compañero al lado, metete donde haya zombis y **esprintá para el otro lado
 sin pelear**.
@@ -302,20 +369,39 @@ Después el censo debería decir `bag=true` y su `carrying` máximo debería sub
 
 ---
 
-### 10. Sentarse
+### 10. Sentarse — rehecho
 
-**Hacé:** sentate vos en una casa despejada con dos compañeros al lado.
+**Hacé:** caminá un rato largo con dos compañeros (para gastarles energía), después parate
+adentro de una casa despejada.
 
-**Pasa si** ellos **no** se sientan sólo porque vos lo hiciste. Uno de cada cinco se sienta
-por su cuenta, y cualquiera que haya corrido mucho también:
+**Pasa si** el número de la izquierda es **siempre menor** que el de la derecha:
 
 ```
-COMP <nombre> sits down (tired) | endurance 0.41
-COMP <nombre> sits down (just the sort) | endurance 0.88
+COMP <nombre> sits down | endurance 0.42 < 0.55 | indoors
+COMP <nombre> sits down | endurance 0.71 < 0.80 | indoors, the lazy sort
 ```
 
-Los demás deberían quedarse mirando hacia el peligro más cercano, no haciendo tics
-nerviosos. **Y si algo se les acerca a 4 tiles, se levantan y se defienden.**
+**Nadie debería sentarse con `endurance 1.00`, y nadie afuera salvo por debajo de 0.25.**
+Si ves cualquiera de las dos cosas, el arreglo no alcanzó.
+
+Y mirá el orden: un perezoso adentro de una casa con muebles sin abrir debería **saquear
+primero** y recién después sentarse. Si se sienta teniendo cajones sin tocar, decime.
+
+---
+
+### 10b. Leer
+
+Un cuarto de los NPC lee. **Hacé:** dale un libro a un compañero y metelo en una casa
+tranquila.
+
+**Pasa si** sale:
+
+```
+COMP <nombre> sits down with a book | endurance 0.90
+```
+
+Fijate que puede leer **sin estar cansado** — leer es lo único acá que hacen porque quieren,
+no porque las piernas no dan más.
 
 ---
 

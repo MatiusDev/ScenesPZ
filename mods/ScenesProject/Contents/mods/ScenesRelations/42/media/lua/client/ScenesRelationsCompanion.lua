@@ -67,17 +67,59 @@ local FREE_RADIUS = 7
 -- So a raw threshold would make tiredness permanent: run once, sit forever. Resting has to
 -- restore it, which the same mechanism does for free -- a positive task.endurance is
 -- applied by their own loop when the task completes.
-local TIRED = 0.55
+-- BEING TIRED IS NOW REQUIRED, AND IT WAS NOT BEFORE. The 04-08 log:
+--
+--   23x  COMP John Jones sits down (just the sort) | endurance 1.00
+--
+-- Twenty-one of the thirty-eight sits in that run happened at FULL endurance, several of
+-- them outdoors -- `outdoors ... head=Sleep@nil,nil` is in the census. The idler branch
+-- ignored endurance entirely, so one survivor in five simply sat down whenever nothing was
+-- happening, anywhere. Reported as "se sienta demasiado, incluso cuando no estamos en la
+-- casa. Creo que una de las condiciones para que el se quiera sentar es que se encuentre
+-- cansado", which is exactly right.
+--
+-- So tiredness gates every sit. Being the lazy sort only moves WHERE the line is.
+local TIRED = 0.55           -- anybody gives in below this
+local IDLER_TIRED = 0.80     -- the lazy sort gives in sooner, but still has to be tired
+local OUTDOOR_TIRED = 0.25   -- sitting down in the open takes real exhaustion
+
 local REST_RECOVERY = 0.25
 local REST_TIME = 300
 
--- Who sits down because that is who they are. brain.rnd[4] is ZombRand(1000), fixed at
--- spawn, and unused by anything else -- rnd[2] is bravery and rnd[3] is taste in hats. One
--- person in five is the sort to sit when nothing is happening, and it is the same one every
--- time, which is the whole point of reading a stable field instead of rolling a die.
+-- Reading is longer and restores more: it is the one thing here somebody does because they
+-- want to rather than because their legs gave out.
+local READ_TIME = 600
+local READ_RECOVERY = 0.35
+
+-- Who sits down sooner because that is who they are. brain.rnd[4] is ZombRand(1000), fixed
+-- at spawn. One person in five, and the same one every time -- the whole point of reading a
+-- stable field instead of rolling a die.
 local function isIdler(brain)
     if type(brain.rnd) ~= "table" or not brain.rnd[4] then return false end
     return (brain.rnd[4] % 100) < 20
+end
+
+-- Who reads. rnd[5] is ZombRand(10000) and was the last unallocated slot; a quarter of
+-- survivors will sit down with a book if they happen to be carrying one.
+local function isReader(brain)
+    if type(brain.rnd) ~= "table" or not brain.rnd[5] then return false end
+    return (brain.rnd[5] % 100) < 25
+end
+
+--- Something to read, or nil. `instanceof(item, "Literature")` is vanilla's own test
+--- (ISInventoryPaneContextMenu.lua:329) and covers books, magazines and skill manuals
+--- without naming any of them.
+local function bookInBag(zombie)
+    local inventory = zombie:getInventory()
+    if not inventory then return nil end
+    local ok, items = pcall(function() return inventory:getItems() end)
+    if not ok or not items then return nil end
+
+    for i = 0, items:size() - 1 do
+        local item = items:get(i)
+        if item and instanceof(item, "Literature") then return item end
+    end
+    return nil
 end
 
 local function enduranceOf(brain)
@@ -115,18 +157,37 @@ end
 --- deliberately absent: any reading of whether the PLAYER is sitting. Mirroring the player
 --- is ZPCompanion's job and it correctly covers movement -- sprint, sneak, aim, limp. Where
 --- to put your body when nothing is happening is a decision about yourself.
-local function restTasks(bandit, brain)
-    local tired = enduranceOf(brain) < TIRED
+local function restTasks(bandit, brain, mood)
+    local endurance = enduranceOf(brain)
 
-    if tired or isIdler(brain) then
+    -- Where the line sits depends on where THEY are and who they are, but there is always a
+    -- line. Nobody sits down at full endurance any more, and nobody sits down in the open
+    -- unless they are genuinely spent.
+    local threshold
+    if not mood.indoors then
+        threshold = OUTDOOR_TIRED
+    elseif isIdler(brain) then
+        threshold = IDLER_TIRED
+    else
+        threshold = TIRED
+    end
+
+    if endurance < threshold then
         -- The positive endurance is the important half. It is applied by their loop when
-        -- the task completes (BanditUpdate.lua:1822-1824), which makes sitting the only
+        -- the task completes (BanditUpdate.lua:1822-1824), which makes resting the only
         -- thing in the entire framework that gives endurance back.
-        SR.Log(string.format("COMP %s sits down (%s) | endurance %.2f",
-            tostring(brain.fullname),
-            tired and "tired" or "just the sort", enduranceOf(brain)))
+        --
+        -- The lazy sort gets an anim that looks occupied rather than blank. Sit, SitAction,
+        -- SitMaking and SitRubHands are all real -- ZPCamper uses all four -- so this is
+        -- flavour taken from what exists, not a new animation.
+        local anim = isIdler(brain) and "SitRubHands" or "Sit"
 
-        return { { action = "Sleep", anim = "Sit", time = REST_TIME,
+        SR.Log(string.format("COMP %s sits down | endurance %.2f < %.2f | %s%s",
+            tostring(brain.fullname), endurance, threshold,
+            mood.indoors and "indoors" or "outdoors",
+            isIdler(brain) and ", the lazy sort" or ""))
+
+        return { { action = "Sleep", anim = anim, time = REST_TIME,
                    endurance = REST_RECOVERY } }
     end
 
@@ -240,8 +301,25 @@ local function scenesMain(bandit)
         end
     end
 
+    -- READING. Deliberately BELOW searching and above resting, because that is the order
+    -- asked for: "aun asi deberian de lootear o buscar cosas... que se siente y encole
+    -- otras actividades como lotear... leer un libro si les gusta la lectura". Sitting is
+    -- meant to read as a personality, not as a substitute for having one -- so a lazy
+    -- survivor still empties the cupboards first and only then puts their feet up.
+    --
+    -- Indoors only. Reading a paperback in the middle of a street is not a character trait,
+    -- it is a bug report waiting to happen.
+    if mood.indoors and isReader(brain) and bookInBag(bandit) then
+        SR.Log(string.format("COMP %s sits down with a book | endurance %.2f",
+            name, enduranceOf(brain)))
+        return { status = true, next = "Main", tasks = {
+            { action = "Sleep", anim = "SitAction", time = READ_TIME,
+              endurance = READ_RECOVERY },
+        } }
+    end
+
     -- NOTHING TO DO. Not their fidget loop.
-    local tasks = restTasks(bandit, brain)
+    local tasks = restTasks(bandit, brain, mood)
     if tasks then return { status = true, next = "Main", tasks = tasks } end
 
     return vanillaMain(bandit)

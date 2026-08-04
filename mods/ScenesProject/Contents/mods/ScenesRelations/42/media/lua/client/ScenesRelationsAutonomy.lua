@@ -71,7 +71,11 @@ local RUNG_NAME = { "survive", "fight", "obey", "errand", "idle" }
 -- Tiles. Only NPCs near the player are worth thinking about.
 local NPC_RANGE = 40
 
--- Tiles. Something this close is ON them: there is no choice left but to deal with it.
+-- Tiles. Something this close has them: running is not on the table and trying to leave
+-- just means being bitten in the back. Nothing overrides this.
+local GRABBED_RANGE = 1.6
+
+-- Tiles. Close enough to be worth swinging at when nothing else is being asked of them.
 -- Was 10, which meant any zombie in the street outranked every order the player had given.
 local ENGAGE_RANGE = 4
 
@@ -120,7 +124,12 @@ local FEAR_OUTNUMBERED = 15
 local FEAR_HURT = 20
 
 -- Sweeps a task may sit unchanged, WITH THE NPC NOT MOVING, before it counts as stuck.
-local STUCK_SWEEPS = 3
+--
+-- Was 3, which is about eighteen seconds of standing at a fence looking at it -- long
+-- enough to be photographed twice (caps/npc-window.png, caps/npc-fence.png). Nothing on the
+-- STALLABLE list can legitimately spend twelve seconds getting nowhere, so 2 costs nothing
+-- and halves how long a jam is visible.
+local STUCK_SWEEPS = 2
 
 -- Tiles. Under this, two positions a sweep apart count as the same place. A working NPC
 -- covers several tiles in six seconds; one wrestling a window latch covers none.
@@ -306,10 +315,20 @@ function Autonomy.RungOf(brain, mood, ctx)
     local program = brain.program and brain.program.name
     local owned = (program == "Companion" or program == "CompanionGuard") and brain.master
 
-    -- FIGHT, and the whole point is that it is now CONDITIONAL. Something within
-    -- ENGAGE_RANGE is on top of them and there is nothing to decide. Beyond that, a
-    -- companion fights because its master is fighting -- not because a zombie exists
-    -- somewhere in the street, which is what made them ignore every order they were given.
+    -- GRABBED. Something is close enough that leaving is not a choice anybody has.
+    -- Deliberately tighter than ENGAGE_RANGE, because of what the 04-08 log showed:
+    -- `following master at 25.9 tiles` -- a companion with a zombie four tiles away would
+    -- not break off no matter how hard the player ran, so the player had to get 25 tiles
+    -- clear before being followed. With a horde that is a death sentence, and it was
+    -- reported in exactly those words: "yo tendria que irme muy lejos para que el me
+    -- persiga, eso seria suicidio."
+    if ctx.nearest <= GRABBED_RANGE then return Autonomy.FIGHT end
+
+    -- Leaving outranks a fight the player has already decided to abandon. Checked BEFORE
+    -- the ordinary engagement range: between GRABBED_RANGE and ENGAGE_RANGE, a companion
+    -- whose master is running is a companion that runs.
+    if owned and ctx.disengaging then return Autonomy.OBEY end
+
     if ctx.nearest <= ENGAGE_RANGE then return Autonomy.FIGHT end
 
     if owned then
@@ -569,7 +588,11 @@ local function sweep()
                             hpRatio, threats, nearest, insiders, outsiders,
                             mood.indoors and "indoors" or "outdoors",
                             friends, masterDist,
-                            tostring(SR.Loot and SR.Loot.HasBag(brain) or "?"),
+                            -- `SR.Loot and HasBag(...) or "?"` printed "?" for everybody,
+                            -- because `false or "?"` is "?" -- the whole run logged bag=?
+                            -- and told us nothing. Lua's and/or is not a ternary when the
+                            -- middle value can be false.
+                            SR.Loot and tostring(SR.Loot.HasBag(brain)) or "?",
                             tostring(headSignature(headTask(brain)) or "idle")))
                     end
                 end
@@ -588,6 +611,93 @@ end
 
 Events.EveryOneMinute.Add(sweep)
 
+-- THE FAST LANE ----------------------------------------------------------------------
+--
+-- Everything above runs on EveryOneMinute -- about six real seconds. For deciding what
+-- somebody's priorities are, that is right: priorities do not change several times a
+-- second, and a full cache scan per NPC at frame rate would be the most expensive thing in
+-- this mod by an order of magnitude.
+--
+-- It is completely wrong for ONE question. A sprinting player covers roughly fifteen tiles
+-- in six seconds, so "should I be running after them" answered on that cadence is answered
+-- a street too late -- which is exactly the `following master at 25.9 tiles` in the log.
+--
+-- So that one question gets its own lane: no cache scan, no fear, no rungs. Is this person
+-- mine, is their master pulling away, and are they already on their way. Throttled to a bit
+-- over once a second, which is fast enough that the gap never opens and slow enough to cost
+-- nothing.
+local FAST_MS = 800
+local CHASE_NOW = 5          -- tiles; past this while the master is moving off, go now
+local lastFastMs = 0
+
+local function fastFollow()
+    local now = getTimestampMs()
+    if now - lastFastMs < FAST_MS then return end
+    lastFastMs = now
+
+    local player = getSpecificPlayer(0)
+    if not player or player:isDead() then return end
+    if not BanditZombie or not BanditZombie.GetAllB then return end
+
+    -- Only worth doing while the player is actually going somewhere. Standing still is what
+    -- the six-second sweep is for.
+    local sprinting = player:isSprinting() == true
+    local px, py = player:getX(), player:getY()
+
+    local ok, bandits = pcall(BanditZombie.GetAllB)
+    if not ok or type(bandits) ~= "table" then return end
+
+    for id, _ in pairs(bandits) do
+        local zombie = BanditZombie.GetInstanceById(id)
+        if zombie then
+            local dx, dy = zombie:getX() - px, zombie:getY() - py
+            local dist = math.sqrt(dx * dx + dy * dy)
+
+            if dist > CHASE_NOW and dist <= NPC_RANGE then
+                local brain = BanditBrain.Get(zombie)
+                local mood = brain and SR.Mood(zombie)
+
+                if brain and mood and not brain.hostile and not brain.hostileP then
+                    local program = brain.program and brain.program.name
+                    local owned = (program == "Companion" or program == "CompanionGuard")
+                        and brain.master
+
+                    -- Never override rung 1 or 2. Somebody surviving or with a zombie in
+                    -- their face is not being asked to jog after you; that decision belongs
+                    -- to the ladder and it already made it this sweep.
+                    local free = mood.rung and mood.rung >= Autonomy.OBEY
+
+                    -- Widening, not merely wide. A companion holding station eight tiles
+                    -- away while you stand still is fine; one at eight tiles and growing is
+                    -- being left behind.
+                    local widening = mood.fastDist and (dist - mood.fastDist) > 0.35
+                    mood.fastDist = dist
+
+                    if owned and free and (sprinting or widening or dist > LEASH) then
+                        -- Only re-assert when they are not already chasing. The move task
+                        -- tracks the player as a target, so re-pushing it every second
+                        -- would restart the walk each time and they would never arrive.
+                        local head = brain.tasks and brain.tasks[1]
+                        local chasing = head and (head.action == "Move" or head.action == "GoTo")
+                            and head.isPlayer
+
+                        if not chasing then
+                            local walkType = assertFollow(zombie, player, dist)
+                            mood.taskSig, mood.taskTicks = nil, 0
+                            SR.Log(string.format(
+                                "AUTO %s | fast follow at %.1f tiles (%s) -- %s",
+                                tostring(brain.fullname), dist, walkType,
+                                sprinting and "master sprinting" or "gap opening"))
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+Events.OnTick.Add(fastFollow)
+
 Events.OnGameStart.Add(function()
-    SR.Log("AUTO ready -- survive > fight > obey > errand > idle; the player's intent outranks a distant zombie")
+    SR.Log("AUTO ready -- survive > fight > obey > errand > idle; following is checked every second, not every sweep")
 end)
