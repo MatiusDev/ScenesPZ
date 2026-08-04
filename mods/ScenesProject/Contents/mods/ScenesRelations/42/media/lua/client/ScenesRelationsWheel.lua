@@ -75,22 +75,10 @@ local function nearestSurvivor(player)
     return best
 end
 
--- Icons, using only paths that appear verbatim in ISEmoteRadialMenu.lua:57-80. The PNGs
--- live in the client packs rather than on disk here, so getTexture is called defensively
--- and a miss simply leaves the wedge without a picture -- the label still names it.
-local ICONS = {
-    ["Talk"] = "media/ui/Traits/trait_talkative.png",
-    ["Follow me"] = "media/ui/emotes/followme.png",
-    ["Join me"] = "media/ui/emotes/thumbsup.png",
-    ["Leave me"] = "media/ui/emotes/wavebye.png",
-}
-
-local function iconFor(label)
-    local path = ICONS[label]
-    if not path then return nil end
-    local ok, texture = pcall(getTexture, path)
-    return ok and texture or nil
-end
+-- NO ICONS. Tried them, and the answer from play was that a picture makes you guess:
+-- the words are the thing. Every wedge carries its action name as small text and nothing
+-- else, which is also the only version that stays readable when an action is greyed out
+-- with a reason underneath it.
 
 -- Where slice 0 sits and which way the wheel counts. The Java side draws the wedges and
 -- does not tell us, so this is the one number that may need a visual correction: if the
@@ -190,14 +178,13 @@ local function open(player)
     wheel.render = renderWithHeader
 
     for _, action in ipairs(list) do
-        local texture = iconFor(action.label)
         if action.available then
-            wheel:addSlice(action.label, texture, action.run, player, bandit)
+            wheel:addSlice(action.label, nil, action.run, player, bandit)
         else
             -- Refused actions stay on the wheel, labelled with what is missing. Hiding
             -- them would make the relationship invisible: the player would never learn
             -- that Follow me is four conversations away rather than impossible.
-            wheel:addSlice(action.label, texture, function() end)
+            wheel:addSlice(action.label, nil, function() end)
         end
 
         -- Our renderer needs the pieces separately; the slice text belongs to Java and is

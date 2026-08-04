@@ -14,8 +14,8 @@
 --   4. Does a trust record survive a cell unload and a save/reload, and does the same NPC
 --      come back under the same id? Read the STORE lines: the id and trust printed for a
 --      survivor before you walk away must be the same pair printed when you return.
---   5. Does HaloTextHelper accept an IsoZombie? Every floating indicator in the PRD
---      depends on it and every vanilla callsite passes a player.
+--   5. ANSWERED. HaloTextHelper does NOT accept an IsoZombie -- the Java binding has
+--      no such overload. All feedback renders above the player.
 
 require "ScenesRelations"
 local SR = ScenesRelations
@@ -125,30 +125,16 @@ local function sweep()
                             end
                         end
 
-                        -- HaloTextHelper with an IsoZombie. Every vanilla callsite passes
-                        -- a player (forageClient.lua:73, ISInventoryPage.lua:1927 and the
-                        -- rest), so whether the Java side accepts a zombie is genuinely
-                        -- unknown -- and the PRD's whole "the NPC answers above its head"
-                        -- channel rests on it. Two variants, because addGoodText picks its
-                        -- own colour and may take a different path than addText.
-                        --
-                        -- `ok` here only means it did not throw. The real answer is
-                        -- visual: if the text appears over the survivor in game, it works.
-                        -- Say so in the report either way.
-                        if HaloTextHelper then
-                            local hok = pcall(function()
-                                HaloTextHelper.addText(zombie, "SCENES probe")
-                            end)
-                            SR.Log("PROBE halo | addText(zombie) threw=" .. tostring(not hok)
-                                .. " -- LOOK AT THE SCREEN, did text appear over them?")
-
-                            local gok = pcall(function()
-                                HaloTextHelper.addGoodText(zombie, "SCENES good")
-                            end)
-                            SR.Log("PROBE halo | addGoodText(zombie) threw=" .. tostring(not gok))
-                        else
-                            SR.Log("PROBE halo | HaloTextHelper is nil on this build")
-                        end
+                        -- HALO ON AN NPC: ANSWERED, 2026-08-03. It does not work.
+                        -- The probe threw, and the engine said exactly why:
+                        --   java.lang.RuntimeException: No implementation found for
+                        --   function: addText(class zombie.characters.IsoZombie ...)
+                        -- The method exists on the shared base class and vanilla only ever
+                        -- passes a player; the Java binding simply has no IsoZombie
+                        -- overload. Every message therefore renders above the PLAYER, and
+                        -- docs/CAPABILITY-MAP.md now records this as settled rather than
+                        -- open. The probe is removed because it threw seven exceptions per
+                        -- session to re-learn something we know.
                     end
                 end
             end

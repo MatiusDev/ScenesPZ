@@ -36,8 +36,6 @@ local TIER_COLOR = {
     hostile  = { 0.85, 0.25, 0.25 },
 }
 
-table.insert(keyBinding, { value = "Relationships", key = Keyboard.KEY_K })
-
 ScenesRelationsPanel = ISCollapsableWindow:derive("ScenesRelationsPanel")
 
 --- Everyone in the store, best relationship first.
@@ -167,7 +165,10 @@ end
 
 local panel = nil
 
-local function toggle()
+SR.Panel = SR.Panel or {}
+
+--- Public: opened from the left-hand button column, beside health and the rest.
+function SR.Panel.Toggle()
     if panel then
         panel:removeFromUIManager()
         panel = nil
@@ -185,10 +186,10 @@ local function toggle()
     SR.Log("PANEL opened")
 end
 
-Events.OnKeyPressed.Add(function(key)
-    if getCore():isKey("Relationships", key) then toggle() end
-end)
+function SR.Panel.IsOpen()
+    return panel ~= nil
+end
 
 Events.OnGameStart.Add(function()
-    SR.Log("PANEL ready -- press the 'Relationships' key (default K)")
+    SR.Log("PANEL ready -- open it from the left-hand button column")
 end)

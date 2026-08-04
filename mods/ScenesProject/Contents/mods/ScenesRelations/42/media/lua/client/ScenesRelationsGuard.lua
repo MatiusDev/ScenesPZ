@@ -6,19 +6,34 @@
 -- punishment is real, the intention was not. A system that reads intent from behaviour
 -- cannot also read a misclick as an assault.
 --
--- WHAT THE ENGINE DOES NOT GIVE US
+-- WHAT CHANGED AFTER THE FIRST VERSION
+-- The first attempt only skipped the trust penalty, and the feedback was that this misses
+-- the point: the fear is not losing a relationship, it is KILLING somebody by accident
+-- mid-fight. Deciding to hurt an ally has to be a deliberate act. So the guard now tries
+-- to stop the damage rather than merely forgive it.
+--
+-- HOW, GIVEN THE ENGINE GIVES US NO VETO
 -- There is no cancellable pre-damage event in 42.20. The complete list of hit-adjacent
 -- events is OnHitZombie, OnWeaponSwingHitPoint, OnPlayerAttackFinished, OnWeaponHitTree
--- and OnWeaponHitXp, and none of them can abort the swing. So this cannot prevent the
--- blow. It undoes it.
+-- and OnWeaponHitXp, and none can abort a swing. What we can do is make the target
+-- untouchable for the fraction of a second the player's own swing is landing:
 --
--- WHAT IS GUARANTEED, AND WHAT IS BEST EFFORT
--- Guaranteed: no trust penalty and no hostility escalation. That is the whole of the
--- reported problem, it is entirely our own state, and it cannot fail.
--- Best effort: putting the hit points back. Whether setHealth works on an IsoZombie is
--- not verified anywhere in vanilla, so it runs under pcall and says so in the log the
--- first time it fails. If it turns out not to work, a mistaken swing still wounds them --
--- it just no longer costs you the relationship.
+--   swing connects  -> protected NPCs nearby become invincible
+--   attack finishes -> invincibility cleared
+--
+-- The window is a few frames wide, so a zombie biting that same survivor is unaffected in
+-- any way you could notice. Three independent paths clear the flag, because an NPC left
+-- permanently immortal would be a far worse bug than the one being fixed.
+--
+-- WHAT IS PROVEN AND WHAT IS NOT
+-- setInvincible is real and vanilla uses it (DebugContextMenu.lua:1123, Tutorial1.lua:230)
+-- -- but always on a PLAYER, never on a zombie. Today's HaloTextHelper result is the
+-- reason that distinction gets respect: the Java side rejected addText for an IsoZombie
+-- even though the method exists on the shared base class. So every call here is wrapped,
+-- reported once on failure, and backed by restoring hit points from a snapshot.
+--
+-- Guaranteed regardless: no trust penalty and no hostility escalation. That part is our
+-- own state and cannot fail.
 
 require "ScenesRelations"
 
@@ -42,9 +57,19 @@ Guard.enabled = true
 local SNAPSHOT_RANGE = 3
 
 local snapshots = {}
+local shielded = {}
 local restoreFailed = false
+local shieldFailed = false
 
-table.insert(keyBinding, { value = "Protect survivors", key = Keyboard.KEY_G })
+--- Puts everyone back the way they were found. Called from three places on purpose: the
+--- end of the attack, the start of the next swing, and a slow sweep. Any one of them is
+--- enough; all three together mean no plausible failure leaves an immortal NPC behind.
+local function unshieldAll()
+    for _, zombie in pairs(shielded) do
+        pcall(function() zombie:setInvincible(false) end)
+    end
+    shielded = {}
+end
 
 local function isProtected(zombie)
     if not zombie or not zombie:getVariableBoolean("Bandit") then return false end
@@ -63,6 +88,10 @@ end
 --- post-damage value the restore quietly becomes a no-op, which the log will show; moving
 --- this to OnPlayerAttackFinished is then a one-line change.
 local function snapshot(character)
+    -- Clear first. If the previous attack never reported finishing, this is the line that
+    -- stops the flag from sticking.
+    unshieldAll()
+
     if not Guard.enabled then return end
     if not character or not instanceof(character, "IsoPlayer") then return end
     if not BanditZombie or not BanditZombie.GetAllB then return end
@@ -78,9 +107,22 @@ local function snapshot(character)
         if zombie and isProtected(zombie) then
             local dx, dy = zombie:getX() - px, zombie:getY() - py
             if dx * dx + dy * dy <= SNAPSHOT_RANGE * SNAPSHOT_RANGE then
+                local zid = SR.IdOf(zombie)
+
                 local hok, health = pcall(function() return zombie:getHealth() end)
                 if hok and type(health) == "number" then
-                    snapshots[SR.IdOf(zombie)] = health
+                    snapshots[zid] = health
+                end
+
+                -- The actual protection. Everything else in this file is the fallback for
+                -- when this line turns out not to work on an IsoZombie.
+                local sok = pcall(function() zombie:setInvincible(true) end)
+                if sok then
+                    shielded[zid] = zombie
+                elseif not shieldFailed then
+                    shieldFailed = true
+                    SR.Log("GUARD setInvincible is not available on IsoZombie -- falling "
+                        .. "back to restoring hit points after the fact")
                 end
             end
         end
@@ -115,25 +157,31 @@ function Guard.Blocks(zombie, attacker)
     return true
 end
 
-local function toggle()
+--- Public: the sidebar button owns this now. No keybinding -- vanilla already claims
+--- every letter except K, and burning a key on something you touch twice a session is
+--- the wrong trade.
+function Guard.Toggle()
     Guard.enabled = not Guard.enabled
+    -- Turning it off must take effect on the swing already in flight, not the next one.
+    if not Guard.enabled then unshieldAll() end
     local player = getSpecificPlayer(0)
     if HaloTextHelper and player then
         if Guard.enabled then
-            HaloTextHelper.addGoodText(player, "Survivors protected - your swings will not count")
+            HaloTextHelper.addGoodText(player, "Survivors protected - you cannot hurt them")
         else
-            HaloTextHelper.addBadText(player, "Survivors UNPROTECTED - your swings will land")
+            HaloTextHelper.addBadText(player, "Survivors UNPROTECTED - you can kill them")
         end
     end
     SR.Log("GUARD " .. (Guard.enabled and "on" or "off"))
 end
 
 Events.OnWeaponSwingHitPoint.Add(snapshot)
+Events.OnPlayerAttackFinished.Add(unshieldAll)
 
-Events.OnKeyPressed.Add(function(key)
-    if getCore():isKey("Protect survivors", key) then toggle() end
-end)
+-- Last line of defence. If both of the above ever fail to fire, an NPC would otherwise
+-- stay immortal for the rest of the session; this costs one empty loop a minute.
+Events.EveryOneMinute.Add(unshieldAll)
 
 Events.OnGameStart.Add(function()
-    SR.Log("GUARD ready -- friendly fire blocked. Toggle with the 'Protect survivors' key (default G)")
+    SR.Log("GUARD ready -- friendly fire blocked. Toggle from the left-hand button column")
 end)
