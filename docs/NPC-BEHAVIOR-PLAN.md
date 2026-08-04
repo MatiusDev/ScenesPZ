@@ -264,6 +264,21 @@ Values we have chosen and why, so the next session does not re-litigate them.
 | `CENSUS_EVERY = 5` | `ScenesRelationsAutonomy.lua` | 2026-08-04 | ~30s per NPC. Transition-only logging left 3 of 4 survivors invisible in the 04-08 log |
 | `BANDAGE_REWARD = 15` | `ScenesRelationsActions.lua` | 2026-08-04 | ~4x a conversation. Trust tracks what you risk; needs no cooldown because the situation is the limit |
 | `BANDAGE_HEAL = 0.8` | `ScenesRelationsHealth.lua` | 2026-08-04 | additive, capped at that person's max. Their own action snaps to a flat 1.2, which downgrades a tough survivor |
+| `BANGING = 2` | `ScenesRelationsAutonomy.lua` | 2026-08-04 | zombies outside the walls before clearing beats searching. One is background; two are working on it |
+| `BREACH_PANIC = 4` + `FEAR_PER_BREACH = 10` | `ScenesRelationsAutonomy.lua` | 2026-08-04 | expressed as fear, not a rule, so a brave person still holds the room longer than a frightened one |
+| `TAKE_PER_CONTAINER = 3` | `ScenesRelationsLoot.lua` | 2026-08-04 | "do not strip the house" as a number. The player must always find something left |
+| `WEIGHT_BUDGET = 0.7` | `ScenesRelationsLoot.lua` | 2026-08-04 | 100% is one pickup from encumbered, and encumbrance is how a companion stops keeping up |
+| `FREE_RADIUS = 7` | `ScenesRelationsCompanion.lua` | 2026-08-04 | inside this they may do something other than close the gap. ZPCompanion walks to 1, which is why none has ever been seen doing anything |
+| `TIRED = 0.55`, `REST_RECOVERY = 0.25` | `ScenesRelationsCompanion.lua` | 2026-08-04 | see below — the recovery half is not optional |
+| idler = `rnd[4] % 100 < 20` | `ScenesRelationsCompanion.lua` | 2026-08-04 | one in five sits when nothing is happening, the same one every time. rnd[4] is ZombRand(1000) and unused elsewhere |
+| quiet-swap cap = 2 per building | `ScenesRelationsCompanion.lua` | 2026-08-04 | their combat re-equips the primary itself (BanditUpdate.lua:1126). A permanent preference would be a deadlock over the same hands |
+
+**`brain.endurance` only ever decreases.** `Bandit.UpdateEndurance` is called from exactly
+one place — `BanditUpdate.lua:1823`, applying `task.endurance` — and every program in the
+framework passes `0.00` or a negative (`-0.07` to Run, `-0.01` to SneakWalk). Nothing in
+Bandits gives it back. So any threshold on tiredness is permanent unless something restores
+it: our rest task carries a POSITIVE `task.endurance`, which their own loop applies. It is
+currently the only thing in the whole framework that returns endurance.
 
 Resolved 2026-08-03: five observed beatings to flip a witness was confirmed in a real log
 and left as is for now — it reads as a person taking a while to give up on you.

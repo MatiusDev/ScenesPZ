@@ -91,6 +91,60 @@ parece una función.
 
 ---
 
+## Nuevo: pisamos ZPCompanion (sin reemplazarlo)
+
+Capturo `ZombiePrograms.Companion.Main` y la guardo. Nuestra función decide **sólo** los
+casos donde tenemos opinión y le devuelve todo lo demás a la de ellos, intacta. Su combate,
+sus armas, sus guardposts y su código de seguirte siguen corriendo — y siguen arreglándose
+cuando Slayer los arregle.
+
+**Y encontré por qué nunca lootean.** No es configuración:
+
+> `BanditPrograms.Container.Loot` es **código muerto**. La línea 524 lee
+> `enemyCharacter:getX()` y la 541 lee `endurance`, y ninguno de los dos es parámetro ni
+> local de esa función. Son globales indefinidos: la primera llamada revienta.
+
+Por eso todo el bloque de looting en `ZPCompanion.Main` (líneas 120-215) está comentado. No
+está desactivado esperando ajustes — está desactivado porque crashea. **Nadie ha visto nunca
+a un compañero de Bandits saquear una casa.** Hubo que escribirlo.
+
+### Lo que hacen ahora dentro de una casa
+
+| Situación | Actividad |
+|---|---|
+| adentro, nada adentro con ellos, nadie golpeando | **saquean** |
+| algo ya adentro, o **2+** golpeando afuera | **despejan la zona primero** |
+| adentro y peleando | **cambian a cuerpo a cuerpo** — matar en silencio |
+| **4+** ya adentro | el miedo los sube a sobrevivir → se van |
+
+Saquean **acotado**: máximo 3 ítems por contenedor y hasta el 70% de su capacidad. Los dos
+límites son a propósito — el de ítems para que **no te vacíen la casa antes de que llegues**,
+y el de peso para que no se saturen.
+
+**Sin mochila, buscan mochila primero.** `brain.bag` se asigna al spawn y nunca hubo forma de
+conseguir una; el que nació sin ella se llenaba en tres ítems. Ahora una mochila en el suelo
+vale más que cualquier cosa que pudiera cargar.
+
+### Y lo de sentarse
+
+Tenías razón en el diagnóstico pero la causa era otra: no te estaban copiando. Cuando parás,
+su `Main` cae a `BanditPrograms.Idle`, que es una bolsa de animaciones nerviosas —
+`ChewNails`, `Sneeze`, `WipeBrow`. Parecían esperando el colectivo.
+
+Ahora **no copian que te sientes**. Se sientan si:
+
+- **están realmente cansados** (`brain.endurance < 0.55`), o
+- **son de los que se sientan** — uno de cada cinco, fijo de por vida (`brain.rnd[4]`)
+
+Si no, **miran hacia donde vendría el problema**.
+
+> Detalle que encontré: `brain.endurance` **sólo baja**. `Bandit.UpdateEndurance` se llama
+> desde un solo lugar y todos los programas pasan 0 o negativo — nada en Bandits la
+> devuelve nunca. Así que sentarse ahora la **restaura**, usando el mismo campo
+> `task.endurance` que ellos ya aplican. Es lo único en todo el framework que da energía.
+
+---
+
 ## Antes de empezar
 
 ```bash
@@ -103,12 +157,18 @@ tools/sync-mods.sh
 
 ### 1. Todo cargó
 
-**Pasa si** están estas dos líneas nuevas:
+**Pasa si** están estas cuatro líneas nuevas:
 
 ```
 SREL| AUTO ready -- survive > fight > obey > errand > idle; the player's intent outranks a distant zombie
 SREL| HEALTH ready -- Health on the wheel; bandaging costs an item and moves trust
+SREL| LOOT ready -- bounded searching; upstream Container.Loot is dead code and unused
+SREL| COMP ready -- wraps ZPCompanion.Main: search, bags, quiet indoors, real rest
 ```
+
+La cuarta es la crítica. Si falta, aparecerá en su lugar
+`COMP could not install -- ZombiePrograms.Companion.Main is not there`, y significa que el
+orden de carga de mods cambió y nada de lo nuevo corre.
 
 ---
 
@@ -181,6 +241,80 @@ HEALTH <nombre> bandaged with Base.Bandage | condition 0.90 -> 1.70 / 2.20 | neu
 ```
 
 Si el botón dice `No bandage` teniendo vendas, avisame.
+
+---
+
+### 7. Saqueo — la prueba nueva más importante
+
+**Hacé:** entrá en sigilo a una casa **limpia**, con un compañero, y quedate quieto un rato.
+
+**Pasa si** se pone a abrir muebles solo. En el log:
+
+```
+COMP <nombre> searches 10750,10281 | in=0 out=0
+LOOT <nombre> took 3 from 10750,10281 | carrying 4.2 / 8.0
+```
+
+**Mirá dos cosas concretas:**
+
+- Que **no te vacíe la casa**: `took 3` es el techo por contenedor. Si ves `took` con más
+  de 3, el límite no está funcionando.
+- Que `carrying` **pare** antes del máximo. Si llega al tope y sigue, avisame.
+
+---
+
+### 8. Despejar antes de saquear
+
+**Hacé:** lo mismo pero con zombis golpeando la puerta.
+
+**Pasa si** dejan de saquear y van a matar. En el log el rung cambia a `fight` y el censo
+muestra los números que lo decidieron:
+
+```
+AUTO census | <nombre> | rung=fight ... in=0 out=3 indoors ...
+```
+
+Y adentro deberían **guardar el arma de fuego**:
+
+```
+COMP <nombre> goes quiet indoors (try 1) | in=1 out=2
+```
+
+Si ves `try 1` y `try 2` repetidos sin parar para el mismo NPC, avisame — significa que su
+combate le está devolviendo el arma y hay que atacarlo distinto.
+
+---
+
+### 9. La mochila
+
+**Hacé:** tirá una mochila al piso cerca de un compañero **que no tenga una** (mirá el censo:
+`bag=false`).
+
+**Pasa si** va a buscarla y se la pone:
+
+```
+COMP <nombre> wants a bag -- Base.Bag_Schoolbag at 10748,10279
+LOOT <nombre> now carries a Base.Bag_Schoolbag
+```
+
+Después el censo debería decir `bag=true` y su `carrying` máximo debería subir.
+
+---
+
+### 10. Sentarse
+
+**Hacé:** sentate vos en una casa despejada con dos compañeros al lado.
+
+**Pasa si** ellos **no** se sientan sólo porque vos lo hiciste. Uno de cada cinco se sienta
+por su cuenta, y cualquiera que haya corrido mucho también:
+
+```
+COMP <nombre> sits down (tired) | endurance 0.41
+COMP <nombre> sits down (just the sort) | endurance 0.88
+```
+
+Los demás deberían quedarse mirando hacia el peligro más cercano, no haciendo tics
+nerviosos. **Y si algo se les acerca a 4 tiles, se levantan y se defienden.**
 
 ---
 

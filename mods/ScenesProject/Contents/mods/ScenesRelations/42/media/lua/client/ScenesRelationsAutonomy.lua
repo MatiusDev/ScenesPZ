@@ -88,6 +88,25 @@ local LEASH = 12
 -- afraid of something you are not yet obliged to fight.
 local FEAR_RADIUS = 9
 
+-- Tiles. The radius the surroundings scan actually covers. One pass answers every question
+-- below, so it is set to the widest of them rather than scanning the cache three times.
+local SCAN_RADIUS = 10
+
+-- Zombies that got INSIDE with you. One is a problem; this many is a reason to leave rather
+-- than to hold a room. Asked for directly: "a no ser de que esten entrando demasiados
+-- zombies y sea necesario para escapar del lugar."
+local BREACH_PANIC = 4
+
+-- Zombies outside the walls but close enough to be working on them. Below this, searching
+-- the house is reasonable; at or above it, the job is to clear the area first --
+-- "si estan golpeando varios zombies, la actividad principal es matarlos para despejar
+-- la zona y poder lotear con tranquilidad."
+local BANGING = 2
+
+-- Extra fear per zombie that is inside the building with them. Being cornered indoors is
+-- worse than the same count in the open, and the model should say so.
+local FEAR_PER_BREACH = 10
+
 -- Tiles. Who counts as backup.
 local FRIEND_RANGE = 12
 
@@ -163,23 +182,48 @@ end
 
 -- COUNTING ---------------------------------------------------------------------------
 
---- Threats near a point: how many, and how far the nearest one is. One pass, because the
---- ladder needs both numbers and the cache is walked per NPC per sweep.
-local function scanThreats(x, y)
+--- Everything the ladder and the companion program need to know about what is around this
+--- NPC, in ONE pass over the cache.
+---
+--- Deliberately one function. The companion program needs the indoor/outdoor split to
+--- decide whether searching a house is reasonable, and the ladder needs it to decide
+--- whether to clear the area first. Two modules measuring the same street on their own
+--- radii is exactly what R6 exists to stop, and it is what the threat module already did
+--- once. So this measures, stores it on SR.Mood, and both read the same numbers.
+---
+--- Returns: threats (within FEAR_RADIUS), nearest, insiders, outsiders.
+---
+--- "Inside" is `square:isOutside() == false`, the same question BanditUpdate.lua:941 asks
+--- of the NPC itself. A zombie whose square cannot be read counts as outside: being unsure
+--- should not sound the breach alarm.
+local function scanSurroundings(cell, x, y, z)
     local cache = BanditZombie and BanditZombie.CacheLightZ
-    if not cache then return 0, math.huge end
+    if not cache then return 0, math.huge, 0, 0 end
 
-    local n, nearestSq = 0, math.huge
-    local r2 = FEAR_RADIUS * FEAR_RADIUS
+    local n, nearestSq, insiders, outsiders = 0, math.huge, 0, 0
+    local fearR2 = FEAR_RADIUS * FEAR_RADIUS
+    local scanR2 = SCAN_RADIUS * SCAN_RADIUS
+
     for _, entry in pairs(cache) do
         local dx, dy = entry.x - x, entry.y - y
         local d2 = dx * dx + dy * dy
-        if d2 <= r2 then
-            n = n + 1
-            if d2 < nearestSq then nearestSq = d2 end
+
+        if d2 <= scanR2 then
+            if d2 <= fearR2 then
+                n = n + 1
+                if d2 < nearestSq then nearestSq = d2 end
+            end
+
+            local inside = false
+            if cell then
+                local sq = cell:getGridSquare(math.floor(entry.x), math.floor(entry.y), z)
+                if sq then inside = not sq:isOutside() end
+            end
+            if inside then insiders = insiders + 1 else outsiders = outsiders + 1 end
         end
     end
-    return n, math.sqrt(nearestSq)
+
+    return n, math.sqrt(nearestSq), insiders, outsiders
 end
 
 local function friendsNear(x, y, selfId)
@@ -225,7 +269,7 @@ local function healthRatio(zombie, brain)
     return now / max
 end
 
-local function updateFear(mood, threats, nearest, friends, hpRatio)
+local function updateFear(mood, threats, nearest, friends, hpRatio, insiders)
     local situational = 0
 
     if nearest <= FEAR_RADIUS then
@@ -236,6 +280,13 @@ local function updateFear(mood, threats, nearest, friends, hpRatio)
     end
     if hpRatio < 0.5 then
         situational = situational + FEAR_HURT
+    end
+    -- Being cornered indoors is worse than the same count in the open, and this is what
+    -- turns "too many are getting in" into leaving rather than dying in a kitchen. It is a
+    -- fear term rather than a rule so that a brave person still holds the room longer than
+    -- a frightened one -- the same body of water, different waterline.
+    if mood.indoors and insiders > 0 then
+        situational = situational + math.min(insiders, 6) * FEAR_PER_BREACH
     end
 
     local fear = (mood.fear or 0) * FEAR_KEEP + situational
@@ -266,6 +317,19 @@ function Autonomy.RungOf(brain, mood, ctx)
         -- many words: if I run, you run.
         if ctx.disengaging then return Autonomy.OBEY end
         if ctx.masterFighting and ctx.nearest <= ASSIST_RANGE then return Autonomy.FIGHT end
+
+        -- CLEARING THE HOUSE. Standing in a building with something already inside, or with
+        -- several working on the walls, is the one case where nobody has to be swinging yet
+        -- and fighting is still the right answer -- because the alternative is searching
+        -- drawers with your back to a doorway.
+        --
+        -- Note this is BELOW the breach case: once too many are in, fear has already
+        -- carried them to rung 1 above and leaving wins. Clearing a room is a plan; holding
+        -- a room against four is not.
+        if ctx.indoors and (ctx.insiders > 0 or ctx.outsiders >= BANGING) then
+            return Autonomy.FIGHT
+        end
+
         return Autonomy.OBEY
     end
 
@@ -402,11 +466,21 @@ local function sweep()
                     local name = tostring(brain.fullname)
                     local zx, zy = zombie:getX(), zombie:getY()
 
-                    local threats, nearest = scanThreats(zx, zy)
+                    -- Where they are standing decides how the same street reads. Written to
+                    -- SR.Mood so the companion program reads the same answer rather than
+                    -- asking the world a second time on its own radius.
+                    local square = zombie:getSquare()
+                    local cell = square and square:getCell()
+                    mood.indoors = square and not square:isOutside() or false
+
+                    local threats, nearest, insiders, outsiders =
+                        scanSurroundings(cell, zx, zy, zombie:getZ())
+                    mood.insiders, mood.outsiders = insiders, outsiders
+
                     local friends = friendsNear(zx, zy, id)
                     local hpRatio = healthRatio(zombie, brain)
 
-                    updateFear(mood, threats, nearest, friends, hpRatio)
+                    updateFear(mood, threats, nearest, friends, hpRatio, insiders)
 
                     -- Is the player leaving? Growing distance is the honest test, because
                     -- it does not care WHY -- sprinting, driving, or just walking off while
@@ -417,9 +491,17 @@ local function sweep()
 
                     local ctx = {
                         threats = threats, nearest = nearest, friends = friends,
+                        insiders = insiders, outsiders = outsiders,
+                        indoors = mood.indoors,
                         masterDist = masterDist,
                         masterFighting = fighting,
-                        disengaging = sprinting or growing or masterDist > LEASH,
+                        -- `growing` is qualified by distance on purpose. Unqualified, a
+                        -- player shuffling around a room they are looting together kept
+                        -- tripping it, and every trip clears the queue -- which would yank
+                        -- a companion off a drawer once every six seconds. Somebody four
+                        -- tiles away is not leaving you.
+                        disengaging = sprinting or masterDist > LEASH
+                            or (growing and masterDist > 6),
                     }
 
                     local before = mood.rung or Autonomy.IDLE
@@ -474,9 +556,12 @@ local function sweep()
 
                     if census then
                         SR.Log(string.format(
-                            "AUTO census | %s | rung=%s fear=%d/%d hp=%.2f z=%d@%.1f friends=%d master=%.1f head=%s",
+                            "AUTO census | %s | rung=%s fear=%d/%d hp=%.2f z=%d@%.1f in=%d out=%d %s friends=%d master=%.1f bag=%s head=%s",
                             name, RUNG_NAME[mood.rung], mood.fear, fearLimit(brain),
-                            hpRatio, threats, nearest, friends, masterDist,
+                            hpRatio, threats, nearest, insiders, outsiders,
+                            mood.indoors and "indoors" or "outdoors",
+                            friends, masterDist,
+                            tostring(SR.Loot and SR.Loot.HasBag(brain) or "?"),
                             tostring(headSignature(headTask(brain)) or "idle")))
                     end
                 end

@@ -75,6 +75,36 @@ line numbers; a leash guard on that branch would fix it for everybody.
 
 ---
 
+## `BanditPrograms.Container.Loot` is dead code — reported upstream material
+
+**Not a tuning problem, a crash.** `BanditPrograms.lua:524` reads `enemyCharacter:getX()`
+and `:541` reads `endurance`. Neither is a parameter of that function (`bandit, object,
+container`) nor a local in it. Both are undefined globals, so the first call throws.
+
+That is why the entire looting block in `ZPCompanion.Main` (lines 120-215) is commented
+out. It is not disabled pending tuning — it is disabled because it crashes. No Bandits
+companion has ever looted a house.
+
+We wrote our own (`ScenesRelationsLoot.lua`, `ZombieActions.ScenesLoot`) rather than repair
+theirs, because their `ZALootItems` takes the ENTIRE contents of every container on the
+square and ours must not. Worth sending Slayer the two line numbers regardless.
+
+---
+
+## Companions no longer pick things up off the floor
+
+`ScenesRelationsIdle.lua` only acts on rung 5, and a companion with a master never leaves
+rung 3. So the hat-picking behaviour — "si ven un sombrero en el suelo haya una probabilidad
+de que lo guste, lo recoja y se lo ponga" — is currently only visible on survivors who are
+NOT following you.
+
+Not a regression from any one change; it is what the ladder implies. The fix is to let the
+companion program offer the same want-something check before it falls through to resting,
+routed through the Idle module rather than duplicated (R6). Small, but it needs the search
+behaviour confirmed in play first so there is one new thing being judged at a time.
+
+---
+
 ## Fear is simulated, and stage 06 has to live with that
 
 `PROBE stat VERDICT FROZEN` (04-08). The engine binds `getStats()` on an NPC but never ticks
