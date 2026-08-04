@@ -14,6 +14,7 @@
 --   error -- it would just be quietly wrong for the whole session.
 
 require "ScenesRelations"
+require "ScenesRelationsGuard"
 local SR = ScenesRelations
 
 -- Tuned against SR.TIERS: from a neutral 0 this drops straight to "wary" (-25), and a
@@ -164,7 +165,16 @@ Events.OnHitZombie.Add(function(zombie, attacker)
         return
     end
 
-    -- Someone peaceful. This is the only case in the whole module that costs anything.
+    -- Someone peaceful. This is the only case in the whole module that costs anything --
+    -- which is exactly why it must not fire on an accident. Swinging at a zombie standing
+    -- next to a friendly catches the friendly, and a system that reads intent from
+    -- behaviour cannot also read a misclick as an assault.
+    --
+    -- The check lives here, not in a handler of its own. Both files listen to OnHitZombie
+    -- and this one is registered first, so a competing handler would apply the penalty
+    -- before the guard could stop it.
+    if SR.Guard and SR.Guard.Blocks(zombie, attacker) then return end
+
     local before, after = SR.Adjust(zombie, HIT_PENALTY, "attacked")
     if before ~= after then SR.Apply(zombie) end
 

@@ -1,141 +1,196 @@
-# Where we are, and what to test next
+# Qué probar ahora
 
-One page. Updated every time a stage opens or closes. If this file and anything else
-disagree, this file is the one that is stale — fix it.
+Una sola página. Se reescribe cada vez que una etapa abre o cierra. Si esta página y
+cualquier otra se contradicen, ésta es la que está vieja — arreglala.
 
-Full roadmap: [`docs/plans/README.md`](plans/README.md).
+> **Nota de idioma.** Este archivo va en español porque es el que vos usás mientras jugás.
+> Todo el resto — código, comentarios, planes, commits — sigue en inglés.
 
----
-
-## Open right now
-
-| Stage | State |
-|---|---|
-| [00 — Test world](plans/00-test-world.md) | built, partially confirmed |
-| [01 — Durable memory](plans/01-durable-memory.md) | built, **the unload test never got run** |
-| [02 — Interaction wheel](plans/02-interaction-wheel.md) | built, never run |
-
-Next up: [03 — Idle life](plans/03-idle-life.md) — picking things up, wearing them, looting
-where they live.
-
-### What the last run actually told us
-
-- Trust rises properly when you fight beside somebody. That part works.
-- **The right-click menu made everything else hard to test.** That is why stage 02 exists
-  and why it jumped ahead of the rest of the memory work.
-- The NPCs feel empty between fights. Correct, and stage 03 is the answer.
-- Two questions came back unanswered and they are still the two that matter most: the
-  cell-unload test, and whether the halo text appeared on screen.
+Hoja de ruta completa: [`docs/plans/README.md`](plans/README.md).
 
 ---
 
-## Before you start
+## Antes de empezar
 
 ```bash
 tools/sync-mods.sh
 ```
 
-Then open **Options → Key Bindings** and check where `Talk to survivor` landed. Default is
-**V**. If another mod already owns V, rebind it here — no code change needed.
+Después abrí **Opciones → Controles (Key Bindings)** y confirmá las cuatro teclas nuevas.
+Todas se pueden reasignar ahí; si otro mod ya usa alguna, cambiala y listo.
 
-A new game is not required this time. Stage 02 works on any save; only the starting
-companion needs a fresh one.
+| Tecla | Qué hace |
+|---|---|
+| **V** (mantener) | Rueda de interacción sobre el sobreviviente más cercano |
+| **K** | Panel de relaciones — las barras |
+| **G** | Prende y apaga la protección contra golpear amigos |
+| **M** | Test de memoria (dos toques) |
 
----
-
-## What to test, in order
-
-### 1. The wheel opens
-
-**Do:** stand near a survivor. **Hold V.**
-
-**Pass:** a wheel appears in the centre of the screen with their name and trust underneath,
-e.g. `Theodore Kaine   neutral 0`.
-
-`console.txt` shows `SREL| WHEEL opened on … | 2 options`.
-
-**If nothing happens:** check the keybinding first. Then look for `SREL| WHEEL ready` at
-startup — if that line is missing, the file did not load.
-
-**If it says "Nobody close enough":** the wheel needs somebody within 8 tiles that you have
-line of sight to. Talking through a wall is deliberately not allowed.
+No hace falta partida nueva, salvo que quieras el compañero inicial.
 
 ---
 
-### 2. Releasing picks the option
+## Las pruebas, en orden
 
-**Do:** hold V, move the mouse over a wedge, release.
+### 1. Todo cargó
 
-**Pass:** the action runs. Clicking the wedge instead of releasing must also work.
+**Hacé:** entrá a la partida y abrí `console.txt`.
 
-**Interesting failure:** if releasing closes the wheel without doing anything and
-`console.txt` says `WHEEL closed without a selection` every single time, then reading the
-slice under the cursor on release is not working and we fall back to click-to-select. Say
-so — it is a five-line fix, not a redesign.
+**Pasa si** aparecen estas cinco líneas al arrancar:
 
----
+```
+SREL| WHEEL ready
+SREL| PANEL ready
+SREL| GUARD ready
+SREL| MEMTEST ready
+SREL| STORE ready | 32 shards | N records recovered from this save
+```
 
-### 3. Talking raises trust
-
-**Do:** open the wheel on a stranger and pick **Talk**. Repeat.
-
-**Pass:**
-- Trust rises `+4` per conversation. Green text appears over **your** head.
-- Immediately trying again shows `Talk (nothing more to say yet)` — the cooldown is half an
-  in-game hour, roughly three real minutes.
-- After enough conversations, `Follow me (needs 25 trust)` becomes plain `Follow me`.
-
-**This is the answer to "conversations that raise points".** It is deliberately slower than
-fighting beside somebody — what you risk for a person should outrank what you say to them.
-If it feels too slow to be worth doing at all, tell me and the number moves.
+**Si falta alguna,** ese archivo no cargó y las pruebas que dependen de él no tienen
+sentido. Decime cuál falta antes de seguir.
 
 ---
 
-### 4. Recruit without ever right-clicking
+### 2. La rueda ahora se lee
 
-**Do:** take one survivor from stranger to companion using only the wheel.
+**Hacé:** parate cerca de un sobreviviente y **mantené V**.
 
-**Pass:** you never needed the right-click menu once. When that is true I delete it — it
-still exists this build only because a wheel that failed to open would have left you with
-no way to recruit anybody.
+**Pasa si:**
+- El nombre de cada acción se ve **escrito dentro de su gajo**, sin tener que pasar el
+  mouse por encima. Eso era lo que estaba mal.
+- Abajo de la rueda está sólo el **nombre** de la persona.
+- El puntaje de confianza **ya no aparece acá**. Se mudó al panel.
+- Las acciones bloqueadas se ven grises, con el motivo debajo — por ejemplo
+  `Follow me` / `(needs 25 trust)`.
 
----
-
-### 5. **The one that is still owed — memory across a cell unload**
-
-Test 10 in [`docs/TEST-RUNS.md`](TEST-RUNS.md). This did not get done last time and it is
-the single thing that decides whether the mod's premise holds.
-
-1. Get a companion's trust clearly above zero.
-2. In `console.txt`, find its `PROBE` line. Write down **both** `id=` and `trust=`.
-3. Walk at least ten blocks away. Wait for two `PROBE sweep` lines with no `PROBE` line for
-   it in between — that is how you know its cell unloaded.
-4. Walk back.
-
-**Pass:** same `id`, same `trust`, `known=true`.
-
-A *different* `id` means recognition needs the fuzzy name-plus-traits fallback and several
-later stages slip. That is worth knowing now rather than in a month.
+**Lo que puede fallar y no es grave:** que los textos estén corridos un gajo respecto de
+los dibujos. El motor dibuja la rueda del lado Java y no nos dice dónde empieza el primer
+gajo, así que lo calculé. **Si pasa, decímelo y son dos constantes** — están marcadas en el
+código como `FIRST_SLICE_ANGLE` y `CLOCKWISE`.
 
 ---
 
-### 6. Two seconds of looking at the screen — also still owed
+### 3. Hablar sube la confianza
 
-Early in the session `console.txt` prints two `PROBE halo` lines.
+**Hacé:** abrí la rueda sobre un desconocido y elegí **Talk**. Repetí varias veces.
 
-**Look at the screen** and tell me whether the words *SCENES probe* appeared above a
-survivor's head.
+**Pasa si:**
+- Sube `+4` por conversación y sale texto verde sobre **tu** cabeza.
+- Si lo intentás enseguida otra vez dice `Talk` / `(nothing more to say yet)`. El descanso
+  es media hora de juego, más o menos 3 minutos reales.
+- Después de suficientes charlas, `Follow me` deja de estar gris.
 
-Right now every message goes above **your** head, because that is the only placement proven
-to work. If it works on an NPC, one function moves and the whole thing reads far better.
-One word answers it.
+Es a propósito más lento que pelear al lado de alguien. Si te resulta *tan* lento que no
+vale la pena, decímelo y muevo el número.
 
 ---
 
-## What to send back
+### 4. El panel de relaciones
 
-`console.txt`, plus one line per test: number, pass or fail, what you saw.
+**Hacé:** presioná **K**.
 
-For test 5, the two `id`/`trust` pairs. For test 6, one word.
+**Pasa si:**
+- Se abre una ventana con una fila por cada persona que conociste.
+- Cada fila tiene nombre, una barra, y abajo el nivel y el número.
+- La barra va de -100 a 100 con una **línea blanca en el cero**: llena hacia la derecha en
+  verde si confían, hacia la izquierda en rojo si desconfían. Que alguien te desconfíe y
+  que alguien no te conozca tienen que verse distinto.
+- Los que están cerca en este momento dicen `here` a la derecha.
+- Se puede arrastrar y redimensionar. Se cierra con K de nuevo.
 
-Do not delete the log between tests.
+**Ojo con esto:** los registros creados *antes* de este build no guardaron el nombre, así
+que van a aparecer como `#4823`. No es un error — se arregla solo la próxima vez que
+interactúes con esa persona.
+
+---
+
+### 5. La protección contra golpes accidentales
+
+**Hacé:** con un sobreviviente amigo al lado, **pegale a propósito**.
+
+**Pasa si:**
+- **No** baja la confianza. En el log sale `SREL| GUARD absorbed a hit on … -- no trust lost`.
+- Presionás **G**, sale texto rojo *"Survivors UNPROTECTED"*, le pegás de nuevo, y **ahora
+  sí** baja `-25`.
+- Presionás **G** otra vez y vuelve a estar protegido. Arranca siempre protegido.
+
+**Lo que quiero que mires bien:** ¿el golpe le quita vida igual, aunque no cueste confianza?
+
+No hay ningún evento en 42.20 que permita **cancelar** un golpe antes de que pegue —
+verifiqué los cinco que existen. Así que esto no impide el golpe, lo deshace. Lo que está
+garantizado es que no te cueste la relación. Devolverle la vida depende de que `setHealth`
+funcione sobre un NPC, cosa que no está confirmada en ningún lado. Si no funciona, el log
+lo va a decir una vez con `GUARD setHealth is not available on IsoZombie`.
+
+---
+
+### 6. **El test de memoria — el que decide todo**
+
+Este es el que no se pudo hacer antes porque había que caminar demasiado. Tenías razón: una
+celda de Project Zomboid mide **300 × 300 tiles**, así que diez cuadras no alcanzaban ni de
+cerca.
+
+Ahora se teletransporta. No hace trampa: se va lo bastante lejos para que el motor descargue
+la celda **de verdad**, igual que caminando, y vuelve.
+
+**Hacé, en este orden:**
+
+1. Conseguí que un sobreviviente te tenga confianza — hablale o peleá a su lado hasta que
+   la barra en el panel (K) esté claramente del lado verde.
+2. Parate **al lado de esa persona** y presioná **M**.
+   - El log dice `MEMTEST 1/2 LEAVING | id=… name=… trust=…`. **Anotá ese id y ese trust.**
+   - Aparecés a 700 tiles de distancia.
+3. **Esperá.** Mirá el log hasta que las líneas `PROBE sweep` dejen de mencionar a esa
+   persona. Eso significa que su celda se descargó. Un minuto real alcanza de sobra.
+4. Presioná **M** otra vez. Volvés al lugar exacto.
+
+**El log te da el veredicto en palabras, no tenés que interpretarlo:**
+
+| Línea | Qué significa |
+|---|---|
+| `MEMTEST VERDICT PASS` | El recuerdo sobrevivió intacto. **La premisa del mod se sostiene.** |
+| `MEMTEST VERDICT PARTIAL` | Sobrevivió pero el número cambió. Algo más está escribiendo encima. |
+| `MEMTEST VERDICT FAIL` | Se perdió. O el almacén no persiste, o volvió con otro id. |
+
+Después sale una línea más: `MEMTEST body with that id currently loaded: true/false`. Si
+dice `false` **no es un fallo** — sólo significa que esa persona caminó a otro lado. Son dos
+preguntas distintas y las separo a propósito, porque confundirlas es cómo uno concluye "me
+olvidó" cuando en realidad se movió.
+
+**Repetilo dos o tres veces.** Es barato ahora y es la respuesta más importante que falta.
+
+---
+
+### 7. Dos segundos mirando la pantalla
+
+Al principio de la sesión el log escribe dos líneas `PROBE halo`.
+
+**Mirá la pantalla** y decime si las palabras *SCENES probe* aparecieron **sobre la cabeza
+del NPC**.
+
+Ahora mismo todos los mensajes salen sobre **tu** cabeza, porque es la única posición
+comprobada en vanilla. Si funciona sobre un NPC, se mueve una sola función y todo se lee
+muchísimo mejor. **Una palabra alcanza.**
+
+---
+
+## Qué mandarme
+
+`console.txt`, más una línea por prueba: número, pasó o no, qué viste.
+
+De la prueba 6 lo importante son las dos líneas `MEMTEST` completas. De la 7, una palabra.
+
+No borres el log entre pruebas.
+
+---
+
+## En qué estamos
+
+| Etapa | Estado |
+|---|---|
+| [00 — Mundo de pruebas](plans/00-test-world.md) | construida, confirmada a medias |
+| [01 — Memoria durable](plans/01-durable-memory.md) | construida, **el test de descarga nunca se pudo correr** |
+| [02 — Rueda de interacción](plans/02-interaction-wheel.md) | rueda probada y aprobada; panel, escudo y test de memoria recién construidos |
+
+Sigue: [03 — Vida propia](plans/03-idle-life.md) — que recojan cosas, se las pongan, y
+looteen donde viven.

@@ -210,7 +210,14 @@ function Actions.List(player, bandit)
     return list, brain, trust, tier
 end
 
---- The one-line identity shown wherever the list is drawn.
+--- Just who this is. The wheel shows only this: it is for choosing an action, and the
+--- state of the relationship belongs in the panel where it can be a bar you read rather
+--- than a number you decode mid-swing.
+function Actions.Name(brain)
+    return nameOf(brain)
+end
+
+--- Identity plus standing. Used by the context menu, where one line is all there is.
 function Actions.Header(brain, trust, tier)
     return string.format("%s   %s %d", nameOf(brain), tostring(tier), trust)
 end

@@ -81,6 +81,50 @@ head starts working.
 `Bandit.SoundTab` holds sixteen phrase keys (`Bandit.lua:4-19`) and none of them is a
 greeting. Forcing `SPOTTED` would sound wrong. Silence is better than the wrong voice line.
 
+### 7. Added after the first run of the wheel
+
+Play testing approved the wheel and found three things wrong with it. All three are in
+scope for this stage because they are the same surface.
+
+**Labels were invisible until hovered.** `ISRadialMenu` only draws a slice's text when the
+cursor is already over it, so finding out what the wheel offered meant hovering each wedge
+in turn. We now draw the action name inside every wedge ourselves, plus an icon per action
+using only texture paths that appear verbatim in `ISEmoteRadialMenu.lua:57-80`.
+
+One risk stated plainly: the Java side draws the wedges and does not expose where slice
+zero begins, so the label positions are computed. If they read one wedge out of step it is
+two constants — `FIRST_SLICE_ANGLE` and `CLOCKWISE`.
+
+**The trust number left the wheel** and became `ScenesRelationsPanel.lua`, a Sims-style
+window on a key: one row per person, a bar running the full -100..100 with a line at zero.
+The full range matters — a bar that only grew rightwards from empty would make *distrusted*
+look identical to *unknown*, and those are very different situations. It reads the durable
+store rather than the world, so it lists people whose cell is unloaded, which makes it the
+first honest view of whether stage 01 actually worked.
+
+**Accidental hits no longer cost the relationship.** `ScenesRelationsGuard.lua`, default on,
+toggled by a key. There is no cancellable pre-damage event in 42.20 — the complete list is
+`OnHitZombie`, `OnWeaponSwingHitPoint`, `OnPlayerAttackFinished`, `OnWeaponHitTree`,
+`OnWeaponHitXp`, and none can abort a swing — so this cannot prevent the blow, it undoes
+it. Skipping the trust penalty is guaranteed and is the whole of the reported problem;
+restoring hit points is best effort, since `setHealth` on an `IsoZombie` is unverified.
+
+The guard check lives inside `ScenesRelationsEvents.lua` rather than in a handler of its
+own: both files listen to `OnHitZombie` and Events sorts first alphabetically, so a
+competing handler would apply the penalty before the guard could stop it.
+
+### 8. Making the memory test possible at all
+
+`ScenesRelationsMemoryTest.lua`. Stage 01's test was written as "walk ten blocks away",
+which was simply wrong — a cell is 300 by 300 tiles, so ten blocks unloads nothing, and
+doing it properly costs minutes of walking per attempt. Reported as impractical.
+
+Two key presses now teleport the player 700 tiles out and back, using the same `teleportTo`
+vanilla's debug tools use. It does not fake the unload; it triggers the real one. The
+verdict is read from the store by id and printed in words, and it deliberately reports
+"is a body with that id loaded" as a *separate* line — an NPC that wandered off is not the
+same finding as an NPC that forgot you.
+
 ## Done when
 
 - Holding V near a survivor opens a wheel showing their name and trust.

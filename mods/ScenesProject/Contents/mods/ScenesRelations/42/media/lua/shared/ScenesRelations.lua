@@ -101,7 +101,17 @@ function SR.Get(bandit)
         return legacy
     end
 
-    record = { trust = 0, memory = {}, met = SR.Today() }
+    -- The name is copied into the record, not looked up later. The relationship panel has
+    -- to list people whose cell is not loaded, and at that moment there is no entity and
+    -- no brain to ask -- only this. It is also the first half of the fuzzy recognition
+    -- fallback in docs/DESIGN-MEMORY.md, if the id ever proves unstable.
+    local brain = BanditBrain.Get(bandit)
+    record = {
+        trust = 0,
+        memory = {},
+        met = SR.Today(),
+        name = brain and brain.fullname or "Survivor",
+    }
     SR.Store.Put(id, record)
     return record
 end
@@ -122,13 +132,20 @@ function SR.Mood(bandit)
     return modData.scenesMood
 end
 
+--- Band for a raw number. Separate from SR.Tier because the relationship panel lists
+--- people whose cell is not loaded: it has records, not entities, and there is nothing to
+--- pass to SR.Tier at that moment.
+function SR.TierOf(trust)
+    for _, tier in ipairs(SR.TIERS) do
+        if trust >= tier.min then return tier.name end
+    end
+    return "hostile"
+end
+
 function SR.Tier(bandit)
     local record = SR.Peek(bandit)
     if not record then return "neutral" end
-    for _, tier in ipairs(SR.TIERS) do
-        if record.trust >= tier.min then return tier.name end
-    end
-    return "hostile"
+    return SR.TierOf(record.trust)
 end
 
 --- Move trust and remember why. Returns oldTier, newTier so callers can react to a change.

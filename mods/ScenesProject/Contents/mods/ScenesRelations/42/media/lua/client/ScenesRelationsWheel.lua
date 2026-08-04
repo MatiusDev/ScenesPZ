@@ -75,13 +75,68 @@ local function nearestSurvivor(player)
     return best
 end
 
---- Draws the name and trust under the wheel. ISRadialMenu has no centre label, and without
---- this the player has no idea which of two survivors standing together they picked.
+-- Icons, using only paths that appear verbatim in ISEmoteRadialMenu.lua:57-80. The PNGs
+-- live in the client packs rather than on disk here, so getTexture is called defensively
+-- and a miss simply leaves the wedge without a picture -- the label still names it.
+local ICONS = {
+    ["Talk"] = "media/ui/Traits/trait_talkative.png",
+    ["Follow me"] = "media/ui/emotes/followme.png",
+    ["Join me"] = "media/ui/emotes/thumbsup.png",
+    ["Leave me"] = "media/ui/emotes/wavebye.png",
+}
+
+local function iconFor(label)
+    local path = ICONS[label]
+    if not path then return nil end
+    local ok, texture = pcall(getTexture, path)
+    return ok and texture or nil
+end
+
+-- Where slice 0 sits and which way the wheel counts. The Java side draws the wedges and
+-- does not tell us, so this is the one number that may need a visual correction: if the
+-- labels read one wedge out of step, change these two and nothing else.
+local FIRST_SLICE_ANGLE = -math.pi / 2   -- top of the circle
+local CLOCKWISE = true
+
+--- Draws the name under the wheel and the action name inside every wedge.
+---
+--- Both are ours because ISRadialMenu gives neither. It has no centre label at all, and it
+--- only shows a slice's text when the cursor is already over it -- which is useless: you
+--- have to hover each wedge in turn to find out what the wheel even offers. Reported from
+--- play as "se ve bastante confuso", and it was right.
+---
+--- The trust number deliberately does NOT appear here. A wheel is for choosing an action;
+--- the state of the relationship belongs in the relationship panel, where it can be a bar
+--- you read rather than a number you decode mid-swing.
 local function renderWithHeader(self)
     ISRadialMenu.render(self)
-    if not self.srHeader then return end
-    self:drawTextCentre(self.srHeader, self.width / 2, self.height + 4,
-        1, 1, 1, 1, UIFont.Small)
+
+    local cx, cy = self.width / 2, self.height / 2
+    local radius = (self.innerRadius + self.outerRadius) / 2
+    local count = #self.slices
+
+    if count > 0 then
+        local step = (2 * math.pi) / count
+        for i, slice in ipairs(self.slices) do
+            local angle = FIRST_SLICE_ANGLE + (CLOCKWISE and 1 or -1) * (i - 1) * step
+            local x = cx + math.cos(angle) * radius
+            local y = cy + math.sin(angle) * radius
+
+            -- Refused actions are drawn dim rather than hidden, same reason as everywhere
+            -- else: a missing option reads as a bug, a greyed one reads as a person.
+            local shade = slice.srAvailable and 1 or 0.45
+            self:drawTextCentre(slice.srLabel or "", x, y - 6,
+                shade, shade, shade, 1, UIFont.Small)
+            if slice.srReason then
+                self:drawTextCentre("(" .. slice.srReason .. ")", x, y + 6,
+                    0.45, 0.45, 0.45, 1, UIFont.Small)
+            end
+        end
+    end
+
+    if self.srHeader then
+        self:drawTextCentre(self.srHeader, cx, self.height + 4, 1, 1, 1, 1, UIFont.Small)
+    end
 end
 
 local function close()
@@ -130,24 +185,33 @@ local function open(player)
     wheel = ISRadialMenu:new(x - 100, y - 100, 40, 100, 0)
     wheel:initialise()
     wheel:instantiate()
-    wheel.srHeader = SR.Actions.Header(brain, trust, tier)
+    -- Name only. The trust number moved to the relationship panel.
+    wheel.srHeader = SR.Actions.Name(brain)
     wheel.render = renderWithHeader
 
     for _, action in ipairs(list) do
+        local texture = iconFor(action.label)
         if action.available then
-            wheel:addSlice(action.label, nil, action.run, player, bandit)
+            wheel:addSlice(action.label, texture, action.run, player, bandit)
         else
             -- Refused actions stay on the wheel, labelled with what is missing. Hiding
             -- them would make the relationship invisible: the player would never learn
             -- that Follow me is four conversations away rather than impossible.
-            wheel:addSlice(action.label .. " (" .. tostring(action.reason) .. ")", nil,
-                function() end)
+            wheel:addSlice(action.label, texture, function() end)
         end
+
+        -- Our renderer needs the pieces separately; the slice text belongs to Java and is
+        -- only shown on hover.
+        local slice = wheel.slices[#wheel.slices]
+        slice.srLabel = action.label
+        slice.srAvailable = action.available
+        slice.srReason = (not action.available) and action.reason or nil
     end
 
     wheel:addToUIManager()
 
-    SR.Log(string.format("WHEEL opened on %s | %d options", wheel.srHeader, #list))
+    SR.Log(string.format("WHEEL opened on %s | %s %d | %d options",
+        wheel.srHeader, tostring(tier), trust, #list))
 end
 
 -- KEY HANDLING ----------------------------------------------------------------------
