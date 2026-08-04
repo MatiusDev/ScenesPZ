@@ -62,7 +62,12 @@ local function collectRecords()
         local cluster = SR.Store.clusters[i]
         if cluster then
             for id, record in pairs(cluster) do
-                if type(record) == "table" and type(record.trust) == "number" then
+                -- Only this character's relationships. The store is global ModData keyed by
+                -- NPC id, so before this it happily listed people a PREVIOUS character had
+                -- known -- reported as "si el jugador muere y vuelvo a aparecer, quedan las
+                -- relaciones anteriores".
+                if type(record) == "table" and type(record.trust) == "number"
+                   and SR.RecordIsOurs(record) then
                     rows[#rows + 1] = {
                         id = id,
                         -- Records written before names were stored fall back to the id.
@@ -70,7 +75,10 @@ local function collectRecords()
                         name = record.name or ("#" .. tostring(id)),
                         trust = record.trust,
                         met = record.met,
-                        here = present[id] == true,
+                        dead = record.dead,
+                        -- Being in the cache is not the same as being alive: a dead NPC's
+                        -- entity lingers, so death wins the label.
+                        here = present[id] == true and not record.dead,
                     }
                 end
             end
@@ -115,9 +123,20 @@ function ScenesRelationsPanel:drawRow(y, item, alt)
         self:drawRect(0, y, self:getWidth(), ROW_HEIGHT - 1, 0.08, 1, 1, 1)
     end
 
-    -- Name, and whether they are actually nearby.
-    self:drawText(tostring(row.name), PAD, y + 4, 1, 1, 1, 1, UIFont.Small)
-    if row.here then
+    -- Name, and where they stand: dead, present, or somewhere out there.
+    --
+    -- A dead survivor keeps their row and their bar -- the relationship happened and does
+    -- not un-happen -- but the whole row dims and the label says so. Reported as "cuando el
+    -- NPC muere, la relacion queda y no pasa nada con la barra, deberia aparecer muerto":
+    -- from the menu a dead ally and a living one were identical, which is worst exactly
+    -- when you are deciding who to go back for.
+    local shade = row.dead and 0.45 or 1
+    self:drawText(tostring(row.name), PAD, y + 4, shade, shade, shade, 1, UIFont.Small)
+
+    if row.dead then
+        self:drawText("dead", self:getWidth() - PAD - 30, y + 4,
+            0.85, 0.30, 0.30, 1, UIFont.Small)
+    elseif row.here then
         self:drawText("here", self:getWidth() - PAD - 30, y + 4,
             0.5, 0.9, 0.5, 1, UIFont.Small)
     end
@@ -135,7 +154,8 @@ function ScenesRelationsPanel:drawRow(y, item, alt)
     local ratio = math.max(-1, math.min(1, row.trust / 100))
     local fillW = math.abs(ratio) * half
     local fillX = ratio >= 0 and (barX + half) or (barX + half - fillW)
-    self:drawRect(fillX, barY, fillW, barH, 0.95, color[1], color[2], color[3])
+    local alpha = row.dead and 0.4 or 0.95
+    self:drawRect(fillX, barY, fillW, barH, alpha, color[1], color[2], color[3])
 
     -- Zero line, drawn last so the fill never hides it.
     self:drawRect(barX + half, barY - 1, 1, barH + 2, 0.8, 1, 1, 1)

@@ -79,10 +79,30 @@ local GRABBED_RANGE = 1.6
 -- Was 10, which meant any zombie in the street outranked every order the player had given.
 local ENGAGE_RANGE = 4
 
--- Tiles. The master is swinging at something and this NPC is close enough to help. Wider
--- than ENGAGE_RANGE on purpose: joining a fight you started is the whole point of a
--- companion, and it is the one case where a distant zombie is still their business.
-local ASSIST_RANGE = 8
+-- Tiles. How far somebody's business extends, BY STANDING. Asked for in these words:
+--
+--   "si a los NPC que no tienen grupo le aumentamos su tile, y cuando nos esta siguiendo lo
+--    dejamos como esta actual, y cuando ya estan adentro del clan (join me) que el tile sea
+--    defender un tile menor a los NPC que no tienen grupo, para que sea defender."
+--
+-- The shape of that is a gradient of commitment, and it reads correctly in play:
+--
+--   FREE    nobody's companion. Widest, because they answer to nothing else -- a zombie ten
+--           tiles away is genuinely the most interesting thing in their life.
+--   FOLLOW  walking with you. Unchanged, because it was already tuned against real runs.
+--   CLAN    joined. TIGHTEST, and that is what makes it read as defending rather than
+--           hunting: somebody who took your side holds the ground around you instead of
+--           chasing whatever they can see.
+local FREE_ENGAGE = 10
+local FOLLOW_ENGAGE = 8
+local CLAN_ENGAGE = 6
+
+--- How far this person's business extends right now.
+local function assistRange(brain, owned)
+    if not owned then return FREE_ENGAGE end
+    if brain.loyal then return CLAN_ENGAGE end
+    return FOLLOW_ENGAGE
+end
 
 -- Tiles. Past this a companion has lost its master and catching up is the only task that
 -- matters. ZPCompanion switches to Run at 10, so 12 leaves it room to do its own job first.
@@ -331,11 +351,13 @@ function Autonomy.RungOf(brain, mood, ctx)
 
     if ctx.nearest <= ENGAGE_RANGE then return Autonomy.FIGHT end
 
+    local reach = assistRange(brain, owned)
+
     if owned then
         -- Following outranks a distant zombie. This is the rule the player asked for in as
         -- many words: if I run, you run.
         if ctx.disengaging then return Autonomy.OBEY end
-        if ctx.masterFighting and ctx.nearest <= ASSIST_RANGE then return Autonomy.FIGHT end
+        if ctx.masterFighting and ctx.nearest <= reach then return Autonomy.FIGHT end
 
         -- CLEARING THE HOUSE. Standing in a building with something already inside, or with
         -- several working on the walls, is the one case where nobody has to be swinging yet
@@ -352,9 +374,9 @@ function Autonomy.RungOf(brain, mood, ctx)
         return Autonomy.OBEY
     end
 
-    -- Nobody's companion. They keep the wider engagement window, because for them there is
-    -- no competing instruction and standing still next to a zombie reads as broken.
-    if ctx.nearest <= ASSIST_RANGE then return Autonomy.FIGHT end
+    -- Nobody's companion, so the widest window: there is no competing instruction, and
+    -- standing still next to a zombie reads as broken.
+    if ctx.nearest <= reach then return Autonomy.FIGHT end
 
     if mood.wanting then return Autonomy.ERRAND end
     return Autonomy.IDLE

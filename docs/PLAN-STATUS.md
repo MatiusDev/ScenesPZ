@@ -203,6 +203,95 @@ Si con la situación armada no salen, decímelo y las miro con otro enfoque.
 
 ---
 
+### 9. Un NPC suelto ya no se queda mirando la pared
+
+Todo lo que construimos vivía dentro del envoltorio de compañero, así que la única forma de
+tener vida interior era estar siguiéndote. Ahora la cadena de actividades es compartida y
+también envuelve `Looter`.
+
+**Hacé:** spawneá un NPC nuevo, no le digas nada, y dejalo dentro de una casa.
+
+**Pasa si** hace cosas por su cuenta — las mismas líneas `COMP ... searches`, `wants a bag`,
+`sits down`, pero de alguien que no es tu compañero.
+
+En el arranque, la línea de `COMP ready` ahora dice cuál de los dos programas envolvió:
+
+```
+COMP ready -- wraps ZPCompanion.Main and ZPLooter.Main: ...
+```
+
+Si dice `ONLY (no Looter to wrap)`, avisame.
+
+---
+
+### 10. El radio según el vínculo
+
+| Vínculo | Radio | Se debería ver como |
+|---|---|---|
+| sin grupo | 10 | el más lanzado, va por lo que ve |
+| te sigue | 8 | como estaba |
+| en el clan (join) | **6** | **defiende**, no caza |
+
+**Pasa si** un aliado del clan se queda más pegado a vos que uno que sólo te sigue, con los
+mismos zombis alrededor. Es sutil — mirá el `census`, que trae `rung` y la distancia al
+zombi más cercano (`z=N@dist`).
+
+---
+
+### 11. Leave me y Cast out
+
+**Leave me** ya no es una expulsión. Adentro de un edificio los pasa a `Defend` (se quedan
+cuidando el lugar), afuera a `Looter`. **La confianza no se toca.**
+
+```
+ACT <nombre> | leave -> Defend | trust=80 ...
+```
+
+**Cast out** es la expulsión, y sólo aparece si ya hizo *Join me*. Le pone la confianza en
+**0** de un golpe.
+
+```
+ACT <nombre> | cast out | trust=0 ...
+```
+
+Comprobá las dos cosas: que `Cast out` **no** aparezca en alguien que sólo te sigue, y que
+después de usarlo el WHO lo muestre en 0.
+
+---
+
+### 12. El WHO
+
+Dos bugs que reportaste.
+
+**Los muertos.** Matá o dejá morir a alguien con quien tengas relación y abrí el WHO.
+
+**Pasa si** la fila sigue estando, atenuada, y dice `dead` a la derecha. El registro se queda
+a propósito — uno no deja de haber conocido a alguien porque se murió — pero antes un aliado
+muerto y uno vivo se veían igual.
+
+```
+STORE <nombre> died | trust 80 at the end
+```
+
+**Las relaciones son por personaje.** Morite y volvé a entrar con uno nuevo.
+
+**Pasa si** el WHO aparece **vacío**. En el log:
+
+```
+STORE new life 412-38104 -- relationships start empty
+```
+
+Y si te cruzás con alguien que conocía tu personaje anterior, te trata como a un desconocido:
+
+```
+STORE 9306146 belonged to a previous life -- starting over
+```
+
+> Las relaciones de partidas viejas, de antes de este arreglo, **se conservan** — no tienen
+> marca de vida y se adoptan. Sólo empieza a separar desde acá.
+
+---
+
 ## Qué mandarme
 
 `console.txt` y una línea por prueba. De las líneas `AUTO census`, cuantas puedas — es lo

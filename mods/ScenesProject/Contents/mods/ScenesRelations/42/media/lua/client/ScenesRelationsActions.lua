@@ -180,11 +180,56 @@ local function runJoin(player, bandit)
     say(player, nameOf(BanditBrain.Get(bandit)) .. " has taken your side", true)
 end
 
+--- LEAVE ME is a dismissal, not a divorce.
+---
+--- "Leave me deberia ser un comando para darles a ellos autonomia de sus acciones."
+--- Exactly right, and the old version got it wrong in a way that mattered: it dropped them
+--- to Looter, which is a wanderer, so telling somebody to stand down was indistinguishable
+--- from throwing them out. Trust was kept, but nothing about the result showed it.
+---
+--- Now it hands them their own time back. Inside a building they take Defend and hold the
+--- place, which is what "deben defender su punto o quedarse en su lugar haciendo cosas"
+--- describes; outside there is nothing to hold, so they go back to Looter. Trust is
+--- untouched -- you did not fall out, you just stopped giving orders.
 local function runLeave(player, bandit)
+    local square = bandit:getSquare()
+    local indoors = square and not square:isOutside()
+    local program = indoors and "Defend" or "Looter"
+
+    BanditMenu.SwitchProgram(player, bandit, program)
+    setLoyal(bandit, false)
+    logAction(bandit, "leave -> " .. program)
+
+    if indoors then
+        say(player, nameOf(BanditBrain.Get(bandit)) .. " will hold this place")
+    else
+        say(player, nameOf(BanditBrain.Get(bandit)) .. " will look after themselves")
+    end
+end
+
+--- CAST OUT is the divorce, and it is meant to cost.
+---
+--- "debe haber una opcion de abandonarme para sacarlo del clan. Esta opcion deberia de
+--- bajar toda la confianza y ponerlo en 0."
+---
+--- Zero rather than the floor, deliberately. Minus a hundred is what somebody who has been
+--- hunting you feels; being thrown out of a group makes you a stranger again, and a
+--- stranger is what zero means everywhere else in this mod. It is still the largest single
+--- move available -- an ally at 100 loses all of it in one click -- which is why the option
+--- only exists once they have actually joined. You cannot expel somebody who never signed on.
+local function runAbandon(player, bandit)
+    local record = SR.Peek(bandit)
+    local trust = record and record.trust or 0
+
     BanditMenu.SwitchProgram(player, bandit, "Looter")
     setLoyal(bandit, false)
-    logAction(bandit, "leave")
-    say(player, nameOf(BanditBrain.Get(bandit)) .. " goes their own way")
+
+    if trust ~= 0 then
+        SR.Adjust(bandit, -trust, "cast out of the group")
+    end
+
+    logAction(bandit, "cast out")
+    say(player, nameOf(BanditBrain.Get(bandit)) .. " is no longer one of yours", false)
 end
 
 --- Opens the health window. Resolved at call time rather than required at the top of the
@@ -264,6 +309,13 @@ function Actions.List(player, bandit)
         -- Dismissal is never gated. Trust decides who will follow you, not who is allowed
         -- to stop. A companion you cannot release is a prisoner, not an ally.
         list[#list + 1] = { label = "Leave me", available = true, run = runLeave }
+
+        -- Expulsion only exists for somebody who actually joined. Offering it to a mere
+        -- follower would be offering to take away something they never had, and the wheel
+        -- would be lying about the state of the relationship.
+        if brain.loyal then
+            list[#list + 1] = { label = "Cast out", available = true, run = runAbandon }
+        end
     else
         if trust >= Actions.FOLLOW_MIN_TRUST then
             list[#list + 1] = { label = "Follow me", available = true, run = runFollow }

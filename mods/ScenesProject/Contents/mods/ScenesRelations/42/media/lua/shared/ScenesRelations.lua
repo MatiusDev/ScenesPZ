@@ -75,8 +75,69 @@ end
 --- is one survivor the player has MET, and the store is permanent. If merely walking past
 --- someone minted a record, the save would grow with every NPC the game ever spawned
 --- rather than with everyone who matters.
+--- Which life these relationships belong to.
+---
+--- REPORTED: "si el jugador muere, y vuelvo a aparecer en el mapa, quedan las relaciones
+--- anteriores tambien, entonces las relaciones del WHO deberia de quedar unicamente por
+--- personaje." Correct, and it was a real defect: the store is global ModData keyed by NPC
+--- id, so it survives everything, including you.
+---
+--- The stamp needs no death event. `player:getModData()` belongs to the IsoPlayer, and dying
+--- makes a new one -- so a character that cannot find a life id has never had one, which is
+--- exactly the condition worth detecting. Minted from the world clock plus a random tail so
+--- two characters in one save cannot collide.
+function SR.LifeId()
+    local player = getSpecificPlayer(0)
+    if not player then return nil end
+
+    local modData = player:getModData()
+    if not modData then return nil end
+
+    if not modData.scenesLife then
+        local gt = getGameTime()
+        local hours = 0
+        if gt then
+            local ok, value = pcall(function() return gt:getWorldAgeHours() end)
+            if ok and type(value) == "number" then hours = value end
+        end
+        modData.scenesLife = string.format("%d-%d", math.floor(hours), ZombRand(100000))
+        SR.Log("STORE new life " .. modData.scenesLife .. " -- relationships start empty")
+    end
+    return modData.scenesLife
+end
+
+--- Does this record belong to the character currently playing?
+---
+--- Records with no life at all predate this and are ADOPTED rather than discarded: the
+--- alternative is silently wiping a save's worth of relationships to fix a bug nobody
+--- reported as data loss.
+local function ours(record)
+    if type(record) ~= "table" then return false end
+    if not record.life then return true end
+    return record.life == SR.LifeId()
+end
+
+SR.RecordIsOurs = ours
+
+--- Read without creating. Returns nil for somebody a PREVIOUS character knew, which is the
+--- whole point: to this person you are a stranger who happens to look familiar.
 function SR.Peek(bandit)
-    return SR.Store.Get(SR.IdOf(bandit))
+    local record = SR.Store.Get(SR.IdOf(bandit))
+    if record and not ours(record) then return nil end
+    return record
+end
+
+--- Note that somebody has died. The record STAYS -- you do not forget a person because they
+--- died, and the panel is a list of who you have known, not a roster of the living.
+function SR.MarkDead(id, name)
+    local record = SR.Store.Get(id)
+    if not record or record.dead then return false end
+
+    record.dead = SR.Today()
+    SR.Store.Put(id, record)
+    SR.Log(string.format("STORE %s died | trust %d at the end",
+        tostring(name or record.name), record.trust or 0))
+    return true
 end
 
 --- Read, creating the record if this is the first thing that has ever happened between
@@ -86,6 +147,16 @@ function SR.Get(bandit)
     if not id then return nil end
 
     local record = SR.Store.Get(id)
+
+    -- Somebody a previous character knew. Not merged, not kept: overwritten, because the
+    -- person now playing has genuinely never met them. Two characters cannot both hold a
+    -- record for one NPC -- the store is keyed by NPC id alone -- so the old one has to go,
+    -- and losing a dead character's opinions is the correct amount of loss.
+    if record and not ours(record) then
+        SR.Log(string.format("STORE %d belonged to a previous life -- starting over", id))
+        record = nil
+    end
+
     if record then return record end
 
     -- MIGRATION. Saves made before the store existed keep the record on the entity. Move
@@ -111,6 +182,9 @@ function SR.Get(bandit)
         memory = {},
         met = SR.Today(),
         name = brain and brain.fullname or "Survivor",
+        -- Whose relationship this is. Written at creation and never changed: a record
+        -- outliving its character is the bug this closes.
+        life = SR.LifeId(),
     }
     SR.Store.Put(id, record)
     return record

@@ -191,3 +191,28 @@ Events.OnHitZombie.Add(function(zombie, attacker)
         SR.Log(seen .. " of their group lost trust")
     end
 end)
+
+-- DEATH -------------------------------------------------------------------------------
+--
+-- REPORTED: "cuando hay interacciones y el NPC muere, la relacion queda, y no pasa nada
+-- con la barra, deberia aparecer muerto."
+--
+-- The record deliberately stays. You do not stop having known somebody because they died,
+-- and the panel is a list of who you have known rather than a roster of the living. What
+-- was missing is that it never said so, so a dead ally and a living one looked identical
+-- from the menu -- which is worse than useless when you are deciding who to go back for.
+--
+-- Events.OnZombieDead is the same event Bandits itself hangs its cache cleanup on
+-- (BanditZombie.lua:196-197), so this fires for our NPCs too.
+Events.OnZombieDead.Add(function(zombie)
+    if not zombie then return end
+
+    -- Only somebody we have a relationship with. Peek never creates, so an ordinary zombie
+    -- dying costs one table lookup and nothing else -- which matters, because this fires
+    -- for every zombie in the world.
+    local ok, record = pcall(function() return SR.Peek(zombie) end)
+    if not ok or not record then return end
+
+    local brain = BanditBrain.Get(zombie)
+    SR.MarkDead(SR.IdOf(zombie), brain and brain.fullname or record.name)
+end)

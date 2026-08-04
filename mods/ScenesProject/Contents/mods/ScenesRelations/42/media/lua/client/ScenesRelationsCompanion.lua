@@ -254,6 +254,23 @@ local function scenesMain(bandit)
     -- of Main and is correct; the ladder has already made sure they reach it.
     if dist > FREE_RADIUS then return vanillaMain(bandit) end
 
+    local free = SR.Companion.FreeActivity(bandit, brain, mood, name)
+    if free then return free end
+    return vanillaMain(bandit)
+end
+
+--- What ANYBODY does with time of their own. Returns a program result, or nil to mean
+--- "nothing here, fall through to whatever program you came from".
+---
+--- SPLIT OUT SO FREE SURVIVORS GET IT TOO. Reported: "cuando spawneo un nuevo NPC este se
+--- queda idle, y con la expresion de que no tiene nada para hacer". True, and structural --
+--- every one of these behaviours lived inside the Companion wrapper, so the only way to
+--- deserve an inner life was to be following the player. Somebody standing in their own
+--- house with a rucksack to find and cupboards to open would do none of it.
+---
+--- Nothing in here reads brain.master or cares who anybody works for. It is a person with
+--- time on their hands, which is a thing you can be in any program.
+function SR.Companion.FreeActivity(bandit, brain, mood, name)
     -- FINISHING A BAG PICKUP. Checked before starting anything new, and only once the item
     -- is genuinely theirs -- somebody else may have taken it first, or the walk may have
     -- been cleared by the ladder. Wearing a bag they do not have would put a rucksack on a
@@ -375,7 +392,37 @@ local function scenesMain(bandit)
     local tasks = restTasks(bandit, brain, mood)
     if tasks then return { status = true, next = "Main", tasks = tasks } end
 
-    return vanillaMain(bandit)
+    -- nil, not vanillaMain: this function has no opinion about which program the caller
+    -- came from, and guessing would mean a free survivor being handed the companion's.
+    return nil
+end
+
+-- FREE SURVIVORS -----------------------------------------------------------------------
+--
+-- The same wrap, over the programs nobody is commanding. Looter is where an unattached
+-- survivor lives -- it is also where `Leave me` now sends somebody outdoors, and where a
+-- Defend NPC falls back to the moment it steps outside (ZPDefend.lua:22-24).
+--
+-- Why this is a separate wrapper rather than one generic one: their Main functions are
+-- different functions with different stage machines, and pretending otherwise would mean
+-- calling the wrong one on fall-through. Two three-line wrappers around one shared body is
+-- the honest shape.
+
+local vanillaLooterMain
+
+local function scenesLooterMain(bandit)
+    local brain = BanditBrain.Get(bandit)
+    local mood = brain and SR.Mood(bandit)
+
+    if not brain or not mood or not mood.rung then return vanillaLooterMain(bandit) end
+
+    -- Surviving and fighting stay entirely theirs, same as for a companion.
+    if mood.rung <= SR.Autonomy.FIGHT then return vanillaLooterMain(bandit) end
+
+    local free = SR.Companion.FreeActivity(bandit, brain, mood, tostring(brain.fullname))
+    if free then return free end
+
+    return vanillaLooterMain(bandit)
 end
 
 --- Install once, and only over the function we actually captured.
@@ -393,11 +440,22 @@ function SR.Companion.Install()
 
     vanillaMain = ZombiePrograms.Companion.Main
     ZombiePrograms.Companion.Main = scenesMain
+
+    -- Looter is optional in a way Companion is not: if it is missing, unattached survivors
+    -- simply keep the behaviour they always had, and nothing else breaks.
+    if not vanillaLooterMain and ZombiePrograms.Looter
+       and type(ZombiePrograms.Looter.Main) == "function" then
+        vanillaLooterMain = ZombiePrograms.Looter.Main
+        ZombiePrograms.Looter.Main = scenesLooterMain
+    end
+
     return true
 end
 
 Events.OnGameStart.Add(function()
     if SR.Companion.Install() then
-        SR.Log("COMP ready -- wraps ZPCompanion.Main: search, bags, quiet indoors, real rest")
+        SR.Log(string.format(
+            "COMP ready -- wraps ZPCompanion.Main%s: search, bags, quiet indoors, real rest",
+            vanillaLooterMain and " and ZPLooter.Main" or " ONLY (no Looter to wrap)"))
     end
 end)
