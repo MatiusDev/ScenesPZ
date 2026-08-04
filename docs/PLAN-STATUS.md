@@ -257,6 +257,44 @@ ACT <nombre> | cast out | trust=0 ...
 Comprobá las dos cosas: que `Cast out` **no** aparezca en alguien que sólo te sigue, y que
 después de usarlo el WHO lo muestre en 0.
 
+**Y la puerta de vuelta** — el bug que reportaste. Al compañero que aparece con vos dale
+`Leave me` y después volvé a abrir la rueda.
+
+**Pasa si** `Follow me` está **disponible**, no gris pidiendo 25 de confianza. En el log, la
+primera vez que abrís la rueda sobre él:
+
+```
+ACT <nombre> counts as one of yours (trust 4)
+```
+
+Tu log lo confirmó: el compañero inicial nace con `trust=4 neutral` — te lo regala el
+spawner, no te lo ganaste. `Leave me` pedía 25 de confianza que nunca hizo falta tener. Ahora
+la pertenencia se recuerda y le gana a la confianza: quien ya caminó con vos no es un
+desconocido, diga lo que diga el número.
+
+`Cast out` sí revoca la pertenencia — esa es la única puerta que se cierra, y desde ahí
+vuelve a necesitar los 25 desde cero.
+
+---
+
+### 11b. Un compañero al reaparecer
+
+**Hacé:** morite y creá un personaje nuevo en la misma partida.
+
+**Pasa si** aparece un compañero con vos otra vez:
+
+```
+TLOU| new character -- one companion queued
+```
+
+Antes esto colgaba de `OnNewGame`, que dispara una sola vez por partida — morir te dejaba
+solo en un mod cuya premisa es que no lo estás. Y al **recargar** un personaje que ya existe
+tiene que decir lo contrario, o vas a juntar compañeros cada vez que entrás:
+
+```
+TLOU| this character already has their companion -- not spawning another
+```
+
 ---
 
 ### 12. El WHO

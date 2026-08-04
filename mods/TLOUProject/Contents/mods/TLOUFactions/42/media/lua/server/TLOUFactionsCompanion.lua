@@ -77,13 +77,34 @@ local function trySpawn()
         player:getX(), player:getY(), player:getZ(), attempts))
 end
 
-Events.OnNewGame.Add(function()
+--- One companion per CHARACTER, not per save.
+---
+--- ASKED FOR: "si reaparezco por que mori tambien deberia de aparecer un NPC conmigo al
+--- spawnear." Right, and OnNewGame could never do it -- it fires once, for the save. Dying
+--- and coming back left you alone in a mod whose whole premise is that you are not.
+---
+--- OnCreatePlayer fires for a new game AND for a respawn, which is exactly the set wanted.
+--- It also fires every time an existing character loads, which is exactly the case we must
+--- NOT act on -- so the flag lives in `player:getModData()`, which belongs to the IsoPlayer
+--- and is therefore fresh for a new character and preserved across reloads of an old one.
+--- The same property the relationship store uses to scope itself to a life.
+Events.OnCreatePlayer.Add(function(_, player)
     -- Multiplayer is out of scope here: on a dedicated server there is no single player to
     -- start beside, and the client has no business spawning anyone.
     if isClient() then return end
+    if not player then return end
+
+    local modData = player:getModData()
+    if not modData then return end
+
+    if modData.tlouCompanionGiven then
+        log("this character already has their companion -- not spawning another")
+        return
+    end
+    modData.tlouCompanionGiven = true
 
     pending = true
     attempts = 0
     Events.OnTick.Add(trySpawn)
-    log("new game -- one companion queued")
+    log("new character -- one companion queued")
 end)

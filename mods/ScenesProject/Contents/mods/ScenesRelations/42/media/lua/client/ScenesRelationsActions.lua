@@ -176,6 +176,15 @@ end
 local function runJoin(player, bandit)
     BanditMenu.SwitchProgram(player, bandit, "Companion")
     setLoyal(bandit, true)
+
+    -- Membership outlives the arrangement. `Leave me` should never be a door that locks
+    -- behind you, and after this it cannot be.
+    local record = SR.Get(bandit)
+    if record then
+        record.joined = true
+        SR.Store.Put(SR.IdOf(bandit), record)
+    end
+
     logAction(bandit, "join")
     say(player, nameOf(BanditBrain.Get(bandit)) .. " has taken your side", true)
 end
@@ -226,6 +235,15 @@ local function runAbandon(player, bandit)
 
     if trust ~= 0 then
         SR.Adjust(bandit, -trust, "cast out of the group")
+    end
+
+    -- The one door that DOES close. `Leave me` keeps membership so you can call somebody
+    -- back; being cast out revokes it, and from here they are a stranger on the same terms
+    -- as anybody else -- 25 trust to walk with you again, earned from zero.
+    local after = SR.Peek(bandit)
+    if after then
+        after.joined = nil
+        SR.Store.Put(SR.IdOf(bandit), after)
     end
 
     logAction(bandit, "cast out")
@@ -296,9 +314,37 @@ function Actions.List(player, bandit)
     local program = brain.program and brain.program.name
     local following = program == "Companion" or program == "CompanionGuard"
 
+    -- HAVE THEY EVER BEEN YOURS?
+    --
+    -- REPORTED: "cuando le doy leave me a un NPC que me sigue, no me vuelve aparecer follow
+    -- me... esto pasa con el NPC que aparece conmigo al spawnear."
+    --
+    -- Confirmed straight out of the 04-08 log: `prog=Companion/Main ... trust=4 neutral`.
+    -- The starting companion is handed to you by the spawner, not earned, so its trust is
+    -- whatever a stranger's is. Dismiss it once and `Follow me` demanded 25 trust it had
+    -- never needed in the first place -- a one-way door built by accident.
+    --
+    -- The rule asked for is right and it is also just true: trust decides whether a STRANGER
+    -- will walk with you. Somebody who has already walked with you is not a stranger, however
+    -- little the number says. So membership is remembered on the record and outranks trust.
+    --
+    -- Stamped opportunistically here rather than only in runJoin, because the starting
+    -- companion never went through runJoin -- it was already yours before you met it.
+    if following and brain.master and not record then
+        record = SR.Get(bandit)
+    end
+    if following and brain.master and record and not record.joined then
+        record.joined = true
+        SR.Store.Put(SR.IdOf(bandit), record)
+        SR.Log(string.format("ACT %s counts as one of yours (trust %d)",
+            nameOf(brain), record.trust or 0))
+    end
+
+    local wasMine = record and record.joined == true
+
     if following then
         if not brain.loyal then
-            if trust >= Actions.JOIN_MIN_TRUST then
+            if trust >= Actions.JOIN_MIN_TRUST or wasMine then
                 list[#list + 1] = { label = "Join me", available = true, run = runJoin }
             else
                 list[#list + 1] = { label = "Join me", available = false,
@@ -317,7 +363,9 @@ function Actions.List(player, bandit)
             list[#list + 1] = { label = "Cast out", available = true, run = runAbandon }
         end
     else
-        if trust >= Actions.FOLLOW_MIN_TRUST then
+        -- The door back in. Somebody you dismissed can always be called again -- that is
+        -- what makes `Leave me` a command rather than a mistake you cannot undo.
+        if trust >= Actions.FOLLOW_MIN_TRUST or wasMine then
             list[#list + 1] = { label = "Follow me", available = true, run = runFollow }
         else
             list[#list + 1] = { label = "Follow me", available = false,
