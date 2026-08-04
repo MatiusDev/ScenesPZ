@@ -12,6 +12,28 @@
 -- mid-fight. Deciding to hurt an ally has to be a deliberate act. So the guard now tries
 -- to stop the damage rather than merely forgive it.
 --
+-- THE ACTUAL ANSWER, FOUND ON THE THIRD TRY
+-- Asked directly: can a protected survivor simply be unhittable -- no damage, not even a
+-- hit reaction -- rather than healed afterwards? Yes. The engine has it, and vanilla calls
+-- it ON A ZOMBIE, which is what makes it different from everything tried before:
+--
+--   Tutorial/Steps.lua:848   FightStep.momzombie:setNoDamage(true)
+--   Tutorial/Steps.lua:934   FightStep.momzombie:setImmortalTutorialZombie(true)
+--
+-- The tutorial uses both to make one specific zombie untouchable during a scripted beat,
+-- and clears them together at Steps.lua:957-958. That is exactly the feature, already
+-- shipped, already proven against an IsoZombie.
+--
+-- WHY IT IS ARMED IN A WINDOW RATHER THAN ALWAYS
+-- setNoDamage is a blanket flag: an NPC carrying it is immune to zombies too, and an ally
+-- who cannot be bitten is a different game. So it is switched on only while the player is
+-- close enough to hit them by accident, and switched off again the moment they are not.
+-- Three separate paths disarm, because a survivor left permanently immortal would be a
+-- worse bug than the one being fixed.
+--
+-- The health restore below stays as the net for the very first swing of an encounter, in
+-- case the window was armed a moment too late.
+--
 -- THE INVINCIBILITY ATTEMPT, AND WHY IT IS GONE
 -- The second version made protected NPCs invincible for the few frames the player's swing
 -- was landing. It did not work, and it failed in the worst possible way: setInvincible
@@ -65,6 +87,39 @@ local WATCH_RANGE = 20
 -- from any swing event: see the header.
 local lastKnown = {}
 
+-- Tiles. Close enough that a swing at a zombie could catch them instead.
+local ARM_RANGE = 4
+
+-- id -> zombie, for everyone currently carrying the no-damage flag because of us. Nothing
+-- else may be in this table: whatever goes in must come out.
+local armed = {}
+local flagFailed = false
+
+local function setUntouchable(zombie, on)
+    local ok = pcall(function()
+        zombie:setNoDamage(on)
+        zombie:setImmortalTutorialZombie(on)
+    end)
+    if not ok and not flagFailed then
+        flagFailed = true
+        SR.Log("GUARD setNoDamage is not available on this NPC -- falling back to healing "
+            .. "the wound afterwards")
+    end
+    return ok
+end
+
+--- Takes the flag off everyone. Called whenever the guard is switched off, and every slow
+--- tick before re-arming, so a survivor cannot keep it by drifting out of range.
+local function disarmAll()
+    for _, zombie in pairs(armed) do
+        pcall(function()
+            zombie:setNoDamage(false)
+            zombie:setImmortalTutorialZombie(false)
+        end)
+    end
+    armed = {}
+end
+
 local function healthOf(zombie)
     local ok, health = pcall(function() return zombie:getHealth() end)
     if ok and type(health) == "number" then return health end
@@ -87,6 +142,10 @@ end
 --- from Lua. A sample taken a few seconds before the swing is stale; a sample taken after
 --- it is worthless, and worthless is what we had.
 function Guard.Watch()
+    -- Always disarm first. If this line is ever skipped, an ally keeps immunity to zombies
+    -- after walking away -- silently, and for the rest of the session.
+    disarmAll()
+
     if not Guard.enabled then return end
 
     local player = getSpecificPlayer(0)
@@ -103,6 +162,14 @@ function Guard.Watch()
             local dx, dy = zombie:getX() - px, zombie:getY() - py
             if dx * dx + dy * dy <= WATCH_RANGE * WATCH_RANGE then
                 local zid = SR.IdOf(zombie)
+
+                -- Close enough to be hit by accident: make them untouchable outright,
+                -- which is what was actually asked for -- no damage and no hit reaction,
+                -- rather than a wound undone a moment later.
+                if zid and (dx * dx + dy * dy) <= ARM_RANGE * ARM_RANGE then
+                    if setUntouchable(zombie, true) then armed[zid] = zombie end
+                end
+
                 local health = healthOf(zombie)
                 if zid and health then
                     -- Highest recently seen, not latest. A survivor healing is real; a
@@ -164,7 +231,12 @@ function Guard.Toggle()
     Guard.enabled = not Guard.enabled
     -- Turning it off must take effect immediately: no stale samples to heal anyone back
     -- to after the player has decided they mean it.
-    if not Guard.enabled then lastKnown = {} end
+    if not Guard.enabled then
+        disarmAll()
+        lastKnown = {}
+    else
+        Guard.Watch()
+    end
     local player = getSpecificPlayer(0)
     if HaloTextHelper and player then
         if Guard.enabled then
@@ -176,9 +248,19 @@ function Guard.Toggle()
     SR.Log("GUARD " .. (Guard.enabled and "on" or "off"))
 end
 
--- Sampling only. Nothing here is attached to a swing, which is the whole fix.
+-- Sampling and arming on a slow tick. Nothing here depends on when a swing event fires
+-- relative to damage, which is what broke the previous two attempts.
 Events.EveryOneMinute.Add(Guard.Watch)
 
+-- And again the moment a swing happens, for somebody who walked into range since the last
+-- tick. Even if this fires after the first hit lands, the flag is then on for every hit
+-- after it, and the health restore covers the one that got through.
+Events.OnWeaponSwingHitPoint.Add(function(character)
+    if not Guard.enabled then return end
+    if not character or not instanceof(character, "IsoPlayer") then return end
+    Guard.Watch()
+end)
+
 Events.OnGameStart.Add(function()
-    SR.Log("GUARD ready -- friendly fire undone by healing. Toggle on the SAFE button")
+    SR.Log("GUARD ready -- allies near you cannot be damaged at all. Toggle on SAFE")
 end)

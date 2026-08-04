@@ -133,42 +133,44 @@ mordiendo, eso es un fallo y hay que arreglarlo antes que nada.
 
 ---
 
-### 5. El escudo — reconstruido, esta es la prueba clave
+### 5. El escudo — ahora sí, ingolpeables
 
-Reportaste que con **SAFE** activo igual le bajabas la vida a un aliado, y llegaste a
-matarlo. Confirmado y arreglado. Lo que fallaba:
+Preguntaste si se podía hacer que el golpe **no exista**, en vez de curar después. Sí se
+puede, y era la pregunta correcta: curar es un parche, y encima mi versión anterior ni
+siquiera curaba.
 
-- `setInvincible` **nunca lanzó error**, así que el log decía *"absorbed a hit"* mientras el
-  sobreviviente se desangraba. Un mecanismo que no hace nada pero parece que sí es peor que
-  no tener ninguno. Lo saqué.
-- La causa: `OnWeaponSwingHitPoint` parece dispararse **después** del daño, así que la foto
-  de vida guardaba el valor ya reducido y restaurarlo no hacía nada.
-- Y mi código no avisaba cuando no había foto. Rompí mi propia regla R7 — todo camino se
-  anuncia — y por eso el fallo sobrevivió una sesión entera.
+El motor lo tiene, y vanilla lo llama **sobre un zombi** — que es lo que lo distingue de
+todo lo que probé antes:
 
-Ahora la vida se muestrea en un tick lento que **no depende de ningún evento de golpe**, y
-al recibir un golpe tuyo el aliado vuelve al valor más alto visto hace poco. `setHealth` sí
-funciona sobre un bandido: Bandits mismo lo usa en `BanditUpdate.lua:500`.
-
-**Hacé:** con un aliado al lado y **SAFE** en verde, pegale seis o siete veces seguidas.
-
-**Pasa si** su vida no baja y en el log aparece, con números:
-
-```
-GUARD <nombre> | healed 0.812 -> 1.000, trust kept
+```lua
+-- pzserver/media/lua/client/Tutorial/Steps.lua:848, 934
+FightStep.momzombie:setNoDamage(true)
+FightStep.momzombie:setImmortalTutorialZombie(true)
 ```
 
-**Las otras líneas posibles, y qué significan:**
+El tutorial las usa para volver intocable a un zombi concreto durante un momento guionado.
+Por eso `setInvincible` fallaba en silencio: esa solo aparece sobre jugadores.
 
-| Línea | Qué pasó |
-|---|---|
-| `healed A -> B` | funcionó |
-| `no damage to undo` | el golpe no le hizo daño, nada que revertir |
-| `no health sample yet` | lo golpeaste dentro del primer minuto de verlo; el próximo golpe ya queda cubierto |
-| `getHealth failed` / `setHealth failed` | la API no responde para este NPC — mandámela, cambia el enfoque |
+**Una consecuencia que tenés que saber.** `setNoDamage` es una bandera general: un NPC que
+la lleva tampoco puede ser mordido por zombis. Un aliado inmordible es otro juego. Por eso
+**solo se activa mientras estás a 4 tiles o menos** — cuando el accidente es posible — y se
+apaga en cuanto te alejás. Tres caminos distintos la apagan, porque un aliado inmortal
+permanente sería peor bug que el que arreglo.
 
-Después poné **HIT** (rojo) y comprobá que ahí **sí** le podés hacer daño. Esa parte es la
-que hace que matarlo sea una decisión y no un accidente.
+**Hacé:** con **SAFE** verde y un aliado al lado, pegale seis o siete veces seguidas.
+
+**Pasa si:**
+- **No hay animación de golpe, no hay sangre, no baja la vida.** Nada.
+- En el log: `GUARD <nombre> | trust kept, no damage to undo`.
+- Alejate 10 tiles, traé un zombi y comprobá que **sí lo puede morder**. Si es inmune a los
+  zombis lejos tuyo, la bandera se quedó pegada y eso es un fallo.
+- Poné **HIT** (rojo) y comprobá que ahí sí le hacés daño.
+
+**Si aparece esta línea**, la bandera no funciona sobre un bandido y volvemos a curar:
+
+```
+GUARD setNoDamage is not available on this NPC
+```
 
 ---
 
