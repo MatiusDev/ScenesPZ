@@ -10,73 +10,66 @@ Hoja de ruta completa: [`docs/plans/README.md`](plans/README.md).
 
 ---
 
-## Lo que cambió
+## Etapa 03 — construida la base
 
-**El escudo quedó bien** — confirmado por vos. `setNoDamage` + `setImmortalTutorialZombie`
-sobre el NPC: sin daño, sin reacción de golpe. Y lo de los sombreros: empujar sigue
-tumbándolos porque el empujón no es daño y no tiene veto en Lua. Misma forma que el
-problema anterior, misma respuesta — ahora los vuelvo a vestir desde `brain.clothing` cada
-tick lento mientras estés cerca. La sangre es una calcomanía del motor; esa no la puedo
-quitar, solo la ropa vuelve a su sitio.
+**Confirmé tu diagnóstico y era más exacto de lo que creías.** `ZPCompanion` **ya replica
+todo**: cambia a correr si esprintás, a agachado si te agachás, a apuntar si apuntás, a
+cojear si está herido — todo en `ZPCompanion.lua:38-56`. Esa conducta no falta.
 
-**El sidebar se fue al borde inferior**, y en fila en vez de en columna. Cualquier
-porcentaje de la altura era una adivinanza: esa columna crece hacia abajo y hasta dónde
-llega depende de qué tengas en la mano. El borde de abajo no es una adivinanza.
+Lo que pasa es una línea del diseño de Bandits: **un programa solo corre cuando la cola de
+tareas está vacía.** Un NPC tres tareas metido en abrir una ventana nunca llega al código
+que habría notado que corrés, ni al que habría notado al zombi detrás. No te ignora. Nunca
+le preguntan.
 
-**La rueda:**
+Así que no agregué ni un verbo. Agregué quién decide.
 
-- **El desbordamiento era aritmética mía.** Las tarjetas llegan a `RADIUS + CARD_W/2` del
-  centro y yo dimensionaba el panel con `CARD_H`. Por eso *"What are you like?"* se salía
-  por la izquierda en `caps/circle-menu-2.png`.
-- **Fuera el recuadro oscuro.** No enmarcaba nada y encima recortaba. Las tarjetas ya tienen
-  su propio contraste.
-- **El nombre y el "back" ya no se pisan.** Antes los dibujaba en el mismo punto, encima de
-  las tarjetas. Ahora el centro es un recuadro propio con el nombre arriba y `back` debajo,
-  y **se ilumina** cuando el cursor está en él.
-- **El hover ahora es inequívoco**: relleno verde y borde doble. Era lo que pediste y
-  además es lo que hace que "¿cuál voy a elegir?" se responda antes de confirmar.
-- **El clic exige presionar y soltar sobre la misma tarjeta.** Actuar solo al soltar hacía
-  que un clic empezado en otro lado — o un botón ya presionado cuando la rueda aparece —
-  confirmara lo que hubiera bajo el cursor. Eso es lo que describiste.
+### La escalera
+
+| Escalón | Se activa cuando |
+|---|---|
+| 1 sobrevivir | acorralado, malherido, o con más miedo del que aguanta |
+| 2 pelear | hay amenaza cerca y no le tiene tanto miedo |
+| 3 obedecer | aceptó una orden y tiene master |
+| 4 recado | quiere algo concreto y va por ello |
+| 5 ocio | nada más |
+
+**Subir de escalón vacía la cola** con `Bandit.ClearTasks` — que ya existe, que Bandits usa
+cuando un NPC se convierte, y que respeta las tareas marcadas `lock`. Bajar **no** la vacía:
+terminar lo que empezaste es correcto, y vaciar en cada cambio sería un NPC que nunca
+completa nada.
+
+### El miedo elige el escalón
+
+`brain.rnd[2]` está fijo al spawn — el mismo campo que ya usaba el módulo de amenaza para la
+valentía, a propósito, para que los dos nunca discrepen sobre quién es valiente. **Un
+cobarde se quiebra en 30; uno templado aguanta hasta 93.** El miedo sube con zombis cerca,
+con estar en inferioridad y con estar herido; baja solo cuando nada de eso pasa.
+
+### Y el perro guardián
+
+Si un NPC lleva tres barridos con la misma tarea en la cabeza de la cola, se le vacía. Es el
+arreglo directo de tu bug de la ventana, y vale la pena tenerlo por buena que quede la
+escalera, porque atrapa cualquier variante futura de "atascado" sin saber qué la causó.
+
+**El ocio pasó a ser el escalón 5.** Ya no decide por su cuenta si está libre: le pregunta a
+la escalera.
 
 ---
 
-## Lo grande: la etapa 03 cambió de sentido
+## Anotado en `docs/TODO.md`, sin construir
 
-Lo que dijiste es lo más útil que se ha dicho sobre este mod:
+- **Los bandidos no reaniman.** Bandits tiene la maquinaria (`ZAZombify`, y encolan
+  `Zombify` cuando `brain.infection >= 100`), pero va por su modelo de infección, no por el
+  temporizador de vanilla. La pregunta a responder primero: ¿un NPC muerto de golpe llega a
+  acumular infección, o solo sube al sobrevivir una mordida?
+- **Los cadáveres no retienen a la horda.** Y tenés razón en por qué importa: sacrificar a
+  alguien debería *comprar* algo, y hoy no compra nada. `brain.eatBody` existe, lo cual
+  sugiere que el estado de comer un cuerpo ya está modelado — hay que leerlo antes de
+  diseñar nada.
 
-> *"no ordenan bien su cola de actividades y no las priorizan, algunos hasta se buguean
-> abriendo una ventana y se quedan abriéndola, y terminan siendo mordidos por la espalda"*
-
-Tenés razón y replantea el problema entero. **Bandits ya tiene las conductas** — 49 acciones
-y 8 programas; ya lootean, trepan, abren ventanas, se refugian y pelean. Lo que no tienen es
-alguien que decida **cuál importa ahora**. El síntoma no es una función que falta: es un NPC
-peleando con el pestillo mientras algo se lo come.
-
-Así que la etapa 03 ya no es "más cosas que hacer". Es la escalera que elige:
-
-| Escalón | Se activa cuando | Hace |
-|---|---|---|
-| 1. Sobrevivir | acorralado, malherido, o el miedo pasa su límite | romper el cerco, meterse tras una puerta, quedarse |
-| 2. Pelear | hay amenaza cerca y no le tiene tanto miedo | pelear — y **parar** cuando se resolvió |
-| 3. Obedecer | le diste una orden y la aceptó | seguirte, esperar, venir |
-| 4. Recado | quiere algo concreto — una venda, su mochila | ir por ello, y soltarlo si algo sube de escalón |
-| 5. Ocio | nada más | el sombrero, la mochila, el armario |
-
-**Vaciar la cola es el mecanismo entero.** `Bandit.ClearTasks` ya existe y Bandits la usa
-cuando un NPC se convierte. Sin esa llamada, una intención nueva simplemente hace fila
-detrás de la vieja — que es exactamente tu bug de la ventana.
-
-Y el miedo es lo que mueve a alguien entre escalones. Eso es "las emociones deben servir en
-las decisiones", hecho mecanismo en vez de adorno.
-
-**El rango de 8 se queda por ahora**, como dijiste: sube cuando el escalón 2 ceda de verdad
-ante el 1 y el 3. Ampliarlo hoy solo los hace perseguir más lejos.
-
-El diseño completo está en `docs/plans/03-autonomy.md`, con qué produce cada escalón y cómo
-se prueba. **No lo construí en esta pasada** — es la pieza más grande hasta ahora y prefiero
-que primero confirmes que la rueda y el sidebar quedaron bien, porque son lo que usás para
-probar todo lo demás.
+También encontré que **`docs/NEXT-STEPS.md` estaba obsoleto y mentía** — decía que
+ScenesRelations nunca se había corrido, y sostenía la afirmación ya retractada de que el id
+identifica un atuendo. Lo dejé como redirect para que no sea una trampa.
 
 ---
 
@@ -90,62 +83,77 @@ tools/sync-mods.sh
 
 ## Las pruebas, en orden
 
-### 1. El sidebar ya no estorba
+### 1. Todo cargó
 
-**Pasa si** los botones **SAFE** y **WHO** están en fila en la esquina inferior izquierda,
-sin tocar la columna de íconos de vanilla. Se arrastran.
+**Pasa si** está la línea nueva junto a las demás:
 
----
-
-### 2. La rueda entra en su sitio
-
-**Hacé:** mantené **V** cerca de alguien.
-
-**Pasa si:**
-- **Ninguna tarjeta se sale.** Comparalo con `caps/circle-menu-2.png`.
-- Ya no hay recuadro gris de fondo.
-- El nombre está en el centro, dentro de su propio recuadro, **sin texto encima**.
+```
+SREL| AUTO ready -- survive > fight > obey > errand > idle, and fear picks the rung
+```
 
 ---
 
-### 3. El hover se ve, y nada pasa solo
+### 2. El bug de la ventana
 
-**Hacé:** movete sobre las tarjetas sin soltar ni hacer clic.
+**Hacé:** encontrá NPC cerca de ventanas con zombis alrededor y observalos un rato.
 
-**Pasa si:**
-- La tarjeta bajo el cursor se pone **verde con borde doble**. El centro se ilumina en
-  ámbar cuando estás en un submenú.
-- **No pasa nada** hasta que soltás **V** o hacés un clic completo.
-- Un clic que empieza en una tarjeta y termina en otra **no** ejecuta nada.
+**Pasa si** ninguno se queda pegado a una ventana. En el log:
 
----
+```
+AUTO <nombre> | stuck on OpenWindow@10864,9833 for 3 sweeps -- queue cleared
+```
 
-### 4. Ropa y empujones
-
-**Hacé:** con **SAFE** verde, empujá a un aliado con sombrero varias veces.
-
-**Pasa si** el sombrero vuelve a su cabeza en menos de un minuto de juego. La sangre va a
-seguir apareciendo — es una calcomanía del motor sin gancho en Lua, y no le hace nada.
+Esa línea es la prueba de que el perro guardián lo agarró.
 
 ---
 
-### 5. ¿El motor mueve las emociones? — sigue pendiente
+### 3. La escalera reacciona
 
-Buscá una de estas dos, sale sola:
+**Hacé:** con un compañero siguiéndote, llevalo hacia varios zombis.
+
+**Pasa si** aparecen líneas así, con los números:
+
+```
+AUTO <nombre> | obey -> fight | fear=24/58 zombies=2 friends=1 | queue cleared
+AUTO <nombre> | fight -> survive | fear=71/58 zombies=5 friends=0 | queue cleared
+```
+
+**Lo que quiero que mires:** que **dos NPC distintos no se quiebren al mismo tiempo**. El
+límite después del `/` es suyo de por vida — uno con 30 huye mucho antes que uno con 93.
+
+---
+
+### 4. Ahora sí, ¿te replica?
+
+Ya que la cola deja de bloquearlos: esprintá y luego agachate con un compañero al lado.
+
+**Pasa si** ahora te sigue el ritmo. Esto no lo programé yo — es `ZPCompanion` que por fin
+llega a ejecutarse.
+
+---
+
+### 5. La rueda — quedó de la corrida anterior
+
+Que las tarjetas no se salgan, que el hover se vea verde, y que nada se ejecute sin soltar
+o sin un clic completo.
+
+---
+
+### 6. ¿El motor mueve las emociones? — sigue pendiente
 
 ```
 PROBE stat VERDICT MOVES    PROBE stat VERDICT FROZEN
 ```
 
-Esa línea decide cómo se construye el miedo de la etapa 03, así que es la que más me
-sirve de esta corrida.
+Ahora importa más que antes: si dice `MOVES`, el miedo que acabo de construir puede leerse
+del motor en vez de simularse.
 
 ---
 
 ## Qué mandarme
 
-`console.txt`, una línea por prueba, y una captura de la rueda para comparar con la
-anterior.
+`console.txt` y una línea por prueba. De la 3, dos líneas `AUTO` de NPC distintos para
+comparar sus límites de miedo.
 
 ---
 

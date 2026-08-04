@@ -5,6 +5,12 @@
 -- they have lives that do not include you, and until now they visibly did not -- which is
 -- why the whole thing still read as green no matter how good the trust maths got.
 --
+-- WHERE THIS SITS NOW
+-- This was stage 03 on its own. Play testing showed that adding idle behaviour without an
+-- arbitration layer above it just gives an NPC one more thing to be doing while it dies,
+-- so it became rung 5 of the ladder in ScenesRelationsAutonomy.lua. It only ever acts when
+-- that ladder says nothing more important is happening.
+--
 -- WHAT THIS SLICE DOES, AND WHAT IT DOES NOT
 -- Does: sees something on the ground it would want, walks over, picks it up, wears it.
 -- Does not: loot containers, remember a dropped possession, or trade. Those are the rest
@@ -29,6 +35,7 @@
 -- idle check is therefore strict: an empty task queue, no zombies nearby, and not fleeing.
 
 require "ScenesRelations"
+require "ScenesRelationsAutonomy"
 
 local SR = ScenesRelations
 
@@ -80,9 +87,16 @@ local function isIdle(zombie, brain)
     if BanditBrain.HasTask(brain) then return false end
 
     local mood = SR.Mood(zombie)
-    if mood and mood.posture == "flee" then return false end
-    if mood and mood.wanting then return false end       -- already after something
+    if not mood then return false end
+    if mood.wanting then return false end                -- already after something
 
+    -- The ladder decides what somebody is doing; this file only fills the bottom rung.
+    -- Keeping a second opinion here is how two systems start disagreeing about the same
+    -- survivor -- R6 in docs/CODE-REVIEW-RULES.md, and the talk cooldown already proved it.
+    if SR.Autonomy and mood.rung and mood.rung < SR.Autonomy.IDLE then return false end
+
+    -- Fallback for the sweep before autonomy has ever seen this NPC.
+    if mood.posture == "flee" then return false end
     return zombiesNear(zombie:getX(), zombie:getY()) == 0
 end
 

@@ -94,6 +94,8 @@ of truth for both machines and is committed on every version change.
 - `docs/CODE-REVIEW-RULES.md` — eleven rules, each written after a real bug that cost
   a play session. `pz-review` reads it before every review; read it before writing code
   that touches the engine.
+- `docs/TODO.md` — things seen in play that no stage has claimed yet. Add to it rather
+  than derailing the open stage.
 - `docs/PLAN-STATUS.md` — **start here.** Which stage is open, and exactly what the user
   must test in game to close it. One page, kept current.
 - `docs/plans/` — the staged roadmap from here to the full PRD. `README.md` lists all
