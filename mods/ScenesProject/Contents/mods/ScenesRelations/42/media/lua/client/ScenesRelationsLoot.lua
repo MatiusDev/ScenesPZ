@@ -64,6 +64,35 @@ local SEARCH = 8
 -- beans because it changes what every future search is worth.
 local BAG_SEARCH = 12
 
+-- WHAT COUNTS AS WHAT ------------------------------------------------------------------
+--
+-- These live ABOVE the action that uses them, and the placement is not cosmetic. Lua binds
+-- a `local` lexically at compile time, so a local declared BELOW a function is not visible
+-- inside it -- the name silently becomes a global lookup and evaluates to nil. This table
+-- was first written further down the file, which made `WANTS[task.want]` an index into nil
+-- and threw EVERY time an NPC finished searching a container.
+--
+-- Syntax checking cannot catch that; luac compiles it happily. Only reading the file in
+-- order, or running it, will.
+--
+-- Both predicates are the engine's own tests rather than lists of ids:
+-- `getBodyLocation() == "Back"` is how a garment says it is worn on the back, and
+-- `instanceof(item, "Food")` is the test ZPCompanion's own foraging block uses.
+
+local function isBag(item)
+    local ok, loc = pcall(function() return item:getBodyLocation() end)
+    return ok and loc == "Back"
+end
+
+local function isFood(item)
+    return instanceof(item, "Food")
+end
+
+local WANTS = {
+    bag = isBag,
+    food = isFood,
+}
+
 -- THE ACTION -------------------------------------------------------------------------
 
 ZombieActions = ZombieActions or {}
@@ -170,20 +199,6 @@ end
 -- goals that change with the situation are designed in docs/plans/03-autonomy.md and NOT
 -- built: each needs a verb we do not have yet, and inventing one is how this project has
 -- lost sessions.
-
-local function isBag(item)
-    local ok, loc = pcall(function() return item:getBodyLocation() end)
-    return ok and loc == "Back"
-end
-
-local function isFood(item)
-    return instanceof(item, "Food")
-end
-
-local WANTS = {
-    bag = isBag,
-    food = isFood,
-}
 
 --- Does this person already carry one of these?
 local function carries(zombie, test)

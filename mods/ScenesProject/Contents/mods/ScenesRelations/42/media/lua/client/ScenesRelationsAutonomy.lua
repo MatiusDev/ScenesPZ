@@ -358,16 +358,18 @@ function Autonomy.RungOf(brain, mood, ctx)
     -- clear before being followed. With a horde that is a death sentence, and it was
     -- reported in exactly those words: "yo tendria que irme muy lejos para que el me
     -- persiga, eso seria suicidio."
-    if ctx.nearest <= GRABBED_RANGE then return Autonomy.FIGHT end
-
+    -- One test, not two. GRABBED_RANGE used to be checked separately here because it
+    -- outranked disengaging; now that leaving wins outright for a companion, 1.6 tiles is
+    -- simply a subset of 4 and the extra branch could never fire. A dead branch that reads
+    -- like a rule is worse than no branch -- the next person to tune this would move
+    -- GRABBED_RANGE and wonder why nothing changed.
     if ctx.nearest <= ENGAGE_RANGE then return Autonomy.FIGHT end
 
     local reach = assistRange(brain, owned)
 
     if owned then
-        -- Following outranks a distant zombie. This is the rule the player asked for in as
-        -- many words: if I run, you run.
-        if ctx.disengaging then return Autonomy.OBEY end
+        -- Disengaging is NOT re-checked here. It is the first test in the function now, so a
+        -- copy at this depth is dead code pretending to be the rule.
         if ctx.masterFighting and ctx.nearest <= reach then return Autonomy.FIGHT end
 
         -- CLEARING THE HOUSE. Standing in a building with something already inside, or with

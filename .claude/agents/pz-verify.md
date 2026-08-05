@@ -17,6 +17,28 @@ cd ~/Docs/Workspace/PZ/pzserver
 timeout 180 ./start-server.sh -nosteam -adminpassword devpass 2>&1 | tee /tmp/pz-verify.log
 ```
 
+**CHECK THE MOD LIST FIRST, EVERY TIME.** On 2026-08-04 this was found:
+
+```
+Mods=tlouFactions;scenesDoctor;Bandits2
+```
+
+`scenesRelations` was absent, so every smoke test that had ever "passed" had loaded neither
+the mod under test nor a single line of its Lua. A green run meant nothing.
+
+```bash
+grep -n '^Mods=' ~/Zomboid/Server/servertest.ini
+```
+
+Every mod id you intend to test must be in that list, and the ids come from each `mod.info`
+`id=` field — NOT from the folder name. If one is missing, add it and rerun before reporting
+anything.
+
+**And know what this test cannot see.** A dedicated server never executes
+`media/lua/client/`, so a client-only defect — which is most of ScenesRelations — will pass
+this check and still break the game. PASS here means "the shared and server halves load",
+never "it works".
+
 Server startup is slow on first run (it generates a world). A clean boot reaches
 `Server Steam is enabled/disabled` and then idles waiting for players — that idle state
 IS success. Kill it once it idles.
