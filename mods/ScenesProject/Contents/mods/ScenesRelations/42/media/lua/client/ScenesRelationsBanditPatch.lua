@@ -62,3 +62,48 @@ end
 -- Announced at load so a log can prove the patch is present. A silent patch is
 -- indistinguishable from a patch that never loaded.
 SR.Log("PATCH BanditPlayer.CheckFriendlyFire replaced -- upstream isNPC() crash, 42.20")
+
+-- TURNING IS SWITCHED OFF, ON PURPOSE AND TEMPORARILY ---------------------------------
+--
+-- ASKED FOR: "como un zombie muerde a un NPC de una comienza a convertirse y realmente se
+-- convierte muy rapido, el sistema para jugadores es diferente... Como el sistema de dano a
+-- NPC no esta terminado, no hagamos que los NPC se conviertan a zombie de momento."
+--
+-- The diagnosis is right and the numbers say why. Bandits has no incubation at all: a bite
+-- writes brain.infection, ManageHealth then adds 0.001 per tick unconditionally, and at 100
+-- it queues Zombify (BanditUpdate.lua:504-514). There is no sickness, no fever, no
+-- deterioration -- just a counter and then a corpse that gets up. The player's model is a
+-- multi-day illness. Ours is a stopwatch.
+--
+-- It also caused the second half of the reported bug. Zombify.onComplete calls BanditRemove
+-- (ZAZombify.lua:16-24), which unmakes the NPC -- but the caches and our own sweeps can lag
+-- a frame behind that, so a survivor who had already turned kept being issued orders to come
+-- back to the player. Two bugs, one root.
+--
+-- One flag turns the whole block off, which is the cheapest possible intervention and the
+-- easiest to undo: delete this file section when the wound model in
+-- docs/plans/wounds-and-healing.md reaches stage 2 and can express getting sick.
+Events.OnGameStart.Add(function()
+    if not SandboxVars or not SandboxVars.Bandits then
+        SR.Log("PATCH could not reach SandboxVars.Bandits -- turning is still on")
+        return
+    end
+
+    if SandboxVars.Bandits.General_Infection then
+        SandboxVars.Bandits.General_Infection = false
+        SR.Log("PATCH NPC turning disabled -- their infection model is a stopwatch, not an illness")
+    end
+end)
+
+--- Whether this entity is still one of ours to command.
+---
+--- Cheap and worth calling before issuing any order. GetAllB and the light caches can hold
+--- an entry for a frame or two after BanditRemove has unmade somebody, and giving marching
+--- orders to a thing that is now just a zombie is how the log filled with follow requests
+--- for a survivor who had already turned.
+function SR.IsStillOurs(zombie)
+    if not zombie then return false end
+    local ok, flagged = pcall(function() return zombie:getVariableBoolean("Bandit") end)
+    if not ok or not flagged then return false end
+    return BanditBrain.Get(zombie) ~= nil
+end

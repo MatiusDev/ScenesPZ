@@ -83,8 +83,16 @@ local TIRED = 0.55           -- anybody gives in below this
 local IDLER_TIRED = 0.80     -- the lazy sort gives in sooner, but still has to be tired
 local OUTDOOR_TIRED = 0.25   -- sitting down in the open takes real exhaustion
 
-local REST_RECOVERY = 0.25
-local REST_TIME = 300
+-- Recovery was 0.25 and it was losing the race. Reported: "si se sientan, pero despues de un
+-- rato los veo cansado de nuevo... creo que no les esta bajando el cansancio".
+--
+-- Half right. It IS going down -- BanditBrain.Get returns modData.brain by reference, so the
+-- writes land. What was wrong is the arithmetic: a Run task costs 0.07 EVERY time one
+-- completes, a companion following you completes a lot of them, and the fast-follow tick was
+-- charging full price for every re-assertion on top. Two fixes, one here and one in
+-- assertFollow, which now charges nothing for a correction to a journey already paid for.
+local REST_RECOVERY = 0.5
+local REST_TIME = 450
 
 -- Reading is longer and restores more: it is the one thing here somebody does because they
 -- want to rather than because their legs gave out.
@@ -250,6 +258,19 @@ local function scenesMain(bandit)
 
     local dist = BanditUtils.DistTo(bandit:getX(), bandit:getY(), master:getX(), master:getY())
 
+    -- BLEEDING IS CHECKED BEFORE THE DISTANCE GATE, and that ordering is the fix for a
+    -- reported miss: "no lo vi curandose solo... lo cure yo con el menu de health". The
+    -- bandage decision lived inside the free-activity block, which a companion only reaches
+    -- within FREE_RADIUS -- so somebody wounded and trailing you at nine tiles was, by
+    -- construction, never allowed to stop and deal with it.
+    --
+    -- Closing a gap is not more urgent than not bleeding to death.
+    if SR.Wounds and SR.Wounds.NeedsDressing(bandit, brain) then
+        SR.Log(string.format("COMP %s stops to dress a wound | %.1f tiles from master",
+            name, dist))
+        return { status = true, next = "Main", tasks = { { action = "Bandage" } } }
+    end
+
     -- Too far to be doing anything but closing the gap. Their follow code is at the bottom
     -- of Main and is correct; the ladder has already made sure they reach it.
     if dist > FREE_RADIUS then return vanillaMain(bandit) end
@@ -327,7 +348,8 @@ function SR.Companion.FreeActivity(bandit, brain, mood, name)
                 mood.doing = job
                 SR.Log(string.format("COMP %s goes back to the %s at %d,%d",
                     name, job.kind, job.x, job.y))
-                return { status = true, next = "Main", tasks = SR.Loot.Search(bandit, mood, job) }
+                return { status = true, next = "Main",
+                         tasks = SR.Loot.Search(bandit, mood, job, job.want) }
             elseif job.kind == "bag" and not SR.Loot.HasBag(brain) then
                 mood.doing = job
                 mood.fetchingBag = job.itemType
@@ -364,10 +386,16 @@ function SR.Companion.FreeActivity(bandit, brain, mood, name)
     if mood.indoors and SR.Loot.HasRoom(bandit) then
         local spot = SR.Loot.FindContainer(bandit, mood)
         if spot then
-            mood.doing = { kind = "search", x = spot.x, y = spot.y, z = spot.z }
-            SR.Log(string.format("COMP %s searches %d,%d | in=%d out=%d",
-                name, spot.x, spot.y, mood.insiders or 0, mood.outsiders or 0))
-            return { status = true, next = "Main", tasks = SR.Loot.Search(bandit, mood, spot) }
+            -- What they are after decides what comes out of the drawer first, and it is what
+            -- turns opening furniture into looking for something. Logged so "why is he doing
+            -- that" is answerable from the console rather than by guessing.
+            local goal = SR.Loot.GoalOf(bandit, brain)
+            mood.doing = { kind = "search", x = spot.x, y = spot.y, z = spot.z, want = goal }
+            SR.Log(string.format("COMP %s searches %d,%d for %s | in=%d out=%d",
+                name, spot.x, spot.y, tostring(goal or "anything useful"),
+                mood.insiders or 0, mood.outsiders or 0))
+            return { status = true, next = "Main",
+                     tasks = SR.Loot.Search(bandit, mood, spot, goal) }
         end
     end
 

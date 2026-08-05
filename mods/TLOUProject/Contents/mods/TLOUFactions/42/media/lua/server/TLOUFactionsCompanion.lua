@@ -103,6 +103,26 @@ Events.OnCreatePlayer.Add(function(_, player)
     end
     modData.tlouCompanionGiven = true
 
+    -- A TEST KIT, AND IT IS ONLY THAT.
+    --
+    -- ASKED FOR: "no tengo forma de conseguir una mochila de una, si me spawneas al inicio
+    -- con una mochila, puedo hacer esta prueba" and "dame tambien un arma de fuego".
+    --
+    -- Three of the open tests cannot be run without these: giving a bag to an NPC that has
+    -- none, hearing whether they switch to melee indoors, and watching two survivors decide
+    -- differently with a gun in the picture. Every id is verified in
+    -- pzserver/media/scripts/generated/ -- Bag_Schoolbag at container.txt:49, Pistol at
+    -- weapon.txt:10996, Bullets9mmBox at normal.txt:13669.
+    --
+    -- DELETE THIS BLOCK once those tests pass. Starting equipment is a scenario decision and
+    -- belongs in the Scenes mod, not in a spawner, and a permanent free pistol would quietly
+    -- change what every later balance observation means.
+    for _, itemType in ipairs({ "Base.Bag_Schoolbag", "Base.Pistol", "Base.Bullets9mmBox" }) do
+        local ok, err = pcall(function() player:getInventory():AddItem(itemType) end)
+        if not ok then log("could not give " .. itemType .. ": " .. tostring(err)) end
+    end
+    log("test kit given -- schoolbag, pistol, 9mm box (TEMPORARY, see comment)")
+
     pending = true
     attempts = 0
     Events.OnTick.Add(trySpawn)

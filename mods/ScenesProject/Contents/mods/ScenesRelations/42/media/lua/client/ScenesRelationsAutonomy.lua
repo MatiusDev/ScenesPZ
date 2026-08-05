@@ -330,10 +330,26 @@ end
 --- ctx carries what the sweep already measured: threats, nearest, friends, masterDist,
 --- disengaging, masterFighting.
 function Autonomy.RungOf(brain, mood, ctx)
-    if (mood.fear or 0) >= fearLimit(brain) then return Autonomy.SURVIVE end
-
     local program = brain.program and brain.program.name
     local owned = (program == "Companion" or program == "CompanionGuard") and brain.master
+
+    -- IF I RUN, YOU RUN. Above everything -- above fear, above being grabbed, above a whole
+    -- street of them.
+    --
+    -- This sat two rungs lower and it did not work. Reported twice, the second time with the
+    -- reason attached: "no se si es que hubiera varios zombies cerca, no lo hizo correr" and
+    -- "se quedo pegandoles". Exactly so. With a horde on you something is always inside
+    -- GRABBED_RANGE, so FIGHT won every sweep and the companion stood there swinging while
+    -- the player left. Fear did not rescue it either: rung 1 is "get behind a door", which is
+    -- not the same as "come with me" and in a running fight is worse.
+    --
+    -- The honest reading is that a companion whose master is sprinting away has already been
+    -- told what the plan is. Holding a horde alone is not bravery, it is not having been
+    -- asked. Being grabbed by one zombie while your friend runs is survivable; being left
+    -- behind by choice is not.
+    if owned and ctx.disengaging then return Autonomy.OBEY end
+
+    if (mood.fear or 0) >= fearLimit(brain) then return Autonomy.SURVIVE end
 
     -- GRABBED. Something is close enough that leaving is not a choice anybody has.
     -- Deliberately tighter than ENGAGE_RANGE, because of what the 04-08 log showed:
@@ -343,11 +359,6 @@ function Autonomy.RungOf(brain, mood, ctx)
     -- reported in exactly those words: "yo tendria que irme muy lejos para que el me
     -- persiga, eso seria suicidio."
     if ctx.nearest <= GRABBED_RANGE then return Autonomy.FIGHT end
-
-    -- Leaving outranks a fight the player has already decided to abandon. Checked BEFORE
-    -- the ordinary engagement range: between GRABBED_RANGE and ENGAGE_RANGE, a companion
-    -- whose master is running is a companion that runs.
-    if owned and ctx.disengaging then return Autonomy.OBEY end
 
     if ctx.nearest <= ENGAGE_RANGE then return Autonomy.FIGHT end
 
@@ -390,7 +401,16 @@ end
 --- (BanditUtils.lua:1000), which is exactly why "no saben donde estoy" stops being possible:
 --- the task follows the player instead of walking to where the player used to be. Same call
 --- ZPCompanion makes at the bottom of its Main; we are only making sure it is reached.
-local function assertFollow(zombie, master, dist)
+--- `free` means charge no endurance for this one.
+---
+--- Not cosmetic. brain.endurance only ever decreases in this framework, and a Run task costs
+--- 0.07 EVERY TIME ONE COMPLETES. The slow sweep pushes one per six seconds, the same
+--- cadence their own program would; the fast tick can push one per second, so charging both
+--- the same would drain a chasing companion to zero inside a minute -- which is exactly the
+--- reported "despues de un rato los veo cansado de nuevo".
+---
+--- A re-assertion is a correction to a journey already being paid for, not a new journey.
+local function assertFollow(zombie, master, dist, free)
     local walkType = "Walk"
     local endurance = 0
     if master:isSprinting() or dist > 10 then
@@ -398,6 +418,7 @@ local function assertFollow(zombie, master, dist)
     elseif master:isSneaking() and dist < 12 then
         walkType, endurance = "SneakWalk", -0.01
     end
+    if free then endurance = 0 end
 
     local task = BanditUtils.GetMoveTaskTarget(endurance,
         master:getX(), master:getY(), master:getZ(),
@@ -502,8 +523,12 @@ local function sweep()
                 local brain = BanditBrain.Get(zombie)
                 local mood = brain and SR.Mood(zombie)
 
-                -- Somebody actively hostile is Bandits' business, not ours.
-                if brain and mood and not brain.hostile and not brain.hostileP then
+                -- Somebody actively hostile is Bandits' business, not ours. And somebody who
+                -- has already turned is nobody's -- the caches lag a frame or two behind
+                -- BanditRemove, which is how the log filled with orders for a survivor that
+                -- was a zombie by then.
+                if brain and mood and not brain.hostile and not brain.hostileP
+                   and (not SR.IsStillOurs or SR.IsStillOurs(zombie)) then
                     local name = tostring(brain.fullname)
                     local zx, zy = zombie:getX(), zombie:getY()
 
@@ -712,15 +737,22 @@ local function fastFollow()
                 local brain = BanditBrain.Get(zombie)
                 local mood = brain and SR.Mood(zombie)
 
-                if brain and mood and not brain.hostile and not brain.hostileP then
+                if brain and mood and not brain.hostile and not brain.hostileP
+                   and (not SR.IsStillOurs or SR.IsStillOurs(zombie)) then
                     local program = brain.program and brain.program.name
                     local owned = (program == "Companion" or program == "CompanionGuard")
                         and brain.master
 
-                    -- Never override rung 1 or 2. Somebody surviving or with a zombie in
-                    -- their face is not being asked to jog after you; that decision belongs
-                    -- to the ladder and it already made it this sweep.
-                    local free = mood.rung and mood.rung >= Autonomy.OBEY
+                    -- Normally the ladder's verdict is respected: somebody surviving or with
+                    -- a zombie in their face is not being asked to jog after you.
+                    --
+                    -- Sprinting is the exception, and it has to be. The rung is up to six
+                    -- seconds old, and a player who has just started running has already
+                    -- changed the plan -- waiting a sweep to notice is the whole complaint
+                    -- ("pasan muchos tiles, y no me sigue"). A sprint is unambiguous and
+                    -- player-authored, so it does not wait for the ladder to catch up.
+                    local free = sprinting
+                        or (mood.rung and mood.rung >= Autonomy.OBEY)
 
                     -- Widening, not merely wide. A companion holding station eight tiles
                     -- away while you stand still is fine; one at eight tiles and growing is
@@ -737,7 +769,7 @@ local function fastFollow()
                             and head.isPlayer
 
                         if not chasing then
-                            local walkType = assertFollow(zombie, player, dist)
+                            local walkType = assertFollow(zombie, player, dist, true)
                             mood.taskSig, mood.taskTicks = nil, 0
                             SR.Log(string.format(
                                 "AUTO %s | fast follow at %.1f tiles (%s) -- %s",

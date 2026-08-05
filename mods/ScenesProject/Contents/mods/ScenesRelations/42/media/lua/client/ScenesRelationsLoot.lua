@@ -108,19 +108,35 @@ ZombieActions.ScenesLoot.onComplete = function(zombie, task)
             local items = ArrayList.new()
             container:getAllEvalRecurse(function() return true end, items)
 
-            for j = 0, items:size() - 1 do
-                if taken >= TAKE_PER_CONTAINER then break end
+            -- What they came for comes out first. Two passes over the same list rather than
+            -- a sort: the wanted pass ignores the per-container cap so a rucksack at the
+            -- back of a wardrobe is never missed because three tins were in front of it.
+            local wanted = WANTS[task.want]
+            local order = wanted and { true, false } or { false }
 
-                -- Ask the engine after every single item rather than predicting. It owns
-                -- what a thing weighs; we only own when to stop asking.
-                if inventory:getCapacityWeight() >= budget then break end
+            for _, first in ipairs(order) do
+                for j = 0, items:size() - 1 do
+                    local item = items:get(j)
+                    local matches = wanted and item and wanted(item) or false
 
-                local item = items:get(j)
-                if item then
-                    container:Remove(item)
-                    container:removeItemOnServer(item)
-                    inventory:AddItem(item)
-                    taken = taken + 1
+                    if item and matches == first then
+                        -- The cap is for incidental hauling, not for the thing they walked
+                        -- across a room to find.
+                        if not first and taken >= TAKE_PER_CONTAINER then break end
+
+                        -- Ask the engine after every single item rather than predicting. It
+                        -- owns what a thing weighs; we only own when to stop asking.
+                        if inventory:getCapacityWeight() >= budget then break end
+
+                        container:Remove(item)
+                        container:removeItemOnServer(item)
+                        inventory:AddItem(item)
+                        taken = taken + 1
+                        if first then
+                            SR.Log(string.format("LOOT found what it wanted (%s): %s",
+                                tostring(task.want), tostring(item:getFullType())))
+                        end
+                    end
                 end
             end
         end
@@ -132,6 +148,66 @@ ZombieActions.ScenesLoot.onComplete = function(zombie, task)
         inventory:getCapacityWeight(), inventory:getMaxWeight()))
 
     return true
+end
+
+-- WHAT SOMEBODY IS ACTUALLY AFTER -----------------------------------------------------
+--
+-- ASKED FOR: "le hace falta listar que tipo de cosas utiles son importantes conseguir
+-- dependiendo de cada situacion... el mas importante es una mochila... darle actividades o
+-- misiones principales al NPC hace que ellos se comporten mejor."
+--
+-- Right, and it names what was missing precisely. Searching worked but had no PURPOSE: they
+-- opened whatever was nearest and took the first three things in it, so from outside it read
+-- as fidgeting near furniture rather than looking for anything.
+--
+-- A goal is one word, decided from what they lack, in a fixed order of desperation. It does
+-- two things: it decides what comes out of a container FIRST, and it appears in the log, so
+-- "why is he doing that" has an answer you can read.
+--
+-- FIRST SLICE, HONESTLY BOUNDED. Two goals, both with predicates verified in the engine --
+-- `getBodyLocation() == "Back"` for a bag, `instanceof(item, "Food")` for food, which is the
+-- test ZPCompanion's own foraging block uses. Weapons, crafting a bag from a sheet, and
+-- goals that change with the situation are designed in docs/plans/03-autonomy.md and NOT
+-- built: each needs a verb we do not have yet, and inventing one is how this project has
+-- lost sessions.
+
+local function isBag(item)
+    local ok, loc = pcall(function() return item:getBodyLocation() end)
+    return ok and loc == "Back"
+end
+
+local function isFood(item)
+    return instanceof(item, "Food")
+end
+
+local WANTS = {
+    bag = isBag,
+    food = isFood,
+}
+
+--- Does this person already carry one of these?
+local function carries(zombie, test)
+    local inventory = zombie:getInventory()
+    if not inventory then return false end
+    local ok, items = pcall(function() return inventory:getItems() end)
+    if not ok or not items then return false end
+
+    for i = 0, items:size() - 1 do
+        local item = items:get(i)
+        if item and test(item) then return true end
+    end
+    return false
+end
+
+--- What this person is looking for right now, or nil when they want for nothing.
+---
+--- Ordered by desperation, and the order IS the design: a bag first, because it is the only
+--- one that changes what every later search is worth. Somebody with no bag fills up in three
+--- items, so finding food before a bag is finding food you cannot carry.
+function Loot.GoalOf(zombie, brain)
+    if not Loot.HasBag(brain) then return "bag" end
+    if not carries(zombie, isFood) then return "food" end
+    return nil
 end
 
 -- FINDING THINGS ---------------------------------------------------------------------
@@ -223,7 +299,7 @@ function Loot.FindContainer(zombie, mood)
 end
 
 --- Walk there, search it, and remember we did.
-function Loot.Search(zombie, mood, spot)
+function Loot.Search(zombie, mood, spot, want)
     local dist = BanditUtils.DistTo(zombie:getX(), zombie:getY(), spot.x + 0.5, spot.y + 0.5)
     local tasks = {}
 
@@ -236,6 +312,7 @@ function Loot.Search(zombie, mood, spot)
     tasks[#tasks + 1] = {
         action = "ScenesLoot", anim = "Loot", time = 200,
         x = spot.x, y = spot.y, z = spot.z,
+        want = want,
     }
 
     markSearched(mood, spot.x, spot.y, spot.z)

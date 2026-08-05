@@ -12,43 +12,49 @@ Hoja de ruta completa: [`docs/plans/README.md`](plans/README.md).
 
 ## Ya confirmado — no lo repitas
 
-Esto salió bien en una corrida real y sólo vuelve a esta lista si lo rompo.
-
 | Qué | Evidencia |
 |---|---|
 | Memoria durable entre descargas de celda | corrida 03-08 |
 | La rueda de interacción | *"ya se comporta mejor"* |
-| Saqueo acotado | `took 3` respetando el tope; `carrying 1.1 → 6.2 / 8.0` y **parando** |
+| Saqueo acotado | `took 3`; `carrying 1.1 → 6.2 / 8.0` y parando |
 | Corte con vidrios rotos | `cut on broken glass \| 1.80 -> 1.55` |
-| El censo produce datos | 189 líneas `AUTO` en la corrida 04-08 16:31 |
-| Los doce subsistemas cargan | doce líneas `ready` |
-
-De ahora en más, la prueba 0 es sólo mirar que estén las líneas `ready` al arrancar. Si falta
-alguna, pará y decime cuál.
+| El censo produce datos | 189 líneas `AUTO` |
+| Correr detrás de un NPC que pegaba una puerta | *"si corrio detras de mi, esa parte está bien"* |
 
 ---
 
-## Lo nuevo de la etapa 03
+## Lo que arreglé de tu último reporte
 
-**1. Retomar lo interrumpido.** Era el criterio de cierre de la etapa, escrito hace tres
-sesiones: *"un superviviente interrumpido mientras saquea mata al zombi y vuelve al
-contenedor"*. Vaciar la cola es lo que hace funcionar la escalera, y también era lo que
-borraba lo que estaban haciendo. Ahora la escalera **guarda la intención** antes de vaciar, y
-el compañero la retoma cuando se calma. Caduca a los ~2 minutos o si quedó a más de 15 tiles.
+**Los NPC ya no se convierten en zombi.** Tenías razón en las dos partes. Bandits no tiene
+incubación: una mordida escribe un contador, le suma 0.001 por tick y a 100 los convierte.
+No hay enfermedad, ni fiebre, ni deterioro — es un cronómetro. Y eso causaba el segundo bug:
+al convertirse llaman `BanditRemove`, pero las cachés van un frame atrás, así que uno que ya
+era zombi seguía recibiendo órdenes de volver con vos. **Dos bugs, una raíz.** Apagado con un
+flag, fácil de revertir cuando el modelo de heridas pueda expresar enfermarse.
 
-**2. Ahora sí se curan.** El disparador de curación de Bandits exige que la cola no tenga
-nada más que movimiento — y con la escalera dándoles cosas que hacer, eso no pasa casi nunca.
-En tu log está la prueba: abriste el panel de John Jones en `condition 0.02 / 1.80`, infectado,
-a dos centésimas de morirse, y **no hay una sola línea `dressed with` en toda la corrida**.
-Ahora la decisión de curarse es nuestra; la acción, la animación y el sonido siguen siendo de
-ellos.
+**Y por eso no te seguía.** El orden de la escalera estaba mal. Con una horda encima siempre
+hay algo dentro del radio de "me tienen agarrado", así que pelear ganaba **cada barrido** y se
+quedaba dando palos mientras vos te ibas. Es literal lo que describiste: *"se quedó
+pegandoles"*, *"no sé si es que hubiera varios zombies cerca, no lo hizo correr"*.
 
-**3. Saquean la casa entera, no un cuarto.** Estaba limitado a la habitación donde estaban
-parados — por eso ambos revisaron cuatro o seis muebles y se detuvieron. Ahora el límite es
-el **edificio**. No puede irse a la casa de al lado.
+Ahora **si vos corrés, él corre — por encima de todo**: del miedo, de estar agarrado, de una
+calle entera. Un compañero cuyo jefe sale corriendo ya sabe cuál es el plan. Quedarse a
+aguantar una horda solo no es valentía, es no haber sido avisado.
 
-Y lo del turno anterior, que aún no probaste: seguimiento rápido, la puerta del sentarse, y
-leer.
+**El cansancio.** Verifiqué: sí baja y sí guarda — `BanditBrain.Get` devuelve una referencia,
+no una copia. Lo que estaba mal era la aritmética. Correr cuesta 0.07 **cada vez que una
+tarea de movimiento termina**, y mi tick rápido cobraba precio completo por cada corrección.
+Ahora una re-asignación no cuesta nada (el viaje ya se está pagando) y descansar da el doble.
+
+**No se curaba solo.** La decisión de vendarse vivía dentro del bloque de actividades libres,
+al que un compañero sólo llega **a menos de 7 tiles tuyos**. O sea que uno herido siguiéndote
+a nueve tiles nunca tenía permiso de parar. Cerrar la distancia no es más urgente que no
+desangrarse.
+
+**Y les di propósito.** Buscaban sin buscar nada: abrían lo más cercano y sacaban las primeras
+tres cosas. Ahora tienen un objetivo — **mochila primero, después comida** — que decide **qué
+sale primero del cajón** y aparece en el log. Lo que van a buscar ignora el tope de 3 ítems:
+una mochila al fondo de un ropero no se pierde porque había latas adelante.
 
 ---
 
@@ -58,238 +64,170 @@ leer.
 tools/sync-mods.sh
 ```
 
+**Arrancás con mochila, pistola y una caja de 9mm.** Kit de pruebas temporal para que puedas
+hacer las pruebas 4, 5 y 9; está marcado para borrar en el código.
+
 ---
 
 ## Las pruebas, en orden
 
-### 0. Arrancó todo
+### 1. Correr con una horda encima
 
-Mirá que estén las doce líneas `ready`. Si falta `COMP ready` o `WOUND ready`, nada de lo
-nuevo está corriendo y el resto de las pruebas no significan nada.
+**Hacé:** juntá tres o más zombis alrededor de tu compañero y **esprintá** lejos sin pelear.
 
----
-
-### 1. Salí corriendo en medio de una pelea
-
-**La más importante.** Con zombis al lado, esprintá para el otro lado sin pelear.
-
-**Pasa si** sale la línea del tick rápido, y con **pocos** tiles:
+**Pasa si** sale, con **pocos** tiles:
 
 ```
 AUTO <nombre> | fast follow at 6.4 tiles (Run) -- master sprinting
 ```
 
-**Si el número pasa de 10, avisame** — significa que el tick rápido no entró.
-
-Antes esperaba a 25.9 tiles porque un zombi a 4 le ganaba a que vos corrieras. Ahora sólo uno
-a **1.6 tiles** lo clava en el lugar.
+**Lo que quiero saber:** si te sigue **teniendo zombis pegados**. Antes ganaba pelear. Si
+sigue quedándose, mandame las líneas `AUTO census` de ese momento — traen `rung` y la
+distancia al zombi más cercano (`z=N@dist`), que es lo que decide.
 
 ---
 
-### 2. Que vuelva a lo que estaba haciendo
+### 2. Que busquen con propósito
 
-**Hacé:** metelo en una casa a saquear, y cuando esté abriendo un mueble, traele un zombi.
+**Hacé:** entrá con un compañero a una casa con muebles sin abrir y **quedate quieto**.
 
-**Pasa si** salen las dos líneas, en este orden:
+**Pasa si** el log dice **qué** está buscando:
 
 ```
-AUTO <nombre> | sets aside search at 10750,10281
-COMP <nombre> goes back to the search at 10750,10281
+COMP <nombre> searches 10750,10281 for bag | in=0 out=0
+LOOT found what it wanted (bag): Base.Bag_Schoolbag
 ```
 
-La primera es la escalera guardando la intención antes de vaciar la cola. La segunda es él
-volviendo. **Si sale la primera y nunca la segunda, decime** — se está perdiendo en el camino
-de vuelta.
+Cuando ya tenga mochila, el objetivo pasa a `food`. Si dice `for anything useful`, es que ya
+tiene las dos cosas.
+
+**Y mirá que cambie de habitación** — el límite ahora es el edificio, no el cuarto.
 
 ---
 
 ### 3. Que se cure solo
 
-**Hacé:** dejá que un compañero baje de 0.7 de vida (el panel de salud te lo dice) y no lo
-vendes vos. Esperá.
-
-**Pasa si** sale:
+**Hacé:** dejá que baje de 0.7 de vida (miralo en el panel Health) y **no lo cures vos**.
+Podés dejarlo herido y caminar: ahora puede parar a vendarse aunque esté lejos.
 
 ```
-COMP <nombre> stops to dress a wound
+COMP <nombre> stops to dress a wound | 9.2 tiles from master
 WOUND <nombre> dressed with bandage | 0.35 -> 1.71 / 1.80 | risky=false
 ```
 
-`improvised` en vez de `bandage` también pasa — es el piso, se rasgan la ropa. Lo que **no**
-puede pasar es que llegue a 0.02 como John Jones y no salga ninguna de las dos.
+`improvised` también pasa — es el piso, se rasgan la ropa.
 
 ---
 
-### 4. La casa entera
+### 4. Darle la mochila
 
-**Hacé:** entrá a una casa de varias habitaciones y quedate quieto.
-
-**Pasa si** las coordenadas de las líneas `searches` **cambian de habitación** — antes se
-quedaba en una sola.
-
-```
-COMP <nombre> searches 10750,10281 | in=0 out=0
-COMP <nombre> searches 10758,10275 | in=0 out=0
-```
-
-Y que **no cruce la calle**. Si lo ves entrar a la casa de al lado, es un bug.
-
----
-
-### 5. Sentarse
-
-**Hacé:** caminá un rato largo para gastarles energía, después parate adentro de una casa.
-
-**Pasa si** el número de la izquierda es **siempre menor** que el de la derecha:
-
-```
-COMP <nombre> sits down | endurance 0.42 < 0.55 | indoors
-COMP <nombre> sits down | endurance 0.71 < 0.80 | indoors, the lazy sort
-```
-
-**Nadie con `endurance 1.00`, y nadie afuera salvo por debajo de 0.25.** Antes eran 21 de 38
-asientos a energía llena.
-
-Y mirá el orden: un perezoso en una casa con muebles sin abrir **saquea primero**. Si se
-sienta teniendo cajones sin tocar, decime.
-
----
-
-### 6. Leer
-
-Un cuarto de ellos lee. Dale un libro a un compañero y metelo en una casa tranquila.
-
-```
-COMP <nombre> sits down with a book | endurance 0.90
-```
-
-Puede leer **sin estar cansado** — es lo único que hacen porque quieren.
-
----
-
-### 7. La mochila
-
-Antes el censo decía `bag=?` para todos por un bug mío, así que esto nunca se pudo ver.
-
-**Hacé:** tirá una mochila cerca de un compañero que el censo marque `bag=false`.
+**Hacé:** tirá al piso la mochila con la que arrancás, cerca de un compañero que en el censo
+diga `bag=false`.
 
 ```
 COMP <nombre> wants a bag -- Base.Bag_Schoolbag at 10748,10279
 LOOT <nombre> now carries a Base.Bag_Schoolbag
 ```
 
-Después `bag=true` y su `carrying` máximo sube.
+Después el censo tiene que decir `bag=true`.
 
 ---
 
-### 8. Las dos que nunca se dispararon
+### 5. Guardar el arma adentro de una casa — pasos exactos
 
-Estas dos no aparecieron ni una vez en tu corrida. No sé si funcionan o si nunca se dio la
-situación.
+Esta nunca se disparó. Te la detallo porque hay que armar la situación a propósito.
 
-**Guardar el arma adentro de una casa** — pelealo adentro con un arma de fuego encima:
+1. Conseguí un NPC que **tenga un arma de fuego**. El panel **Health** te lo dice: la línea
+   `Weapon` dice `loaded` si la tiene cargada, `out of ammo` si no. **Sin arma de fuego no
+   hay nada que guardar y la prueba no aplica** — no la des por fallada.
+2. Metelo **adentro** de una casa con vos.
+3. Traé zombis **adentro**, no afuera.
+
+**Pasa si** sale:
 
 ```
 COMP <nombre> goes quiet indoors (try 1) | in=1 out=2
 ```
 
-**Uno espera a que el otro pase la ventana** — necesitás dos NPC yendo a la misma ventana:
+**Si ves `try 1` y `try 2` repitiéndose sin parar** para el mismo NPC, avisame: significa que
+su propio combate le devuelve el arma y hay que atacarlo distinto.
+
+---
+
+### 6. Que uno espere en la ventana — pasos exactos
+
+También necesita la situación armada.
+
+1. Poné **dos** compañeros juntos.
+2. Llevalos afuera, cerca de una casa **cerrada** con ventanas.
+3. Traé zombis para asustar a los dos a la vez.
+
+**Pasa si** uno reclama la ventana y el otro espera:
 
 ```
 AUTO <nombre> | waits, 9306146 is already working 10783,10299,0
 ```
 
-Si con la situación armada no salen, decímelo y las miro con otro enfoque.
+Si los dos van igual a la misma ventana, mandame las dos líneas `AUTO census` de ese momento.
 
 ---
 
-### 9. Un NPC suelto ya no se queda mirando la pared
+### 7. Sentarse y cansancio
 
-Todo lo que construimos vivía dentro del envoltorio de compañero, así que la única forma de
-tener vida interior era estar siguiéndote. Ahora la cadena de actividades es compartida y
-también envuelve `Looter`.
-
-**Hacé:** spawneá un NPC nuevo, no le digas nada, y dejalo dentro de una casa.
-
-**Pasa si** hace cosas por su cuenta — las mismas líneas `COMP ... searches`, `wants a bag`,
-`sits down`, pero de alguien que no es tu compañero.
-
-En el arranque, la línea de `COMP ready` ahora dice cuál de los dos programas envolvió:
+**Hacé:** caminá un rato largo, parate adentro, dejalos sentarse. **Después seguí jugando y
+fijate cuánto tardan en volver a sentarse.**
 
 ```
-COMP ready -- wraps ZPCompanion.Main and ZPLooter.Main: ...
+COMP <nombre> sits down | endurance 0.42 < 0.55 | indoors
 ```
 
-Si dice `ONLY (no Looter to wrap)`, avisame.
+**Lo que quiero saber:** si el intervalo entre asientos ahora es **notablemente más largo**.
+Nadie debería sentarse con `endurance 1.00`, y nadie afuera salvo por debajo de 0.25.
 
 ---
 
-### 10. El radio según el vínculo
+### 8. Leer
 
-| Vínculo | Radio | Se debería ver como |
-|---|---|---|
-| sin grupo | 10 | el más lanzado, va por lo que ve |
-| te sigue | 8 | como estaba |
-| en el clan (join) | **6** | **defiende**, no caza |
+Dale un libro o un cómic a un compañero y metelo en una casa tranquila.
 
-**Pasa si** un aliado del clan se queda más pegado a vos que uno que sólo te sigue, con los
-mismos zombis alrededor. Es sutil — mirá el `census`, que trae `rung` y la distancia al
-zombi más cercano (`z=N@dist`).
+```
+COMP <nombre> sits down with a book | endurance 0.90
+```
+
+Lo de sacar cómics de una caja que viste era el saqueo, no la lectura — son dos cosas
+distintas. Puede leer **sin estar cansado**.
 
 ---
 
-### 11. Leave me y Cast out
+### 9. Un NPC suelto
 
-**Leave me** ya no es una expulsión. Adentro de un edificio los pasa a `Defend` (se quedan
-cuidando el lugar), afuera a `Looter`. **La confianza no se toca.**
+**Hacé:** spawneá dos supervivientes, no les digas nada, y dejalos **adentro** de una casa.
 
-```
-ACT <nombre> | leave -> Defend | trust=80 ...
-```
+**Pasa si** hacen las mismas cosas que un compañero — `searches ... for bag`, `wants a bag`.
 
-**Cast out** es la expulsión, y sólo aparece si ya hizo *Join me*. Le pone la confianza en
-**0** de un golpe.
-
-```
-ACT <nombre> | cast out | trust=0 ...
-```
-
-Comprobá las dos cosas: que `Cast out` **no** aparezca en alguien que sólo te sigue, y que
-después de usarlo el WHO lo muestre en 0.
-
-**Y la puerta de vuelta** — el bug que reportaste. Al compañero que aparece con vos dale
-`Leave me` y después volvé a abrir la rueda.
-
-**Pasa si** `Follow me` está **disponible**, no gris pidiendo 25 de confianza. En el log, la
-primera vez que abrís la rueda sobre él:
-
-```
-ACT <nombre> counts as one of yours (trust 4)
-```
-
-Tu log lo confirmó: el compañero inicial nace con `trust=4 neutral` — te lo regala el
-spawner, no te lo ganaste. `Leave me` pedía 25 de confianza que nunca hizo falta tener. Ahora
-la pertenencia se recuerda y le gana a la confianza: quien ya caminó con vos no es un
-desconocido, diga lo que diga el número.
-
-`Cast out` sí revoca la pertenencia — esa es la única puerta que se cierra, y desde ahí
-vuelve a necesitar los 25 desde cero.
+**Sé que esto sigue flojo afuera:** un NPC suelto en la calle no tiene nada que buscar y se
+queda en idle. Salir a buscar un edificio no está construido; está anotado en
+`docs/plans/03-autonomy.md`.
 
 ---
 
-### 11b. Un compañero al reaparecer
+### 10. Cast out y Leave me
 
-**Hacé:** morite y creá un personaje nuevo en la misma partida.
+Con un aliado de confianza alta: `Leave me` → `Follow me` tiene que **volver a aparecer**.
+Después `Cast out` → la confianza queda en **0** y `Cast out` desaparece de la rueda.
 
-**Pasa si** aparece un compañero con vos otra vez:
+---
+
+### 11. Compañero al reaparecer
+
+Morite, creá un personaje nuevo.
 
 ```
 TLOU| new character -- one companion queued
 ```
 
-Antes esto colgaba de `OnNewGame`, que dispara una sola vez por partida — morir te dejaba
-solo en un mod cuya premisa es que no lo estás. Y al **recargar** un personaje que ya existe
-tiene que decir lo contrario, o vas a juntar compañeros cada vez que entrás:
+Y al **recargar** un personaje que ya existe tiene que decir lo contrario, o vas a acumular
+compañeros:
 
 ```
 TLOU| this character already has their companion -- not spawning another
@@ -299,41 +237,19 @@ TLOU| this character already has their companion -- not spawning another
 
 ### 12. El WHO
 
-Dos bugs que reportaste.
+**Muertos:** matá a alguien conocido → la fila queda, atenuada, con `dead` a la derecha.
 
-**Los muertos.** Matá o dejá morir a alguien con quien tengas relación y abrí el WHO.
-
-**Pasa si** la fila sigue estando, atenuada, y dice `dead` a la derecha. El registro se queda
-a propósito — uno no deja de haber conocido a alguien porque se murió — pero antes un aliado
-muerto y uno vivo se veían igual.
-
-```
-STORE <nombre> died | trust 80 at the end
-```
-
-**Las relaciones son por personaje.** Morite y volvé a entrar con uno nuevo.
-
-**Pasa si** el WHO aparece **vacío**. En el log:
+**Por personaje:** con el personaje nuevo de la prueba 11, el WHO tiene que estar **vacío**.
 
 ```
 STORE new life 412-38104 -- relationships start empty
 ```
 
-Y si te cruzás con alguien que conocía tu personaje anterior, te trata como a un desconocido:
-
-```
-STORE 9306146 belonged to a previous life -- starting over
-```
-
-> Las relaciones de partidas viejas, de antes de este arreglo, **se conservan** — no tienen
-> marca de vida y se adoptan. Sólo empieza a separar desde acá.
-
 ---
 
 ## Qué mandarme
 
-`console.txt` y una línea por prueba. De las líneas `AUTO census`, cuantas puedas — es lo
-único que me deja juzgar a los NPC que no hacen nada llamativo.
+`console.txt` y una línea por prueba. De la 1, las `AUTO census` del momento en que corriste.
 
 ---
 
@@ -344,9 +260,8 @@ STORE 9306146 belonged to a previous life -- starting over
 | [00 — Mundo de pruebas](plans/00-test-world.md) | construida, confirmada a medias |
 | [01 — Memoria durable](plans/01-durable-memory.md) | **confirmada** |
 | [02 — Rueda de interacción](plans/02-interaction-wheel.md) | **confirmada** |
-| [03 — Autonomía](plans/03-autonomy.md) | saqueo y vidrios confirmados; retomar, curarse y casa entera **sin probar** |
-| [Heridas y curación](plans/wounds-and-healing.md) | etapa 1 construida; 2 y 3 diseñadas |
+| [03 — Autonomía](plans/03-autonomy.md) | saqueo y vidrios confirmados; el resto sin probar |
+| [Heridas y curación](plans/wounds-and-healing.md) | etapa 1 construida; conversión **apagada** a propósito |
 
-Anotado y sin construir, en [`docs/TODO.md`](TODO.md): los bandidos no reaniman, los cadáveres
-no retienen a la horda, y `ClimbFence` está comentado en Bandits — por eso se traban en las
-vallas.
+En [`docs/TODO.md`](TODO.md): los cadáveres no retienen a la horda, `ClimbFence` está
+comentado en Bandits, y la conversión de NPC espera al modelo de heridas.
