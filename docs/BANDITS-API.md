@@ -11,6 +11,30 @@ Every claim carries a `file:line`. Paths are relative to
 `vendor/Bandits/mods/Bandits/42.20/media/lua/`. If a line number does not match what you
 find, the file moved under you — stop and report it rather than guessing.
 
+## How to read an entry — and why the format changed
+
+**A name and a line number is not enough, and this document proved it.**
+
+On 2026-08-05 we shipped a bug where nothing an NPC looted survived, because
+`Bandit.UpdateItemsToSpawnAtDeath` was never called. That function was already listed here,
+accurately, at line 251 — as a bare name in a comma-separated list under *Weapons*. It was a
+directory entry. Nothing said what it means, that the brain is the store, or that skipping it
+makes everything you added invisible. An index you can search and still get wrong is a
+catalogue, not a reference.
+
+So an entry that carries a **contract** now says three things:
+
+| Field | Answers |
+|---|---|
+| **Signature + `file:line`** | where it is |
+| **What it does** | in one sentence, in terms of state, not of code |
+| **What breaks if you skip it** | the silent failure — this is the field that was missing |
+
+The third field is only worth writing where the failure is *silent*. Something that throws
+announces itself. Bare name lists stay bare where the name genuinely is the whole story, and
+are backfilled into full entries as work touches them — never in a big-bang rewrite that
+nobody would read.
+
 ---
 
 ## 0. The mental model
@@ -247,8 +271,34 @@ Four traps, all verified:
 
 ### Weapons
 `GetWeapons` (612), `GetBestWeapon` (619), `SetWeapons` (700), `SetHands(zombie, itemType)`
-(653), `IsOutOfAmmo` (639), `IsBareHands` (646), `NeedResupplySlot` (693),
-`UpdateItemsToSpawnAtDeath` (712).
+(653), `IsOutOfAmmo` (639), `IsBareHands` (646), `NeedResupplySlot` (693).
+
+### Possessions — where an NPC's things actually live
+
+**The brain is the store. `zombie:getInventory()` is a view.** This is the single most
+expensive thing in this document to get wrong, and the bare-name entry it used to have is
+why the format changed.
+
+| | |
+|---|---|
+| **Signature** | `Bandit.UpdateItemsToSpawnAtDeath(zombie, brain)` — `Bandit.lua:712` |
+| **What it does** | Calls `zombie:clearItemsToSpawnAtDeath()` (`:717`), then rebuilds the entire drop list from `brain.weapons`, `brain.bag`, `brain.loot` **and** the current live inventory. Upstream's own comment: *"This translates weapons, loot, inventory to actual items to be spawned at bandit death."* |
+| **What breaks if you skip it** | Everything you added to the live inventory is invisible. The NPC drops exactly what the spawner gave it and nothing else. Silent — no error, no warning, and only discoverable by killing an NPC you watched loot a house. |
+
+Two consequences that are not obvious from the signature:
+
+1. **A live inventory does not survive a despawn.** Bandits rebuilds the `IsoZombie` from the
+   brain when an NPC re-enters range, so anything held only on the old object is gone. Log
+   evidence, 04-08 run: Daniel Green went `carrying 1.5 → 5.6`, then reappeared at
+   `carrying 1.5` under the same `fullname`. The brain survived; the inventory did not.
+   Anything meant to persist must be mirrored into the brain — `ScenesRelationsLoot.lua`
+   uses `brain.scenesCarry` for this.
+2. **The working template is `ZALootWeapons.lua`.** It writes `brain.weapons`, then calls
+   `Bandit.ForceSyncPart` and `Bandit.UpdateItemsToSpawnAtDeath` (`:104-105`). It never
+   touches `getInventory()`. When in doubt, copy that order.
+
+Related: `Bandit.SetWeapons` (700) already calls `UpdateItemsToSpawnAtDeath` for you (`:705`).
+Nothing else does.
 
 ### Speech and appearance
 `Bandit.Say(zombie, phrase, force)` (1161) — cooldown via `brain.speech` unless `force`.

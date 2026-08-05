@@ -76,6 +76,7 @@ adentro de un ropero, así que el movimiento no llegaba y la acción corría des
 
 | # | Qué hacer | Pasa si |
 |---|---|---|
+| **A0** | Arrancá el juego y buscá `ASSERT` en `console.txt`. **Antes que nada.** | Sale `ASSERT ---- 10 ok, 0 FAILED ----`. Si algo dice `FAIL`, pará: el motor no tiene la forma que el código cree y el resto de las pruebas no significa nada. |
 | **A1** | Entrá a una casa con un compañero y miralo lotear. | **Camina hasta cada mueble** y lo abre parado al lado. No lotea a distancia. |
 | **A2** | Tirá una mochila al piso cerca de él. | La levanta y **se la pone** (se ve en el modelo). Log: `LOOT ... now carries a ...` |
 | **A3** | Poné una mochila en un cajón de una casa. | Igual que A2. Log: `LOOT ... \| BAG Base.Bag_...` |

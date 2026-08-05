@@ -35,9 +35,39 @@ the thing, not for whether a word appears somewhere.
 
 ---
 
-## R2 — A method on `IsoGameCharacter` is not a method on `IsoZombie`
+## R2 — A method verified on one class is not verified on another
 
-**Cost so far: one dead design branch, one wrong conclusion.**
+**Cost so far: one dead design branch, one wrong conclusion, and one bug that broke four
+things at once across three play sessions.**
+
+R1 asks whether a real callsite exists. That question can be answered **yes** and the code
+can still be wrong, because a callsite proves the method works on the class in *that*
+callsite — not on the class you are about to call it on.
+
+> Name the receiver. Not "does `getBodyLocation` exist" but "does `getBodyLocation` exist
+> **on the thing I am passing it**".
+
+### The item case, 2026-08-05
+
+`isBag(item)` tested `item:getBodyLocation() == "Back"`. `getBodyLocation()` is real, has
+**107 callsites** in `pzserver/media/lua/`, and returns exactly what you expect. On
+**clothing**. A bag is an `InventoryContainer` and declares itself with
+`CanBeEquipped = base:back` (`media/scripts/generated/items/container.txt:57`) — it has no
+`BodyLocation` field at all, so the predicate was false for every rucksack in the game.
+
+Four separate symptoms, all reported from play, all one wrong receiver: bags on the floor
+were never seen, the goal "find a bag" could never be satisfied, the priority pass in the
+loot action never matched, and a bag pulled out of a drawer was never worn.
+
+Corroborated after the fact in third-party code: Week One, an independent Bandits addon,
+tests a bag with `instanceof(item, "InventoryContainer")` (`BWOEvents.lua:2401`) and reaches
+for `getBodyLocation()` only inside `Variants/`, on gowns and prison suits. Two different
+questions, two different methods. Vanilla draws the same line at `ISInventoryPane.lua:967`.
+
+**A silent wrong answer is worse than a crash.** `isNPC()` threw and we found it in two
+sessions. This one returned `false` politely and survived three.
+
+### The character case
 
 Bandits NPCs are `IsoZombie`. Vanilla almost never calls character APIs on a zombie, so
 the Lua binding frequently does not exist even when the Java method does.
@@ -182,6 +212,47 @@ must announce itself through `SR.Wheel.NotYet(...)` so there is one call site to
 when it lands.
 
 > Does the diff add a control that does nothing? Does it say so to the player?
+
+---
+
+## R12 — Look for prior art before building something new
+
+**Cost so far: unmeasured, and that is the point — we do not know how much of what we wrote
+already existed, done better, in a mod somebody has been maintaining for a year.**
+
+Asked for in these words:
+
+> *"antes de implementar una nueva solución de algo nuevo se pueda mirar el workshop a ver
+> que hay similar creado, leer rápidamente similares y obtener información que sea de
+> utilidad de que usan."*
+
+Before writing a **new mechanism** — not a tweak, a mechanism — spend the cheap minutes
+first:
+
+1. **Local first, and it is usually enough.** `vendor/` already holds Bandits and Week One,
+   two shipped mods by an author with far more Build 42 hours than us. `pzserver/media/` is
+   the engine itself. Both are greppable in under a second and cost nothing to consult.
+2. **Then the Workshop**, via `tools/workshop.py search`, for mods solving the same problem.
+   Read what they *call*, not how they format.
+3. **Write down what you found**, in `docs/CAPABILITY-MAP.md` under the question it answers,
+   with the file:line. A finding nobody can look up later was not worth the minutes.
+
+### What this is and is not
+
+It is **corroboration**, and corroboration is the point. Two independent codebases choosing
+the same method is much stronger evidence than one vanilla callsite — and it is exactly what
+would have caught R2's bag bug, since Week One had the right answer sitting in `vendor/` the
+whole time.
+
+It is **not** a style survey. The code shipped on 2026-08-05 was well formatted and wrong.
+Copying somebody's naming conventions prevents nothing.
+
+And R1 still applies to everything it turns up. **Vendored mod code is not a verification
+source** — Bandits has carried a broken `isNPC()` for as long as we have been reading it.
+Prior art tells you *where to look*; the engine tells you what is true.
+
+> Does the diff introduce a new mechanism? Is there a note saying what prior art was checked
+> and what it uses — or a stated reason none applies?
 
 ---
 

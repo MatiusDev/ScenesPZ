@@ -106,6 +106,13 @@ local WANTS = {
     food = isFood,
 }
 
+-- Exported ONLY so the runtime assertions can test the predicate that actually runs, rather
+-- than a copy of it. A test against a duplicate of the rule proves the duplicate works --
+-- which is exactly the trap that let a wrong isBag survive three play sessions. Nothing in
+-- the mod calls these; see ScenesRelationsAssert.lua.
+Loot.IsBag = isBag
+Loot.IsFood = isFood
+
 -- THE ACTION -------------------------------------------------------------------------
 
 ZombieActions = ZombieActions or {}
