@@ -97,8 +97,12 @@ local function isBag(item)
     return ok and wearable == true
 end
 
+-- `isFood()` over `instanceof(item, "Food")`, and `not isPoison()` because the first version
+-- did not have it. The Ark asks exactly this pair (BWOAItems.lua:9) before it will let an NPC
+-- pick something up to eat, and bleach is an instance of Food.
 local function isFood(item)
-    return instanceof(item, "Food")
+    local ok, food = pcall(function() return item:isFood() and not item:isPoison() end)
+    return ok and food == true
 end
 
 local WANTS = {
@@ -106,12 +110,54 @@ local WANTS = {
     food = isFood,
 }
 
+-- IS THIS WORTH CARRYING? --------------------------------------------------------------
+--
+-- REPORTED: "cogen un monton de cosas que no sirven. Llenan su carry y luego no pueden coger
+-- otras cosas."
+--
+-- Confirmed in the 05-08 log and it is arithmetic, not opinion. John James went from
+-- `carrying 0.2` to `carrying 6.3` in THREE items -- two kilos each -- and the budget is 5.6.
+-- One drawer of the wrong furniture ends a survivor's scavenging for good, because nothing in
+-- this mod ever puts anything down.
+--
+-- The old filler pass had no opinion at all: it took the first three things in the container.
+--
+-- WHERE THE SHAPE OF THIS CAME FROM. The Ark never filters, because it never has to -- its
+-- programs decide on a specific item first (`FindClosestItemClass("food")`) and `ZACollect`
+-- then collects that ONE named type (`item:getFullType() == task.item.ftype`, ZACollect.lua:89)
+-- and returns. Deciding and taking are different layers there.
+--
+-- Ours takes incidental filler by design -- "they must not strip the house" only means
+-- something if they are taking more than one named thing -- so the opinion has to live here
+-- instead. Same conclusion, different layer, and worth knowing which is which.
+--
+-- Every test below is one the engine already answers and that upstream already relies on:
+-- isFood/isPoison and IsClothing (BWOAItems.lua:3-22), IsWeapon and IsDrainable (Bandit.lua's
+-- own loot block), getActualWeight (BWOAPermaInv.lua:22).
+local function isWorthTaking(item)
+    local ok, worth = pcall(function()
+        if isBag(item) then return true end
+        if isFood(item) then return true end
+        if item:IsWeapon() then return true end
+        -- Bandages, disinfectant, painkillers, batteries, tools with uses left. This is the
+        -- class the healing stage needs and cannot currently find anywhere.
+        if item:IsDrainable() then return true end
+        local fluid = item:getFluidContainer()
+        if fluid and not fluid:isEmpty() and not fluid:isPoisonous() and not fluid:isTainted() then
+            return true
+        end
+        return false
+    end)
+    return ok and worth == true
+end
+
 -- Exported ONLY so the runtime assertions can test the predicate that actually runs, rather
 -- than a copy of it. A test against a duplicate of the rule proves the duplicate works --
 -- which is exactly the trap that let a wrong isBag survive three play sessions. Nothing in
 -- the mod calls these; see ScenesRelationsAssert.lua.
 Loot.IsBag = isBag
 Loot.IsFood = isFood
+Loot.IsWorthTaking = isWorthTaking
 
 -- THE ACTION -------------------------------------------------------------------------
 
@@ -141,6 +187,17 @@ ZombieActions.ScenesLoot.onComplete = function(zombie, task)
 
     local square = cell:getGridSquare(task.x, task.y, task.z)
     if not square then return true end
+
+    -- THE ACTION REFUSES TO REACH. Loot.Search now only queues this once the NPC is already
+    -- standing at the furniture, so this should never fire -- which is exactly why it is here.
+    -- The queue is not ours alone: the ladder, a fight, or a shove can leave this task in place
+    -- while the NPC ends up somewhere else, and the failure it produces is silent and looks
+    -- like a design choice rather than a bug. It cost three play sessions once already.
+    local reach = BanditUtils.DistTo(zombie:getX(), zombie:getY(), task.x + 0.5, task.y + 0.5)
+    if reach > 2.0 then
+        SR.Log(string.format("LOOT refused -- %.1f tiles from %d,%d", reach, task.x, task.y))
+        return true
+    end
 
     local inventory = zombie:getInventory()
     if not inventory then return true end
@@ -178,25 +235,45 @@ ZombieActions.ScenesLoot.onComplete = function(zombie, task)
                         -- owns what a thing weighs; we only own when to stop asking.
                         if inventory:getCapacityWeight() >= budget then break end
 
-                        container:Remove(item)
-                        container:removeItemOnServer(item)
-                        -- Marked as ours the moment it changes hands. Restore() uses this to
-                        -- tell what a despawn took away from what the spawner put there.
-                        item:getModData().scenesLooted = true
-                        item:getModData().preserve = true
-                        inventory:AddItem(item)
-                        taken = taken + 1
+                        -- Filler has to earn its place; the thing they came for does not. A
+                        -- goal is a decision already made, and second-guessing it here is how
+                        -- an NPC walks across a house for a rucksack and then leaves it.
+                        local keep = first or isWorthTaking(item)
 
-                        -- A bag out of a drawer is the same find as a bag off the floor, and
-                        -- until now only the floor path ever put one on. "se la puse en un
-                        -- cajon de las casas y ahi si la cogio, pero no se la equipo nunca."
-                        if not foundBag and isBag(item) then
-                            foundBag = item:getFullType()
+                        -- ONE ITEM MUST NOT END THE TRIP. The budget check above only asks
+                        -- whether there is room for something -- it says nothing about how big
+                        -- that something is, which is how three items ate 6.1 of a 5.6 budget.
+                        -- A survivor picks up the tin and leaves the toolbox.
+                        if keep and not first then
+                            local okW, weight = pcall(function() return item:getActualWeight() end)
+                            if okW and type(weight) == "number"
+                               and inventory:getCapacityWeight() + weight > budget then
+                                keep = false
+                            end
                         end
 
-                        if first then
-                            SR.Log(string.format("LOOT found what it wanted (%s): %s",
-                                tostring(task.want), tostring(item:getFullType())))
+                        if keep then
+                            container:Remove(item)
+                            container:removeItemOnServer(item)
+                            -- Marked as ours the moment it changes hands. Restore() uses this
+                            -- to tell what a despawn took from what the spawner put there.
+                            item:getModData().scenesLooted = true
+                            item:getModData().preserve = true
+                            inventory:AddItem(item)
+                            taken = taken + 1
+
+                            -- A bag out of a drawer is the same find as a bag off the floor,
+                            -- and until now only the floor path ever put one on. "se la puse
+                            -- en un cajon de las casas y ahi si la cogio, pero no se la
+                            -- equipo nunca."
+                            if not foundBag and isBag(item) then
+                                foundBag = item:getFullType()
+                            end
+
+                            if first then
+                                SR.Log(string.format("LOOT found what it wanted (%s): %s",
+                                    tostring(task.want), tostring(item:getFullType())))
+                            end
                         end
                     end
                 end
@@ -447,16 +524,16 @@ end
 --- REPORTED: "se ve la animacion de como desde el mismo punto lotea todas las cosas o revisa
 --- todo los cajones... el deberia acercarse a cada cajon y lotear uno por uno."
 ---
---- Exactly right, and the cause was that the walk was aimed at the furniture. A survivor
---- cannot stand inside a wardrobe, so the move ended early or never started, and the search
---- action then ran from wherever they happened to be -- which is what you saw: a person
---- rummaging through a room without crossing it.
+--- `BanditUtils.GetAccessSquare(gridSquare, bandit)` (BanditUtils.lua:1039) replaced vanilla's
+--- `AdjacentFreeTileFinder.Find` here, and the swap is not a preference. Theirs takes the
+--- bandit as its second argument and uses it -- `square:DistToProper(bandit)` at :1064 -- so it
+--- returns the free neighbour CLOSEST TO THIS NPC out of all eight, and rejects any square with
+--- a wall between (`gridSquare:isWallTo(testSquare)`, :1054). Vanilla's returns the first free
+--- tile that passes its own test, which can be the far side of the wardrobe.
 ---
---- `AdjacentFreeTileFinder.Find(square, character)` is the engine's own answer to "where do I
---- stand to use this", used by vanilla for generators, BBQs, farming and every world-object
---- context menu (ISWorldObjectContextMenu.lua:114). pcall'd because it is a Java call taking
---- an IsoGameCharacter and an IsoZombie has never been passed to it before; falling back to
---- the container square is no worse than the behaviour being replaced.
+--- Only consulted when the container square is actually blocked, which is how The Ark gates it
+--- (`if not square:isNotBlocked(false)`, BWOAPrograms.GoAndDo). A container on an open floor
+--- tile is stood on, not walked around.
 local function standingSpot(zombie, spot)
     local cell = zombie:getCell()
     if not cell then return spot end
@@ -464,33 +541,95 @@ local function standingSpot(zombie, spot)
     local square = cell:getGridSquare(spot.x, spot.y, spot.z)
     if not square then return spot end
 
-    local ok, free = pcall(function() return AdjacentFreeTileFinder.Find(square, zombie) end)
+    local ok, free = pcall(function()
+        if square:isNotBlocked(false) then return square end
+        return BanditUtils.GetAccessSquare(square, zombie)
+    end)
+
     if ok and free then
         return { x = free:getX(), y = free:getY(), z = free:getZ() }
     end
     return spot
 end
 
---- Walk there, search it, and remember we did.
+-- Tiles. Inside this, the NPC is at the furniture and may open it. Outside, it walks.
+-- 0.7 is The Ark's own default for the same decision (BWOAPrograms.GoAndDo `precision`).
+local REACH = 0.7
+
+-- How many times we will re-issue a walk to the same container before writing it off. There is
+-- no path-failure callback here, so an unreachable spot would otherwise be chosen, walked at,
+-- and chosen again forever -- the one failure mode that one-step-at-a-time introduces and the
+-- all-at-once version did not have.
+local MAX_APPROACHES = 3
+
+--- ONE STEP, THEN DECIDE AGAIN. Walk if it is far, search if it is here -- never both in the
+--- same queue.
+---
+--- THIS IS THE FIX FOR "lotea desde el mismo punto", and the old version is worth writing down
+--- because the mistake is a whole class of mistake. It queued the move AND the search together:
+---
+---     if dist > 0.9 then tasks[#tasks+1] = GetMoveTask(...) end
+---     tasks[#tasks+1] = { action = "ScenesLoot", ... }
+---
+--- A Bandits task queue does not guarantee that a move ARRIVED, only that it ended. A blocked
+--- path, a door, a shove from a zombie, or the ladder clearing the queue all end a move early
+--- -- and the very next task was the search, which read `task.x, task.y` off the queue and
+--- emptied a drawer on the other side of the room. Standing still, playing the animation,
+--- looting at range. Exactly what was reported, out of a queue that looked correct.
+---
+--- Upstream never had the bug because upstream never writes a queue it cannot verify.
+--- `BWOAPrograms.GoAndDo` returns the move OR the action and nothing else, and the program
+--- re-runs the moment the queue empties -- so the distance is re-measured ON ARRIVAL instead of
+--- predicted at planning time. A program only runs on an empty queue, which is what makes that
+--- loop free: walk, re-decide, arrive, act.
+---
+--- The rule this leaves behind, and it is bigger than looting: a task cannot check its own
+--- preconditions, so anything a task depends on must be true when it is QUEUED, not when it
+--- was planned.
 function Loot.Search(zombie, mood, spot, want)
     local stand = standingSpot(zombie, spot)
-    local dist = BanditUtils.DistTo(zombie:getX(), zombie:getY(), stand.x + 0.5, stand.y + 0.5)
-    local tasks = {}
+    local bx, by, bz = zombie:getX(), zombie:getY(), zombie:getZ()
+    local dist = BanditUtils.DistTo(bx, by, stand.x + 0.5, stand.y + 0.5)
 
-    if dist > 0.9 then
-        -- Walk, not Run. Indoors, and the whole point of searching a house is that it is
-        -- quiet enough to search a house.
-        tasks[#tasks + 1] = BanditUtils.GetMoveTask(0, stand.x, stand.y, stand.z, "Walk", dist, false)
+    -- Close in a straight line is not the same as close. Without this an NPC on the far side of
+    -- a partition is 0.6 tiles from a cupboard it cannot touch, and reaches through the wall.
+    local ok, blocked = pcall(function()
+        return LosUtil.lineClearCollide(
+            math.floor(bx), math.floor(by), math.floor(bz),
+            math.floor(stand.x), math.floor(stand.y), math.floor(stand.z), false)
+    end)
+    if not ok then blocked = false end
+
+    if dist > REACH or blocked then
+        mood.approach = mood.approach or {}
+        local k = key(spot.x, spot.y, spot.z)
+        mood.approach[k] = (mood.approach[k] or 0) + 1
+
+        if mood.approach[k] > MAX_APPROACHES then
+            -- Written off, not retried. Marking it searched is what takes it out of
+            -- FindContainer's answers; without this the same unreachable drawer is chosen every
+            -- sweep and the NPC never reaches any other furniture.
+            markSearched(mood, spot.x, spot.y, spot.z)
+            SR.Log(string.format("LOOT gives up on %d,%d -- could not get there in %d tries",
+                spot.x, spot.y, MAX_APPROACHES))
+            return {}
+        end
+
+        -- Walk, not Run. Indoors, and the whole point of searching a house is that it is quiet
+        -- enough to search a house.
+        return { BanditUtils.GetMoveTask(0, stand.x, stand.y, stand.z, "Walk", dist, false) }
     end
 
-    tasks[#tasks + 1] = {
+    -- Here, and only here, is the square marked. The old code marked it at PLANNING time, so a
+    -- container the NPC never reached was remembered as already done.
+    markSearched(mood, spot.x, spot.y, spot.z)
+    if mood.approach then mood.approach[key(spot.x, spot.y, spot.z)] = nil end
+
+    return { {
         action = "ScenesLoot", anim = "Loot", time = 200,
         x = spot.x, y = spot.y, z = spot.z,
         want = want,
-    }
-
-    markSearched(mood, spot.x, spot.y, spot.z)
-    return tasks
+    } }
 end
 
 -- BAGS -------------------------------------------------------------------------------
@@ -544,34 +683,77 @@ function Loot.FindBag(zombie)
     return best
 end
 
---- Go and get it. The pickup itself is Bandits' own PickUp action; wearing it is a brain
---- field plus ApplyVisuals, the same two steps ScenesRelationsIdle already uses for hats.
+--- Go and get it. The pickup itself is Bandits' own PickUp action; wearing it is a brain field
+--- plus ApplyVisuals, the same two steps ScenesRelationsIdle already uses for hats.
+---
+--- One step at a time, for the same reason Loot.Search is -- see the long note there. The
+--- caller has to know WHICH step it got, because "I am waiting to wear a bag" is only true
+--- once the pickup has actually been queued; setting that flag on the walk leg made the next
+--- sweep look in an empty inventory and conclude somebody else had taken it.
+---
+--- Returns the tasks and whether this is the pickup leg.
 function Loot.FetchBag(zombie, want)
     local dist = BanditUtils.DistTo(zombie:getX(), zombie:getY(), want.x + 0.5, want.y + 0.5)
-    local tasks = {}
 
-    if dist > 0.9 then
-        tasks[#tasks + 1] = BanditUtils.GetMoveTask(0, want.x, want.y, want.z, "Walk", dist, false)
+    if dist > REACH then
+        return { BanditUtils.GetMoveTask(0, want.x, want.y, want.z, "Walk", dist, false) }, false
     end
 
-    tasks[#tasks + 1] = {
+    return { {
         action = "PickUp", anim = "LootLow", itemType = want.itemType,
         x = want.x, y = want.y, z = want.z, cnt = 1,
-    }
-
-    return tasks
+    } }, true
 end
 
 --- Put it on. Called once the pickup has drained, so the item is theirs before it is worn.
+---
+--- REPORTED: "vi que un npc si lo cogio, pero no se la equipo. Luego lo mate, y en el
+--- inventario no tenia la mochila."
+---
+--- Two separate defects behind one sentence, and the second one is the interesting one.
+---
+--- 1. NOTHING REBUILT THE DROP LIST. This wrote `brain.bag` and stopped. But a bandit's death
+---    drop is a list built once and cached -- `zombie:clearItemsToSpawnAtDeath()` then a full
+---    rebuild, Bandit.lua:717 -- and `brain.bag` is only read DURING that rebuild (:854, and
+---    `addItemToSpawnAtDeath(bag)` at :1141). Set the field, never call the rebuild, and the
+---    corpse still drops exactly what the spawner gave it. The container path happened to call
+---    the rebuild afterwards for its own reasons; the floor path never did, and the floor path
+---    is the one that was tested.
+---
+--- 2. WORN AND CARRIED ARE THE SAME BAG. `Bandit.UpdateItemsToSpawnAtDeath` sweeps the live
+---    inventory (`getAllEvalRecurse`, :727-732) AND instances `brain.bag` separately (:854), so
+---    a bag that is both in the inventory and named on the brain drops TWICE. The Ark avoids
+---    this whole class of problem by never leaving anything in `getInventory()` at all --
+---    `ZACollect` hands the item straight to `BWOAPermaInv` and drops the object. We are not
+---    moving to that model tonight, so the narrow version of the same rule: once it is worn it
+---    is no longer cargo, so take it out of the inventory.
 function Loot.WearBag(zombie, brain, itemType)
     brain.bag = { name = itemType }
     BanditBrain.Update(zombie, brain)
+
+    -- Out of the inventory, onto the body. Also frees the weight it was occupying, which is
+    -- what makes a bag worth walking for in the first place.
+    pcall(function()
+        local inventory = zombie:getInventory()
+        if not inventory then return end
+        local items = inventory:getItems()
+        for i = items:size() - 1, 0, -1 do
+            local item = items:get(i)
+            if item and item:getFullType() == itemType then
+                inventory:Remove(item)
+                break
+            end
+        end
+    end)
 
     local ok, err = pcall(function() Bandit.ApplyVisuals(zombie, brain) end)
     if not ok then
         SR.Log("LOOT could not apply the bag: " .. tostring(err))
         return false
     end
+
+    -- The bag is on the brain now, so this is the call that puts it on the corpse.
+    pcall(function() Bandit.UpdateItemsToSpawnAtDeath(zombie, brain) end)
 
     SR.Log(string.format("LOOT %s now carries a %s", tostring(brain.fullname), itemType))
     return true

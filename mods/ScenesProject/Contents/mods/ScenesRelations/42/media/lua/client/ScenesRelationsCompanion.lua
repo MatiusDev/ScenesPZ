@@ -360,10 +360,14 @@ function SR.Companion.FreeActivity(bandit, brain, mood, name)
                          tasks = SR.Loot.Search(bandit, mood, job, job.want) }
             elseif job.kind == "bag" and not SR.Loot.HasBag(brain) then
                 mood.doing = job
-                mood.fetchingBag = job.itemType
+                local tasks, picking = SR.Loot.FetchBag(bandit, job)
+                -- Only once the pickup itself is queued. On the walk leg the bag is still on
+                -- the floor, and claiming otherwise makes the next sweep read an empty
+                -- inventory and give up on a bag it is still walking towards.
+                if picking then mood.fetchingBag = job.itemType end
                 SR.Log(string.format("COMP %s goes back for the %s at %d,%d",
                     name, tostring(job.itemType), job.x, job.y))
-                return { status = true, next = "Main", tasks = SR.Loot.FetchBag(bandit, job) }
+                return { status = true, next = "Main", tasks = tasks }
             end
         else
             SR.Log(string.format("COMP %s gives up on the %s -- %.1f tiles away now",
@@ -376,15 +380,16 @@ function SR.Companion.FreeActivity(bandit, brain, mood, name)
     if not SR.Loot.HasBag(brain) then
         local bag = SR.Loot.FindBag(bandit)
         if bag then
-            mood.fetchingBag = bag.itemType
+            local tasks, picking = SR.Loot.FetchBag(bandit, bag)
+            if picking then mood.fetchingBag = bag.itemType end
             -- Recorded so the ladder can set it aside rather than lose it if something
             -- interrupts the walk. `kind` is what makes it resumable; the coordinates are
             -- what make it the SAME bag rather than any bag.
             mood.doing = { kind = "bag", itemType = bag.itemType,
                            x = bag.x, y = bag.y, z = bag.z }
-            SR.Log(string.format("COMP %s wants a bag -- %s at %d,%d",
-                name, bag.itemType, bag.x, bag.y))
-            return { status = true, next = "Main", tasks = SR.Loot.FetchBag(bandit, bag) }
+            SR.Log(string.format("COMP %s wants a bag -- %s at %d,%d%s",
+                name, bag.itemType, bag.x, bag.y, picking and " | reaching for it" or ""))
+            return { status = true, next = "Main", tasks = tasks }
         end
     end
 

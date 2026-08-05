@@ -256,6 +256,62 @@ Prior art tells you *where to look*; the engine tells you what is true.
 
 ---
 
+## R13 — A task cannot check its own preconditions
+
+A queued task runs when the queue reaches it. Nothing re-examines the world in between. So
+**everything a task depends on must be true at the moment it is queued** — not at the moment
+it was planned.
+
+This is the rule the 05-08 run was written to produce. The loot planner did the obvious thing:
+
+```lua
+if dist > 0.9 then tasks[#tasks+1] = GetMoveTask(...) end
+tasks[#tasks+1] = { action = "ScenesLoot", x = spot.x, y = spot.y }   -- WRONG
+```
+
+Move, then search. It reads correctly and it is wrong, because a Bandits move task guarantees
+only that it *ended*, never that it *arrived*. A blocked path, a closed door, a shove from a
+zombie, or the threat ladder clearing the queue all end a move early — and the next task fired
+anyway, read its coordinates, and emptied a wardrobe on the other side of the room.
+
+The symptom was not a crash. It was an NPC standing still, playing the correct animation,
+looting at range, for three play sessions: *"lotea desde el mismo punto"*.
+
+**The shape of the fix is upstream's, and it is worth copying exactly.**
+`BWOAPrograms.GoAndDo` (The Ark) returns the move **or** the action and never both:
+
+```lua
+if dist > precision or collide then
+    table.insert(tasks, BanditUtils.GetMoveTask(...))
+    return tasks          -- only the move
+else
+    table.insert(tasks, task)
+    return tasks          -- only the action
+end
+```
+
+A program runs only on an empty queue, so this costs nothing: walk → queue empties → program
+runs again → now within reach → act. The distance is measured **on arrival** instead of
+predicted. Every one of The Ark's dozen `Collect`/`Cook`/`CleanFloor` decisions goes through
+that one function, which is why none of them has this bug.
+
+Two consequences that are easy to miss when splitting a planner this way:
+
+- **Do not record the intent on the walk leg.** Marking a container "searched", or setting
+  "I am waiting to wear this bag", at planning time makes a thing the NPC never reached look
+  finished. Record it when the *action* is queued.
+- **Add an attempt cap.** There is no path-failure callback. Without one, an unreachable
+  target is chosen, walked at, and chosen again forever — a failure mode the all-at-once
+  version did not have.
+
+Belt and braces: the action itself should refuse to act at range and say so in the log. The
+queue is not ours alone, and a silent wrong result is the expensive kind (R2).
+
+> Does the diff queue an action whose correctness depends on a movement that precedes it in
+> the same queue? Does anything get marked done before it happened?
+
+---
+
 ## The review output
 
 Findings only, most severe first, each with:

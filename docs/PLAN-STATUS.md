@@ -31,7 +31,75 @@ el siguiente hasta que el actual pase. Pediste esto y tenías razón: la corrida
 
 ---
 
-# BLOQUE A — abierto ahora: lo que recogen es de verdad
+# BLOQUE A — segunda vuelta (05-08 noche)
+
+## Qué pasó en tu corrida
+
+| # | Reportaste | Veredicto |
+|---|---|---|
+| A0 | pasan | ✅ `ASSERT ---- 10 ok, 0 FAILED ----` en el log. El motor tiene la forma que el código cree, así que todo lo demás fue cableado nuestro. |
+| A1/A2 | siguen loteando desde el punto | ❌ confirmado, y era un patrón, no un bug suelto |
+| — | "cogen un montón de cosas que no sirven" | ❌ confirmado con aritmética: John James pasó de `carrying 0.2` a `6.3` en **3 ítems**. El presupuesto es 5.6. Un cajón malo termina su vida de saqueador. |
+| A3/A4 | recoge la mochila, no se la pone, no queda en el cadáver | ❌ confirmado, y son **dos** fallos distintos |
+| A5 | "sí aparecían ítems" | ⚠️ el log muestra 3 × `got N item(s) back after a respawn` — `Restore` funciona. Pero lo que viste en el cadáver puede ser el botín aleatorio de Bandits, no lo que recogió. Se vuelve a medir. |
+| A6 | — | ✅ 6 × `stops searching -- full`. La línea dice por qué. |
+
+## La causa de A1, que es la más importante de toda la sesión
+
+No era la casilla adyacente. Era **el orden de la cola**.
+
+`Loot.Search` encolaba las dos cosas juntas:
+
+```lua
+if dist > 0.9 then tasks[#] = GetMoveTask(...) end
+tasks[#] = { action = "ScenesLoot", x = spot.x, y = spot.y }
+```
+
+Una tarea de movimiento en Bandits garantiza que **terminó**, nunca que **llegó**. Camino
+bloqueado, puerta, empujón de un zombi, o la escalera de amenaza vaciando la cola: todo eso
+termina el movimiento antes de tiempo — y la tarea siguiente se ejecutaba igual, leía sus
+coordenadas y vaciaba un ropero al otro lado del cuarto.
+
+**Slayer nunca tuvo este bug porque nunca escribe una cola que no puede verificar.**
+`BWOAPrograms.GoAndDo` en The Ark devuelve el movimiento **o** la acción, jamás las dos. Un
+programa solo corre con la cola vacía, así que eso sale gratis: camina → cola vacía → el
+programa corre otra vez → ahora sí está al lado → actúa. La distancia se mide **al llegar**,
+no se predice.
+
+Esa es la plantilla que pediste, y quedó escrita como **R13** en `docs/CODE-REVIEW-RULES.md`.
+
+## Qué toqué esta vez
+
+- `Loot.Search` y `Loot.FetchBag`: un paso a la vez, patrón `GoAndDo`.
+- La casilla se marca "ya revisada" **al actuar**, no al planear. Antes, un mueble al que nunca
+  llegó quedaba como hecho.
+- Tope de 3 intentos por mueble: sin callback de fallo de ruta, un objetivo inalcanzable se
+  elegía para siempre.
+- `LosUtil.lineClearCollide`: ya no lotea a través de una pared.
+- `BanditUtils.GetAccessSquare` en vez del de vanilla — es de Slayer, recibe al bandido y
+  devuelve el vecino libre **más cercano a él**, descartando los que tienen pared de por medio.
+- Filtro de lo que vale la pena: comida (no veneno), armas, drenables (vendas), bebida, bolsos.
+  Y ningún ítem que por sí solo se coma lo que queda del presupuesto.
+- `WearBag` ahora reconstruye la lista de muerte y **saca el bolso del inventario suelto** — si
+  no, salía duplicado o no salía.
+- La acción se **niega** a lotear a más de 2 tiles y lo dice en el log.
+- 6 aserciones nuevas (16 en total).
+
+## Cómo lo probás — segunda vuelta
+
+| # | Qué hacer | Pasa si |
+|---|---|---|
+| **A0** | Buscá `ASSERT` en `console.txt`. **Antes que nada.** | `ASSERT ---- 16 ok, 0 FAILED ----`. Si algo dice `FAIL`, pará y mandámelo. |
+| **A1** | Entrá a una casa con un compañero y miralo. | **Camina hasta cada mueble** y lo abre parado al lado. |
+| **A2** | Buscá `LOOT refused` en el log. | **No aparece ni una vez.** Si aparece, la cola se sigue rompiendo y ahí está la prueba. |
+| **A3** | Tirá una mochila al piso cerca. | La levanta y **se la pone** (se ve en el modelo). Log: `LOOT ... now carries a ...` |
+| **A4** | Matalo después de que se la puso. | La mochila está en el cadáver, **una sola vez**. |
+| **A5** | Dejalo lotear una casa entera. | Abre más de 5–6 muebles. Lo que agarra es útil: comida, vendas, armas — no ropa. |
+| **A6** | Alejate hasta que desaparezca, volvé, matalo. | Suelta lo que recogió. |
+
+---
+
+# BLOQUE A — primera vuelta (04-08): lo que recogen es de verdad
 
 Esto rompía las pruebas 2, 7 y 10 al mismo tiempo.
 

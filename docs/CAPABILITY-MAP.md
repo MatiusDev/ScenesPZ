@@ -95,6 +95,49 @@ Relevant verbs already shipped and unused by any Bandits program: `LootWeapons`,
 `LootItems`, `TakeFromContainer`, `Equip`, `OpenWindow`, `SmashWindow`, `Destroy`.
 Scavenging behaviour is a matter of choosing when, not of building how.
 
+### "…somewhere else" — always through one walk-then-act primitive
+
+`BWOAPrograms.GoAndDo(bandit, point, task, precision, checkCollision, run)` — The Ark,
+`BWOAPrograms.lua`. **Every** one of its dozen go-somewhere-and-do-something decisions
+(`Collect`, `Cook`, `CleanFloor`, `PutContainer`, `InsertVHS`) goes through this one function,
+and none of them has the class of bug described in R13.
+
+```lua
+local asquare = square
+if not square:isNotBlocked(false) then
+    asquare = BanditUtils.GetAccessSquare(square, bandit)     -- BanditUtils.lua:1039
+end
+local collide = LosUtil.lineClearCollide(bx,by,bz, ax,ay,az, false)
+if dist > precision or collide then
+    return { BanditUtils.GetMoveTask(0, ax, ay, az, walkType, dist, false) }  -- move ONLY
+else
+    return { task }                                                          -- action ONLY
+end
+```
+
+Four things worth taking, in order of how much they cost to learn the hard way:
+
+| What | Why it matters |
+|---|---|
+| **Move or action, never both** | A move task guarantees it *ended*, not that it *arrived*. See R13 — this cost three sessions. |
+| `BanditUtils.GetAccessSquare(square, bandit)` | Bandits' own adjacent-tile finder. Takes the bandit and uses it (`square:DistToProper(bandit)`, `:1064`), so it returns the free neighbour **closest to this NPC**, and rejects any with a wall between (`isWallTo`, `:1054`). Vanilla's `AdjacentFreeTileFinder.Find` does neither. |
+| Only when blocked | `if not square:isNotBlocked(false)`. A container on an open tile is stood on, not walked around. |
+| `LosUtil.lineClearCollide` | Close in a straight line is not close. Without it an NPC reaches through a partition wall. |
+
+`precision` defaults to **0.7** tiles. Our first version used 1.6, then 0.9, both invented.
+
+### Deciding and taking are different layers
+
+`ZACollect` (The Ark) takes exactly ONE named type — `item:getFullType() == task.item.ftype`,
+`ZACollect.lua:89` — and returns. It has no opinion about what is worth having. The opinion
+lives in the program: `BWOABaseObjects.FindClosestItemClass("food", …)` picks the target, and
+only then is a `Collect` task built for it.
+
+Ours cannot copy that wholesale, because bounded incidental hauling — *"they must not strip
+the house"* — means taking things nobody named. So our filter lives in the action instead
+(`Loot.IsWorthTaking`). **Same conclusion, different layer**, and knowing which is which is
+what stops the next feature from being bolted to the wrong one.
+
 ## "I want an NPC to feel something"
 
 | Mechanism | State | Verified |

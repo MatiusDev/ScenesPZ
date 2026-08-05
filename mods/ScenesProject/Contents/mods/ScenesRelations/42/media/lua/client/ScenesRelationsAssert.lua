@@ -132,11 +132,45 @@ local function run()
         return type(Bandit) == "table" and type(Bandit.UpdateItemsToSpawnAtDeath) == "function"
     end)
 
-    -- WHERE SOMEBODY STANDS TO OPEN A DRAWER. Vanilla-owned, and only ever called with an
-    -- IsoPlayer before this mod, so its presence is worth confirming rather than assuming.
-    check("AdjacentFreeTileFinder.Find exists", function()
-        return type(AdjacentFreeTileFinder) == "table"
-           and type(AdjacentFreeTileFinder.Find) == "function"
+    -- WHERE SOMEBODY STANDS TO OPEN A DRAWER. Bandits' own, and it takes the bandit as an
+    -- argument -- `square:DistToProper(bandit)`, BanditUtils.lua:1064 -- so unlike vanilla's
+    -- AdjacentFreeTileFinder it is already designed to be handed an IsoZombie.
+    check("BanditUtils.GetAccessSquare exists", function()
+        return type(BanditUtils) == "table" and type(BanditUtils.GetAccessSquare) == "function"
+    end)
+
+    -- IS THERE A WALL IN THE WAY. Without this an NPC 0.6 tiles from a cupboard through a
+    -- partition reaches through it. Taken from BWOAPrograms.GoAndDo, which gates every one of
+    -- The Ark's walk-then-act decisions on it.
+    check("LosUtil.lineClearCollide exists", function()
+        return type(LosUtil) == "table" and type(LosUtil.lineClearCollide) == "function"
+    end)
+
+    -- WHAT IS WORTH CARRYING. The 05-08 run filled three survivors with 6kg of nothing and they
+    -- never searched again, because the filler pass took whatever was in front of it.
+    check("SR.Loot.IsWorthTaking says yes to tinned beans", function()
+        return SR.Loot and SR.Loot.IsWorthTaking(item("Base.TinnedBeans")) == true
+    end)
+
+    check("SR.Loot.IsWorthTaking says yes to a schoolbag", function()
+        return SR.Loot and SR.Loot.IsWorthTaking(item("Base.Bag_Schoolbag")) == true
+    end)
+
+    -- A shirt is the shape of the problem: harmless, plentiful, and it eats the budget.
+    check("SR.Loot.IsWorthTaking says no to a T-shirt", function()
+        return SR.Loot and SR.Loot.IsWorthTaking(item("Base.Tshirt_WhiteLongSleeve")) == false
+    end)
+
+    -- The per-item weight cap is only as good as this returning a real number.
+    check("getActualWeight returns a number", function()
+        local tin = item("Base.TinnedBeans")
+        local w = tin and tin:getActualWeight()
+        return type(w) == "number" and w > 0, tostring(w)
+    end)
+
+    -- Putting a bag on a live NPC. Sets the model; the drop list is a separate call.
+    check("Bandit.ApplyVisuals exists", function()
+        return type(Bandit) == "table" and type(Bandit.ApplyVisuals) == "function"
     end)
 
     SR.Log(string.format("ASSERT ---- %d ok, %d FAILED ----", passed, failed))
