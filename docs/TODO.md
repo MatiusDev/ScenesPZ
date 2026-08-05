@@ -6,6 +6,31 @@ list until a stage claims it.
 
 ---
 
+## `brain.scenesCarry` should become The Ark's `permaInv` — after block A
+
+**Blocked on purpose, not forgotten.** Block A is being tested on the gaming PC; changing the
+storage model before that run would mean the test measures something altered blind.
+
+The Ark (`vendor/TheArk`, vendored 2026-08-05) solved this problem before us and better. Full
+comparison with file:line in `docs/CAPABILITY-MAP.md` under *"I want an NPC to keep the things
+it picked up"*. Three concrete gaps in ours:
+
+1. **We store types, he stores state** — `cooked`, `dirtiness`, `bloodLevel`, `wetness`, the
+   whole nutrition block. A half-drunk bottle comes back full for us.
+2. **No partial use.** His `Use()` decrements `size` and scales every nutrition field
+   proportionally (`BWOAPermaInv.lua:71`). We cannot represent eating half a tin.
+3. **We never sync.** He calls `Bandit.ForceSyncPart` on every mutation
+   (`BWOAPermaInv.lua:3-9`). That is a real multiplayer defect in our code under principle 3,
+   and the smoke test cannot see it because it never runs client Lua.
+
+Separate and smaller, from the same read: `Loot.GoalOf` counts a tin of beans as food even
+with no opener. `BWOAItems.GetItemClass` splits `food` from `food_packaged` by asking
+`item:getOpeningRecipe() or item:getDoubleClickRecipe()` (`BWOAItems.lua:9`), and uses
+`item:isFood() and not item:isPoison()` where we use `instanceof(item, "Food")` — his excludes
+poison, ours does not.
+
+---
+
 ## Bandits do not reanimate
 
 **Seen:** an NPC killed by a bite stays dead. It should stand back up after whatever delay

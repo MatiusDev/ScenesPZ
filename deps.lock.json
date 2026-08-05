@@ -1,6 +1,6 @@
 {
   "game_build": "42.20.0",
-  "checked_at": "2026-08-03T01:24:21Z",
+  "checked_at": "2026-08-05T06:37:56Z",
   "mods": {
     "3268487204": {
       "name": "[B42] Bandits NPC",
@@ -15,6 +15,13 @@
       "vendor_path": "vendor/WeekOne",
       "steam_updated": "2026-06-03T09:18:22Z",
       "vendored_at": "2026-08-03T01:24:21Z"
+    },
+    "3707475814": {
+      "name": "The Ark",
+      "role": "reference only - same author as Bandits, newer NPC AI to compare against",
+      "vendor_path": "vendor/TheArk",
+      "steam_updated": "2026-08-02T12:46:53Z",
+      "vendored_at": "2026-08-05T06:37:56Z"
     },
     "3469292499": {
       "name": "[B42] Bandits Creator",

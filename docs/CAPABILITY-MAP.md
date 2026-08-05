@@ -193,6 +193,55 @@ approach the player unprompted. This is the next section to fill.
 
 ---
 
+## "I want an NPC to keep the things it picked up"
+
+Vendored 2026-08-05 as `vendor/TheArk` (Workshop `3707475814`, 50k subs, updated the same day
+as Bandits). Same author as Bandits and Week One, and the first place he solved this problem
+properly. Paths below are relative to
+`vendor/TheArk/mods/BanditsWeekOneTheArk/42.20/media/lua/`.
+
+**The conclusion is independent and it matches ours.** `zombie:getInventory()` does not
+survive a despawn, so The Ark keeps a parallel inventory **on the brain**: `brain.permaInv`,
+in `shared/BWOAPermaInv.lua`. We reached the same shape from the log alone before this mod was
+vendored, which is about as strong as corroboration gets.
+
+| Mechanism | What it gives | Verified at |
+|---|---|---|
+| `BWOAPermaInv.Add(bandit, item)` | writes an `itemConf` onto `brain.permaInv` and syncs | `BWOAPermaInv.lua:11` |
+| `BWOAPermaInv.Use(bandit, type, n)` | partial consumption — decrements `size` and **scales every nutrition field** | `:71` |
+| `BWOAPermaInv.Has / HasType / HasClass` | "does this person have an X" without touching the live inventory | `:127 / :158 / :190` |
+| `BWOAItems.GetItemClass(item)` | `media` / `food` / `food_packaged` / `drink` / `clothing` / `normal` | `BWOAItems.lua:3` |
+
+### Where his is better than ours, concretely
+
+Our `brain.scenesCarry` stores **full types only**. His stores state, and the difference is
+not cosmetic:
+
+1. **Item state survives.** `cooked`, `weight`, `dirtiness`, `bloodLevel`, `wetness`, and the
+   whole nutrition block. Ours brings a half-drunk bottle back full — a limitation we marked
+   with a `ponytail:` comment and he simply does not have.
+2. **Partial use exists.** `size` plus proportional scaling of every nutrition field. Ours has
+   no notion of eating half of something.
+3. **Every mutation syncs.** `Bandit.ForceSyncPart(bandit, {id=..., permaInv=...})`
+   (`BWOAPermaInv.lua:3-9`). **Ours does not sync at all**, which is a multiplayer defect in
+   our code by principle 3 — the client/server boundary is real even in singleplayer.
+
+### Also worth taking, separately
+
+`GetItemClass` splits **`food` from `food_packaged`** by asking
+`item:getOpeningRecipe() or item:getDoubleClickRecipe()` (`BWOAItems.lua:9`). That is a real
+distinction our `Loot.GoalOf` is missing: a tin of beans with no opener is not food to an NPC,
+and today we would count the goal satisfied.
+
+It also uses `item:isFood() and not item:isPoison()` where we use `instanceof(item, "Food")`.
+His excludes poison; ours does not.
+
+> **Not yet applied.** Deliberately. Block A is being tested on the gaming PC and rewriting the
+> storage model first would mean tomorrow's run measures something changed blind. Scheduled in
+> `docs/TODO.md` for after block A passes.
+
+---
+
 ## Applied: the Follow me / Join me problem
 
 The current design puts two options in a right-click menu on a moving target, below

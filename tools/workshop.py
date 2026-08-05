@@ -25,6 +25,30 @@ APPID = 108600
 DETAILS = "https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/"
 QUERY = "https://api.steampowered.com/IPublishedFileService/QueryFiles/v1/"
 HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(HERE)
+
+
+def _load_env():
+    """Read STEAM_API_KEY from .env at the repo root, if it is there.
+
+    .gitignore has promised that file holds "Local secrets (STEAM_API_KEY etc.)" since the
+    first commit, and nothing ever read it -- so the key had to be exported by hand in every
+    new shell and the promise was a trap. A real environment variable still wins; this only
+    fills the gap.
+    """
+    path = os.path.join(ROOT, ".env")
+    if not os.path.isfile(path):
+        return
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            name, _, value = line.partition("=")
+            os.environ.setdefault(name.strip(), value.strip().strip("'\""))
+
+
+_load_env()
 
 
 def _post(url, fields):
