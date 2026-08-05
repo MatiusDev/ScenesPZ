@@ -75,13 +75,26 @@ local BAG_SEARCH = 12
 -- Syntax checking cannot catch that; luac compiles it happily. Only reading the file in
 -- order, or running it, will.
 --
--- Both predicates are the engine's own tests rather than lists of ids:
--- `getBodyLocation() == "Back"` is how a garment says it is worn on the back, and
--- `instanceof(item, "Food")` is the test ZPCompanion's own foraging block uses.
-
+-- Both predicates are the engine's own tests rather than lists of ids, and the bag one was
+-- WRONG for the first three test runs. `getBodyLocation()` is a CLOTHING field. A bag is an
+-- InventoryContainer and declares itself with `CanBeEquipped = base:back`
+-- (media/scripts/generated/items/container.txt:57) -- it has no BodyLocation at all, so the
+-- old predicate returned false for every rucksack in the game.
+--
+-- That one wrong method produced four separate symptoms, all reported from play: bags on the
+-- floor were never seen, the goal "bag" could never be satisfied, the priority pass in
+-- onComplete never matched, and a bag pulled out of a drawer was treated as filler. The proof
+-- is negative and total -- 1,422 SREL lines in the 04-08 run, zero `found what it wanted`.
+--
+-- The replacement is the engine's own test, copied from ISInventoryPane.lua:967, which is
+-- what the inventory UI uses to decide whether a thing can be worn as a container.
 local function isBag(item)
-    local ok, loc = pcall(function() return item:getBodyLocation() end)
-    return ok and loc == "Back"
+    local ok, wearable = pcall(function()
+        return instanceof(item, "InventoryContainer")
+           and item:canBeEquipped() ~= nil
+           and item:canBeEquipped() ~= ""
+    end)
+    return ok and wearable == true
 end
 
 local function isFood(item)
@@ -129,6 +142,7 @@ ZombieActions.ScenesLoot.onComplete = function(zombie, task)
     if not ok or type(budget) ~= "number" then return true end
 
     local taken = 0
+    local foundBag = nil
 
     local objects = square:getObjects()
     for i = 0, objects:size() - 1 do
@@ -159,8 +173,20 @@ ZombieActions.ScenesLoot.onComplete = function(zombie, task)
 
                         container:Remove(item)
                         container:removeItemOnServer(item)
+                        -- Marked as ours the moment it changes hands. Restore() uses this to
+                        -- tell what a despawn took away from what the spawner put there.
+                        item:getModData().scenesLooted = true
+                        item:getModData().preserve = true
                         inventory:AddItem(item)
                         taken = taken + 1
+
+                        -- A bag out of a drawer is the same find as a bag off the floor, and
+                        -- until now only the floor path ever put one on. "se la puse en un
+                        -- cajon de las casas y ahi si la cogio, pero no se la equipo nunca."
+                        if not foundBag and isBag(item) then
+                            foundBag = item:getFullType()
+                        end
+
                         if first then
                             SR.Log(string.format("LOOT found what it wanted (%s): %s",
                                 tostring(task.want), tostring(item:getFullType())))
@@ -172,11 +198,107 @@ ZombieActions.ScenesLoot.onComplete = function(zombie, task)
     end
 
     local brain = BanditBrain.Get(zombie)
-    SR.Log(string.format("LOOT %s took %d from %d,%d | carrying %.1f / %.1f",
+
+    if foundBag and brain and not Loot.HasBag(brain) then
+        Loot.WearBag(zombie, brain, foundBag)
+    end
+
+    -- MAKING IT REAL. Everything above only moved items into `zombie:getInventory()`, and on
+    -- a Bandits NPC that is a VIEW, not the store.
+    --
+    -- Upstream is unambiguous about this. Bandit.lua:710 -- "This translates weapons, loot,
+    -- inventory to actual items to be spawned at bandit death" -- and the first thing
+    -- UpdateItemsToSpawnAtDeath does is `zombie:clearItemsToSpawnAtDeath()` (:717) before
+    -- rebuilding the list from the brain and the live inventory. Nothing we did called it, so
+    -- the drop list stayed frozen at whatever the spawner wrote. That is exactly the report:
+    -- "cuando loteo el bolso, lo mate para ver su inventario y solo tenia las cosas con las
+    -- que spawnea."
+    if brain then
+        Loot.Remember(zombie, brain)
+        pcall(function() Bandit.UpdateItemsToSpawnAtDeath(zombie, brain) end)
+    end
+
+    SR.Log(string.format("LOOT %s took %d from %d,%d | carrying %.1f / %.1f%s",
         tostring(brain and brain.fullname), taken, task.x, task.y,
-        inventory:getCapacityWeight(), inventory:getMaxWeight()))
+        inventory:getCapacityWeight(), inventory:getMaxWeight(),
+        foundBag and (" | BAG " .. foundBag) or ""))
 
     return true
+end
+
+-- KEEPING WHAT THEY PICKED UP ---------------------------------------------------------
+--
+-- REPORTED: "no queda en su inventario las cosas que recoje... toca revisar como se guarda
+-- las cosas y donde quedan."
+--
+-- The 04-08 log proves it without needing to kill anybody. Daniel Green climbed from
+-- `carrying 1.5` to `carrying 5.6` between f:74836 and f:82702, then reappeared at f:139066
+-- carrying 1.5 again -- with the same name, so the BRAIN survived the gap and the INVENTORY
+-- did not. Bandits despawns an NPC that leaves the player's range and rebuilds the IsoZombie
+-- from the brain when it comes back; anything that lived only on the old object is gone.
+--
+-- So the brain has to hold the list, the same way it already holds `weapons` and `bag`. This
+-- stores full types only, not item state -- a half-drunk bottle of water comes back full.
+-- ponytail: types only; store condition/uses per item if a survivor's kit ever has to be
+-- exact rather than merely present.
+
+--- Write down what this person is carrying that they were not spawned with.
+function Loot.Remember(zombie, brain)
+    local inventory = zombie:getInventory()
+    if not inventory or not brain then return end
+
+    local ok, items = pcall(function() return inventory:getItems() end)
+    if not ok or not items then return end
+
+    local carry = {}
+    for i = 0, items:size() - 1 do
+        local item = items:get(i)
+        if item and item:getModData().scenesLooted then
+            carry[#carry + 1] = item:getFullType()
+        end
+    end
+
+    brain.scenesCarry = carry
+    BanditBrain.Update(zombie, brain)
+end
+
+--- Put it all back after a despawn took it.
+---
+--- Deliberately all-or-nothing: it acts only when the remembered list is non-empty and the
+--- live inventory holds NONE of it, which is the wipe this exists for. A partial reconcile
+--- would have to decide whether a missing tin was eaten or lost, and guessing wrong there
+--- either duplicates food or deletes it.
+function Loot.Restore(zombie, brain)
+    local carry = brain and brain.scenesCarry
+    if not carry or #carry == 0 then return end
+
+    local inventory = zombie:getInventory()
+    if not inventory then return end
+
+    local ok, items = pcall(function() return inventory:getItems() end)
+    if not ok or not items then return end
+
+    for i = 0, items:size() - 1 do
+        local item = items:get(i)
+        if item and item:getModData().scenesLooted then return end
+    end
+
+    local back = 0
+    for _, itemType in ipairs(carry) do
+        local item = BanditCompatibility.InstanceItem(itemType)
+        if item then
+            item:getModData().scenesLooted = true
+            item:getModData().preserve = true
+            inventory:AddItem(item)
+            back = back + 1
+        end
+    end
+
+    if back > 0 then
+        pcall(function() Bandit.UpdateItemsToSpawnAtDeath(zombie, brain) end)
+        SR.Log(string.format("LOOT %s got %d item(s) back after a respawn",
+            tostring(brain.fullname), back))
+    end
 end
 
 -- WHAT SOMEBODY IS ACTUALLY AFTER -----------------------------------------------------
@@ -313,15 +435,45 @@ function Loot.FindContainer(zombie, mood)
     return best
 end
 
+--- Where somebody actually stands to open this. NOT the container's own square.
+---
+--- REPORTED: "se ve la animacion de como desde el mismo punto lotea todas las cosas o revisa
+--- todo los cajones... el deberia acercarse a cada cajon y lotear uno por uno."
+---
+--- Exactly right, and the cause was that the walk was aimed at the furniture. A survivor
+--- cannot stand inside a wardrobe, so the move ended early or never started, and the search
+--- action then ran from wherever they happened to be -- which is what you saw: a person
+--- rummaging through a room without crossing it.
+---
+--- `AdjacentFreeTileFinder.Find(square, character)` is the engine's own answer to "where do I
+--- stand to use this", used by vanilla for generators, BBQs, farming and every world-object
+--- context menu (ISWorldObjectContextMenu.lua:114). pcall'd because it is a Java call taking
+--- an IsoGameCharacter and an IsoZombie has never been passed to it before; falling back to
+--- the container square is no worse than the behaviour being replaced.
+local function standingSpot(zombie, spot)
+    local cell = zombie:getCell()
+    if not cell then return spot end
+
+    local square = cell:getGridSquare(spot.x, spot.y, spot.z)
+    if not square then return spot end
+
+    local ok, free = pcall(function() return AdjacentFreeTileFinder.Find(square, zombie) end)
+    if ok and free then
+        return { x = free:getX(), y = free:getY(), z = free:getZ() }
+    end
+    return spot
+end
+
 --- Walk there, search it, and remember we did.
 function Loot.Search(zombie, mood, spot, want)
-    local dist = BanditUtils.DistTo(zombie:getX(), zombie:getY(), spot.x + 0.5, spot.y + 0.5)
+    local stand = standingSpot(zombie, spot)
+    local dist = BanditUtils.DistTo(zombie:getX(), zombie:getY(), stand.x + 0.5, stand.y + 0.5)
     local tasks = {}
 
-    if dist > 1.6 then
+    if dist > 0.9 then
         -- Walk, not Run. Indoors, and the whole point of searching a house is that it is
         -- quiet enough to search a house.
-        tasks[#tasks + 1] = BanditUtils.GetMoveTask(0, spot.x, spot.y, spot.z, "Walk", dist, false)
+        tasks[#tasks + 1] = BanditUtils.GetMoveTask(0, stand.x, stand.y, stand.z, "Walk", dist, false)
     end
 
     tasks[#tasks + 1] = {
@@ -348,10 +500,10 @@ end
 
 --- The nearest bag lying on the ground.
 ---
---- Matched by body location, never by item id. `getBodyLocation()` is how a garment says
---- where it goes (Trailer1Scenario.lua:111) and "Back" is the slot Bandits itself checks
---- when attaching things (Bandit.lua:215). Listing bag ids would mean inventing a list that
---- goes stale the first time the game adds a rucksack.
+--- Uses the same `isBag` as everything else, and that is the whole point of it being one
+--- function. The floor search and the drawer search disagreeing about what a bag is once was
+--- enough. Listing bag ids would mean inventing a list that goes stale the first time the
+--- game adds a rucksack.
 function Loot.FindBag(zombie)
     local cell = zombie:getCell()
     if not cell then return nil end
@@ -369,14 +521,11 @@ function Loot.FindBag(zombie)
                     if objects then
                         for i = 0, objects:size() - 1 do
                             local item = objects:get(i):getItem()
-                            if item then
-                                local ok, loc = pcall(function() return item:getBodyLocation() end)
-                                if ok and loc == "Back" then
-                                    best = { itemType = item:getFullType(),
-                                             x = sq:getX(), y = sq:getY(), z = sq:getZ() }
-                                    bestDist = dist
-                                    break
-                                end
+                            if item and isBag(item) then
+                                best = { itemType = item:getFullType(),
+                                         x = sq:getX(), y = sq:getY(), z = sq:getZ() }
+                                bestDist = dist
+                                break
                             end
                         end
                     end

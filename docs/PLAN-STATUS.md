@@ -10,246 +10,121 @@ Hoja de ruta completa: [`docs/plans/README.md`](plans/README.md).
 
 ---
 
+## Cómo vamos a trabajar de ahora en adelante
+
+Un bloque a la vez. Cada bloque son 2–3 cosas que comparten causa, no 12 sueltas. No abrimos
+el siguiente hasta que el actual pase. Pediste esto y tenías razón: la corrida del 04-08 dejó
+1.422 líneas de log y **una sola causa** explicaba cuatro de los síntomas.
+
+---
+
 ## Ya confirmado — no lo repitas
 
 | Qué | Evidencia |
 |---|---|
 | Memoria durable entre descargas de celda | corrida 03-08 |
 | La rueda de interacción | *"ya se comporta mejor"* |
-| Saqueo acotado | `took 3`; `carrying 1.1 → 6.2 / 8.0` y parando |
 | Corte con vidrios rotos | `cut on broken glass \| 1.80 -> 1.55` |
-| El censo produce datos | 189 líneas `AUTO` |
-| Correr detrás de un NPC que pegaba una puerta | *"si corrio detras de mi, esa parte está bien"* |
+| Arma silenciosa adentro de una casa | 5 × `goes quiet indoors` — **nunca había disparado** |
+| Sentarse dejó de ser constante | *"si se sientan, y lo hacen menos seguido que antes"* |
+| Cast out / expulsar | *"esto funciona correctamente"* (prueba 12) |
 
 ---
 
-## Lo que arreglé de tu último reporte
+# BLOQUE A — abierto ahora: lo que recogen es de verdad
 
-**Los NPC ya no se convierten en zombi.** Tenías razón en las dos partes. Bandits no tiene
-incubación: una mordida escribe un contador, le suma 0.001 por tick y a 100 los convierte.
-No hay enfermedad, ni fiebre, ni deterioro — es un cronómetro. Y eso causaba el segundo bug:
-al convertirse llaman `BanditRemove`, pero las cachés van un frame atrás, así que uno que ya
-era zombi seguía recibiendo órdenes de volver con vos. **Dos bugs, una raíz.** Apagado con un
-flag, fácil de revertir cuando el modelo de heridas pueda expresar enfermarse.
+Esto rompía las pruebas 2, 7 y 10 al mismo tiempo.
 
-**Y por eso no te seguía.** El orden de la escalera estaba mal. Con una horda encima siempre
-hay algo dentro del radio de "me tienen agarrado", así que pelear ganaba **cada barrido** y se
-quedaba dando palos mientras vos te ibas. Es literal lo que describiste: *"se quedó
-pegandoles"*, *"no sé si es que hubiera varios zombies cerca, no lo hizo correr"*.
+## Qué encontré
 
-Ahora **si vos corrés, él corre — por encima de todo**: del miedo, de estar agarrado, de una
-calle entera. Un compañero cuyo jefe sale corriendo ya sabe cuál es el plan. Quedarse a
-aguantar una horda solo no es valentía, es no haber sido avisado.
+**Una mochila no tiene `BodyLocation`.** Yo usaba `item:getBodyLocation() == "Back"` para
+reconocer un bolso. Ese campo es de **ropa**. Un bolso es un `InventoryContainer` y se declara
+con `CanBeEquipped = base:back` (`container.txt:57`) — no tiene `BodyLocation` en absoluto.
 
-**El cansancio.** Verifiqué: sí baja y sí guarda — `BanditBrain.Get` devuelve una referencia,
-no una copia. Lo que estaba mal era la aritmética. Correr cuesta 0.07 **cada vez que una
-tarea de movimiento termina**, y mi tick rápido cobraba precio completo por cada corrección.
-Ahora una re-asignación no cuesta nada (el viaje ya se está pagando) y descansar da el doble.
+Un método equivocado, cuatro síntomas tuyos:
 
-**No se curaba solo.** La decisión de vendarse vivía dentro del bloque de actividades libres,
-al que un compañero sólo llega **a menos de 7 tiles tuyos**. O sea que uno herido siguiéndote
-a nueve tiles nunca tenía permiso de parar. Cerrar la distancia no es más urgente que no
-desangrarse.
+- no recogía la mochila del suelo,
+- la meta "buscar mochila" nunca se podía cumplir — **las 28 búsquedas del log dicen
+  `for bag`**, ninguna la encontró,
+- la mochila que sí sacó de un cajón salió como relleno, no como el objetivo,
+- y por eso nunca se la equipó.
 
-**Y les di propósito.** Buscaban sin buscar nada: abrían lo más cercano y sacaban las primeras
-tres cosas. Ahora tienen un objetivo — **mochila primero, después comida** — que decide **qué
-sale primero del cajón** y aparece en el log. Lo que van a buscar ignora el tope de 3 ítems:
-una mochila al fondo de un ropero no se pierde porque había latas adelante.
+La prueba es negativa y total: 1.422 líneas `SREL` y **cero** `found what it wanted`.
 
----
+**Y lo que recogen no era real.** Bandits guarda las pertenencias en el `brain`, no en
+`zombie:getInventory()`. Su propio comentario lo dice (`Bandit.lua:710`): *"This translates
+weapons, loot, inventory to actual items to be spawned at bandit death"*. Nunca llamábamos a
+esa función, así que la lista de lo que suelta al morir seguía congelada en la del spawn —
+exactamente lo que viste al matarlo. El log lo muestra sin necesidad de matar a nadie: Daniel
+Green subió de `carrying 1.5` a `5.6`, y **reapareció con 1.5** conservando el nombre. El
+cerebro sobrevivió al despawn; el inventario no.
 
-## Antes de empezar
+**Y loteaba desde el mismo punto** porque la caminata apuntaba al mueble. Nadie puede pararse
+adentro de un ropero, así que el movimiento no llegaba y la acción corría desde donde estuviera.
 
-```bash
-tools/sync-mods.sh
-```
+## Qué toqué
 
-**Arrancás con mochila, pistola y una caja de 9mm.** Kit de pruebas temporal para que puedas
-hacer las pruebas 4, 5 y 9; está marcado para borrar en el código.
+- El test de "esto es un bolso" ahora es el del propio motor (`ISInventoryPane.lua:967`).
+- Después de saquear: se marca lo tomado, se anota en `brain.scenesCarry` y se reconstruye la
+  lista de muerte con `Bandit.UpdateItemsToSpawnAtDeath`.
+- `Loot.Restore` devuelve lo perdido si un despawn le vació el inventario.
+- Un bolso encontrado en un cajón ahora se **pone**, igual que uno del suelo.
+- Se camina a la casilla libre de al lado del mueble (`AdjacentFreeTileFinder`, lo mismo que
+  usa vanilla para generadores y BBQ).
 
----
+## Cómo lo probás
 
-## Las pruebas, en orden
-
-### 1. Correr con una horda encima
-
-**Hacé:** juntá tres o más zombis alrededor de tu compañero y **esprintá** lejos sin pelear.
-
-**Pasa si** sale, con **pocos** tiles:
-
-```
-AUTO <nombre> | fast follow at 6.4 tiles (Run) -- master sprinting
-```
-
-**Lo que quiero saber:** si te sigue **teniendo zombis pegados**. Antes ganaba pelear. Si
-sigue quedándose, mandame las líneas `AUTO census` de ese momento — traen `rung` y la
-distancia al zombi más cercano (`z=N@dist`), que es lo que decide.
+| # | Qué hacer | Pasa si |
+|---|---|---|
+| **A1** | Entrá a una casa con un compañero y miralo lotear. | **Camina hasta cada mueble** y lo abre parado al lado. No lotea a distancia. |
+| **A2** | Tirá una mochila al piso cerca de él. | La levanta y **se la pone** (se ve en el modelo). Log: `LOOT ... now carries a ...` |
+| **A3** | Poné una mochila en un cajón de una casa. | Igual que A2. Log: `LOOT ... \| BAG Base.Bag_...` |
+| **A4** | Con mochila puesta, dejalo lotear la casa entera. | Sigue abriendo muebles más allá de los 5–6 de antes. |
+| **A5** | Dejalo saquear, alejate hasta que desaparezca, volvé. **Matalo.** | Suelta lo que recogió, no sólo el bate del spawn. |
+| **A6** | Si deja de lotear, mirá el log. | Sale `COMP ... stops searching -- full` o `-- nothing left within reach`. Ahora dice **por qué**. |
 
 ---
 
-### 2. Que busquen con propósito
+# BLOQUE B — siguiente: seguir y huir con matemática de grupo
 
-**Hacé:** entrá con un compañero a una casa con muebles sin abrir y **quedate quieto**.
+Todavía **no está hecho**. Queda escrito acá para no perderlo.
 
-**Pasa si** el log dice **qué** está buscando:
+Tu descripción, que es la especificación:
 
-```
-COMP <nombre> searches 10750,10281 for bag | in=0 out=0
-LOOT found what it wanted (bag): Base.Bag_Schoolbag
-```
+> *"quiere volver a mi porque me está siguiendo, pero ve los zombies y luego huye. Se queda
+> en ese estado de correr y volver, correr y volver."*
 
-Cuando ya tenga mochila, el objetivo pasa a `food`. Si dice `for anything useful`, es que ya
-tiene las dos cosas.
+Y la regla que pediste:
 
-**Y mirá que cambie de habitación** — el límite ahora es el edificio, no el cuarto.
+- **3 o más zombies sobre un solo NPC (o sobre vos solo)** → reposicionarse, no quedarse
+  quieto: hacer distancia y pelear desde ahí.
+- **2 o más de los nuestros contra 3 zombies** → nadie se mueve, se pelea.
+- Grupo chico (2–3): el que no llega **espera y llama**, no oscila. Llamar hace ruido y atrae
+  más zombies — es un costo real, no gratis.
+- Grupo grande (4+) con horda encima: huyen todos.
 
----
-
-### 3. Que se cure solo
-
-**Hacé:** dejá que baje de 0.7 de vida (miralo en el panel Health) y **no lo cures vos**.
-Podés dejarlo herido y caminar: ahora puede parar a vendarse aunque esté lejos.
-
-```
-COMP <nombre> stops to dress a wound | 9.2 tiles from master
-WOUND <nombre> dressed with bandage | 0.35 -> 1.71 / 1.80 | risky=false
-```
-
-`improvised` también pasa — es el piso, se rasgan la ropa.
+Lo que falta es el conteo de gente **nuestra** cerca; hoy la escalera sólo cuenta zombies.
 
 ---
 
-### 4. Darle la mochila
+# BLOQUE C — postergado, con razón
 
-**Hacé:** tirá al piso la mochila con la que arrancás, cerca de un compañero que en el censo
-diga `bag=false`.
-
-```
-COMP <nombre> wants a bag -- Base.Bag_Schoolbag at 10748,10279
-LOOT <nombre> now carries a Base.Bag_Schoolbag
-```
-
-Después el censo tiene que decir `bag=true`.
+| Qué | Por qué espera |
+|---|---|
+| No se cura solo | Necesita vendas en el inventario. Sin el bloque A no hay con qué probarlo. |
+| Ventana disputada, leer | Vos mismo los bajaste de prioridad. |
+| ¿Descansan de verdad? | A medias. La resistencia sólo baja en Bandits; nuestro descanso es la única fuente. Se mide después del bloque A. |
+| Los sueltos siguen en idle | Hay que agrandarles el radio sin que barran el mapa. Diseño en `03-autonomy.md`. |
+| No aparece compañero al revivir | **El log dice que sí se pide**: 3 respawns, 3 × `TLOU\| companion requested`. Ningún NPC aparece después. El fallo está **adentro de `BanditServer.Spawner.Clan`**, no en nuestro handler. Investigación aparte. |
 
 ---
 
-### 5. Guardar el arma adentro de una casa — pasos exactos
+## Recordá antes de probar
 
-Esta nunca se disparó. Te la detallo porque hay que armar la situación a propósito.
-
-1. Conseguí un NPC que **tenga un arma de fuego**. El panel **Health** te lo dice: la línea
-   `Weapon` dice `loaded` si la tiene cargada, `out of ammo` si no. **Sin arma de fuego no
-   hay nada que guardar y la prueba no aplica** — no la des por fallada.
-2. Metelo **adentro** de una casa con vos.
-3. Traé zombis **adentro**, no afuera.
-
-**Pasa si** sale:
-
-```
-COMP <nombre> goes quiet indoors (try 1) | in=1 out=2
-```
-
-**Si ves `try 1` y `try 2` repitiéndose sin parar** para el mismo NPC, avisame: significa que
-su propio combate le devuelve el arma y hay que atacarlo distinto.
-
----
-
-### 6. Que uno espere en la ventana — pasos exactos
-
-También necesita la situación armada.
-
-1. Poné **dos** compañeros juntos.
-2. Llevalos afuera, cerca de una casa **cerrada** con ventanas.
-3. Traé zombis para asustar a los dos a la vez.
-
-**Pasa si** uno reclama la ventana y el otro espera:
-
-```
-AUTO <nombre> | waits, 9306146 is already working 10783,10299,0
-```
-
-Si los dos van igual a la misma ventana, mandame las dos líneas `AUTO census` de ese momento.
-
----
-
-### 7. Sentarse y cansancio
-
-**Hacé:** caminá un rato largo, parate adentro, dejalos sentarse. **Después seguí jugando y
-fijate cuánto tardan en volver a sentarse.**
-
-```
-COMP <nombre> sits down | endurance 0.42 < 0.55 | indoors
-```
-
-**Lo que quiero saber:** si el intervalo entre asientos ahora es **notablemente más largo**.
-Nadie debería sentarse con `endurance 1.00`, y nadie afuera salvo por debajo de 0.25.
-
----
-
-### 8. Leer
-
-Dale un libro o un cómic a un compañero y metelo en una casa tranquila.
-
-```
-COMP <nombre> sits down with a book | endurance 0.90
-```
-
-Lo de sacar cómics de una caja que viste era el saqueo, no la lectura — son dos cosas
-distintas. Puede leer **sin estar cansado**.
-
----
-
-### 9. Un NPC suelto
-
-**Hacé:** spawneá dos supervivientes, no les digas nada, y dejalos **adentro** de una casa.
-
-**Pasa si** hacen las mismas cosas que un compañero — `searches ... for bag`, `wants a bag`.
-
-**Sé que esto sigue flojo afuera:** un NPC suelto en la calle no tiene nada que buscar y se
-queda en idle. Salir a buscar un edificio no está construido; está anotado en
-`docs/plans/03-autonomy.md`.
-
----
-
-### 10. Cast out y Leave me
-
-Con un aliado de confianza alta: `Leave me` → `Follow me` tiene que **volver a aparecer**.
-Después `Cast out` → la confianza queda en **0** y `Cast out` desaparece de la rueda.
-
----
-
-### 11. Compañero al reaparecer
-
-Morite, creá un personaje nuevo.
-
-```
-TLOU| new character -- one companion queued
-```
-
-Y al **recargar** un personaje que ya existe tiene que decir lo contrario, o vas a acumular
-compañeros:
-
-```
-TLOU| this character already has their companion -- not spawning another
-```
-
----
-
-### 12. El WHO
-
-**Muertos:** matá a alguien conocido → la fila queda, atenuada, con `dead` a la derecha.
-
-**Por personaje:** con el personaje nuevo de la prueba 11, el WHO tiene que estar **vacío**.
-
-```
-STORE new life 412-38104 -- relationships start empty
-```
-
----
-
-## Qué mandarme
-
-`console.txt` y una línea por prueba. De la 1, las `AUTO census` del momento en que corriste.
+- `git pull` en la PC de juego. La corrida anterior se probó con código viejo.
+- Personaje **nuevo** si vas a mirar el compañero inicial.
+- El kit de prueba (mochila + pistola + munición) sigue puesto y es **temporal**.
+- Mandame `console.txt` y una línea por prueba, de la A1 a la A6.
 
 ---
 
@@ -260,7 +135,7 @@ STORE new life 412-38104 -- relationships start empty
 | [00 — Mundo de pruebas](plans/00-test-world.md) | construida, confirmada a medias |
 | [01 — Memoria durable](plans/01-durable-memory.md) | **confirmada** |
 | [02 — Rueda de interacción](plans/02-interaction-wheel.md) | **confirmada** |
-| [03 — Autonomía](plans/03-autonomy.md) | saqueo y vidrios confirmados; el resto sin probar |
+| [03 — Autonomía](plans/03-autonomy.md) | bloque A abierto; B y C sin empezar |
 | [Heridas y curación](plans/wounds-and-healing.md) | etapa 1 construida; conversión **apagada** a propósito |
 
 En [`docs/TODO.md`](TODO.md): los cadáveres no retienen a la horda, `ClimbFence` está

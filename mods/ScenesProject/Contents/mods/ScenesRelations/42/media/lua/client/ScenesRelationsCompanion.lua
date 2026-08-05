@@ -221,6 +221,14 @@ local function scenesMain(bandit)
     -- Anything we cannot read is theirs. Never guess about a companion.
     if not brain or not mood or not mood.rung then return vanillaMain(bandit) end
 
+    -- BEFORE ANY DECISION, GIVE THEM BACK WHAT A DESPAWN TOOK.
+    --
+    -- Unconditional and above the rung switch on purpose: a companion following you at more
+    -- than FREE_RADIUS never reaches FreeActivity, and it would be the one carrying the most.
+    -- Restore is a no-op unless the remembered list is non-empty AND the live inventory holds
+    -- none of it, so the cost of asking every sweep is one loop over a short list.
+    if SR.Loot and SR.Loot.Restore then SR.Loot.Restore(bandit, brain) end
+
     local rung = mood.rung
     local name = tostring(brain.fullname)
 
@@ -383,8 +391,33 @@ function SR.Companion.FreeActivity(bandit, brain, mood, name)
     -- SEARCHING. Only with nothing inside and nobody working on the walls -- the ladder has
     -- already put them on FIGHT if either were true, so reaching here IS the calm case.
     -- "si entramos en sigilo y no hay zombies golpeando la puerta, la actividad es lootear."
-    if mood.indoors and SR.Loot.HasRoom(bandit) then
-        local spot = SR.Loot.FindContainer(bandit, mood)
+    -- REPORTED: "un comportamiento muy raro, es que solo lotea una vez al entrar la casa. No
+    -- lotea mas de una vez." Two things ended a trip and neither said so in the log, which is
+    -- why it looked like one rule. Full is not the same as finished: somebody with no bag hits
+    -- WEIGHT_BUDGET after about six items and stops wanting, while somebody who has been
+    -- through every cupboard within SEARCH tiles has nothing left to open. The first is fixed
+    -- by a bag actually working; the second is correct and should just be visible.
+    --
+    -- Logged once per reason per episode -- a per-sweep line would bury everything else.
+    if mood.indoors then
+        local room = SR.Loot.HasRoom(bandit)
+        local spot = room and SR.Loot.FindContainer(bandit, mood) or nil
+        local why = (not room) and "full" or (not spot) and "nothing left within reach" or nil
+
+        if why and mood.lootStopped ~= why then
+            mood.lootStopped = why
+            -- HasRoom returns false when there is no inventory at all, so "full" can be
+            -- reached with nothing to measure. Reading it unguarded here would turn a log
+            -- line into the crash it was added to prevent.
+            local inv = bandit:getInventory()
+            SR.Log(string.format("COMP %s stops searching -- %s | carrying %.1f / %.1f",
+                name, why,
+                inv and inv:getCapacityWeight() or -1,
+                inv and inv:getMaxWeight() or -1))
+        elseif not why then
+            mood.lootStopped = nil
+        end
+
         if spot then
             -- What they are after decides what comes out of the drawer first, and it is what
             -- turns opening furniture into looking for something. Logged so "why is he doing
