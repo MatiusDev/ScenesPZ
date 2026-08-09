@@ -741,8 +741,14 @@ function Loot.WearBag(zombie, brain, itemType)
     brain.bag = { name = itemType }
     BanditBrain.Update(zombie, brain)
 
-    -- Out of the inventory, onto the body. Also frees the weight it was occupying, which is
-    -- what makes a bag worth walking for in the first place.
+    -- EVERY LOOSE COPY OUT, so that the one we are about to wear is the only one. This used to
+    -- remove the bag and stop there -- correct when the bag was pure decoration on the brain,
+    -- wrong now that it has to be a real worn object. The wear step below puts exactly one back.
+    --
+    -- Removing them all first is what keeps the death drop honest: `Bandit.UpdateItemsToSpawnAtDeath`
+    -- builds the corpse from the live inventory AND from `brain.bag` separately, so two copies
+    -- in the inventory become two bags on the ground. A4 passed last round with this block here
+    -- and must be re-checked now that the bag comes back.
     pcall(function()
         local inventory = zombie:getInventory()
         if not inventory then return end
@@ -751,7 +757,6 @@ function Loot.WearBag(zombie, brain, itemType)
             local item = items:get(i)
             if item and item:getFullType() == itemType then
                 inventory:Remove(item)
-                break
             end
         end
     end)
@@ -779,20 +784,40 @@ function Loot.WearBag(zombie, brain, itemType)
     -- and an InventoryContainer's BodyLocation is empty, which the assertion harness proves
     -- every startup. So the fallback IS the path a bag takes, and "back" is what it yields.
     --
-    -- Wrapped because `setWornItem` is bound on IsoGameCharacter and our receiver is an
-    -- IsoZombie. That is the R2 shape exactly, so the harness asserts it rather than trusting
-    -- it, and a failure here degrades to "carried but invisible" instead of taking the mod down.
-    local worn = pcall(function()
-        local item = BanditCompatibility.InstanceItem(itemType)
-        if not item then return end
+    -- ATTEMPT TWO, AND THE FIRST ONE FAILED SILENTLY -- worth writing down because the silence
+    -- is the lesson. Attempt one instanced a fresh bag and handed it straight to `setWornItem`.
+    -- It threw nothing, logged nothing, and rendered nothing: `pcall` returned true because the
+    -- inner function had simply run, so even the "will not render" line never printed.
+    --
+    -- The flaw was ownership. In vanilla you always wear something you already hold --
+    -- ISInventoryPaneContextMenu wears an item out of the player's own inventory -- and this was
+    -- wearing an object that lived in no container at all, having removed the real one from the
+    -- inventory ten lines earlier. So: put it in, then wear THAT.
+    --
+    -- Wrapped because `setWornItem` is declared on IsoGameCharacter and our receiver is an
+    -- IsoZombie -- the R2 shape exactly. The log line now reports which step failed instead of
+    -- announcing a generic failure, because "it did not render" was the one thing we already knew.
+    local okWorn, wornErr = pcall(function()
+        local inventory = zombie:getInventory()
+        if not inventory then error("no inventory", 0) end
+
+        local item = inventory:AddItem(itemType)
+        if not item then error("AddItem returned nil for " .. itemType, 0) end
+
         local where = item:canBeEquipped()
-        if not where or where == "" then return end
+        if not where or where == "" then
+            error("canBeEquipped() is empty -- not a wearable container", 0)
+        end
+
         zombie:setWornItem(where, item)
         zombie:resetModelNextFrame()
     end)
-    if not worn then
-        SR.Log(string.format("LOOT %s carries a %s but it will not render",
-            tostring(brain.fullname), itemType))
+
+    if okWorn then
+        SR.Log(string.format("LOOT %s wears the %s", tostring(brain.fullname), itemType))
+    else
+        SR.Log(string.format("LOOT %s carries a %s but cannot wear it -- %s",
+            tostring(brain.fullname), itemType, tostring(wornErr)))
     end
 
     -- The bag is on the brain now, so this is the call that puts it on the corpse.

@@ -235,6 +235,24 @@ local function run()
         return type(BanditUtils) == "table" and type(BanditUtils.DistToManhattan) == "function"
     end)
 
+    -- THE ONE THAT WAS MISSING, and its absence cost a whole play session. The first panic
+    -- handler used `player:getSeeNearbyCharacterDistance()`, copied from the upstream handler
+    -- that ships switched off. It threw on the first sweep -- `Object tried to call nil in
+    -- onlyFriendsNear` -- because that method has ZERO callsites in all 2,680 files under
+    -- pzserver/media/lua/. It exists only inside dead vendored code.
+    --
+    -- The assertion is deliberately NEGATIVE, and it is here rather than deleted along with the
+    -- call: it passes today and will flip the day a build introduces the method, which is when
+    -- somebody would otherwise reach for it again. The four assertions above covered every
+    -- identifier that handler used EXCEPT this one, which is exactly why they all passed while
+    -- the feature was dead.
+    check("getSeeNearbyCharacterDistance is still absent (do not use it)", function()
+        local player = getSpecificPlayer(0)
+        if not player then return false, "no player yet" end
+        local ok = pcall(function() return player:getSeeNearbyCharacterDistance() end)
+        return not ok, ok and "it exists now -- revisit PANIC_RADIUS" or nil
+    end)
+
     -- The registry the panic sweep reads. Empty is fine and normal; missing is not.
     check("BanditZombie.CacheLight is a table", function()
         return type(BanditZombie) == "table" and type(BanditZombie.CacheLight) == "table"

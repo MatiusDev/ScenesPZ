@@ -49,19 +49,38 @@ local NPC_RANGE = 30
 local SIGHT = 6
 
 -- Tiles. Any zombie this close and the NPC has better things to do.
-local DANGER = 12
+--
+-- Was 12, which is most of a street. Reported 09-08: "los NPC nuevos se quedan en idle... solo
+-- si hay zombies cerca hace cosas" -- and that is the two halves of the same coin. In a real
+-- Knox Country neighbourhood something is almost always within 12 tiles, so the idle rung was
+-- gated shut nearly all the time. 8 still keeps the rule that matters (nobody wanders off after
+-- a jacket while something is biting) without treating a shambler two houses away as a crisis.
+local DANGER = 8
 
---- Fixed at spawn, same answer every time for the same person.
+--- Fixed at spawn, same answer every time for the same person. `brain.rnd[3]` is a
+--- `ZombRand(100)` chosen once (BanditServerSpawner.lua:375), so the survivor who picks things
+--- up always picks things up -- a per-tick roll would make them all the same person behaving
+--- inconsistently, which is the opposite of the goal.
 ---
---- brain.rnd[3] is ZombRand(100). Roughly a third of survivors care about clothes at all,
---- and of those, which body location they are drawn to is also theirs for life.
+--- WHY THIS GOT MUCH MORE GENEROUS. The first version gave a taste to a third of survivors and
+--- then narrowed that third to ONE of three garment types, so the odds that a given NPC wanted
+--- the specific thing you dropped were about one in nine. Reported after a full session:
+--- "en ningun momento toma la prenda, los NPC nuevos se quedan en idle". The log agreed
+--- completely -- across 1.7 MB there was exactly one `IDLE` line, the startup banner, and not a
+--- single `IDLE ... wants ...`.
+---
+--- Nothing was broken. The behaviour was simply tuned below the threshold of being observable,
+--- which for a feature nobody can see is the same as not existing. Two thirds now care, and
+--- they care about ALL THREE kinds rather than one, so a dropped jacket is wanted by two
+--- survivors in three instead of one in nine.
+---
+--- This is a TUNING value, not a mechanism: if survivors end up looking like magpies, lower the
+--- threshold rather than re-narrowing the categories. Being able to watch it work comes first;
+--- restraint is a number, and numbers are cheap to change once the thing is visible.
 local function tasteOf(brain)
     if type(brain.rnd) ~= "table" or not brain.rnd[3] then return nil end
-    local roll = brain.rnd[3]
-    if roll >= 33 then return nil end          -- most people are not magpies
-    if roll < 11 then return "Hat" end
-    if roll < 22 then return "Back" end        -- bags
-    return "Jacket"
+    if brain.rnd[3] >= 66 then return nil end
+    return true
 end
 
 --- Same cache and the same shape ScenesRelationsThreat already reads
@@ -107,7 +126,9 @@ end
 --- (ISSearchManager.lua:493), and getBodyLocation is how a garment says where it goes
 --- (Trailer1Scenario.lua:111). Nothing here needs a list of item ids, which is also how it
 --- avoids inventing one.
-local function findWanted(zombie, location)
+--- The `location` argument is gone: `tasteOf` no longer names a slot, it answers whether this
+--- survivor cares about clothes at all, so this looks for any wearable garment on the ground.
+local function findWanted(zombie)
     local cell = zombie:getCell()
     if not cell then return nil end
 
@@ -125,8 +146,15 @@ local function findWanted(zombie, location)
                         for i = 0, objects:size() - 1 do
                             local item = objects:get(i):getItem()
                             if item then
+                                -- ANY wearable garment now, not one named slot. `tasteOf` used
+                                -- to return "Hat"/"Back"/"Jacket" and this compared against it,
+                                -- which is half of why the whole behaviour was invisible: a
+                                -- survivor who wanted hats ignored the jacket at their feet.
+                                -- A non-empty BodyLocation IS the test for "this is clothing" --
+                                -- proved every startup by the assertion harness, which checks a
+                                -- T-shirt has one and a bag does not.
                                 local ok, loc = pcall(function() return item:getBodyLocation() end)
-                                if ok and loc == location then
+                                if ok and loc and loc ~= "" then
                                     best = { itemType = item:getFullType(), loc = loc,
                                              x = square:getX(), y = square:getY(),
                                              z = square:getZ() }
@@ -261,7 +289,7 @@ local function sweep()
                     elseif isIdle(zombie, brain) then
                         local taste = tasteOf(brain)
                         if taste then
-                            local want = findWanted(zombie, taste)
+                            local want = findWanted(zombie)
                             if want then
                                 mood.wanting = want
                                 goGet(zombie, want)

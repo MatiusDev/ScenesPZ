@@ -214,3 +214,56 @@ Worth mining The Ark for the domestic half: it ships 27 actions that are almost 
 settlement life -- Cook, Eat, SitInChair, SleepLong, UseRadio, CleanFloor, ToggleTorch,
 PlayVHS, TurnOven, PlayPiano. None of them help with entry, but they are exactly what "idle"
 should look like once the NPC is inside.
+
+## Melee targeting locks onto friendly NPCs (09-08)
+
+Reported: fighting the same zombie as a companion, with the NPC between the player and the
+target, the player's swings retarget onto the NPC. The `safe` flag correctly prevents the
+DAMAGE -- that part works -- but it does not stop the NPC becoming the aim target, so the
+player swings at a body that cannot be hurt while the zombie keeps biting.
+
+Wanted: friendly NPCs are never an aim target while `safe` is on. Zombies and hostile NPCs
+still are. With `safe` off, hitting them must work again, targeting included.
+
+Note the shape: this is the engine's target selection, not ours. A Bandits NPC is an IsoZombie,
+so it is a legitimate melee target as far as the engine is concerned -- same root as the panic
+bug (ScenesRelationsPanic.lua), and probably the same kind of fix: a wrapper that filters
+friendlies out of the candidate list rather than trying to undo the choice afterwards.
+
+## NPC endurance drains far too fast, and has no stages (09-08)
+
+Reported: NPC stamina empties much faster than a player's. Wanted: replicate the player model
+properly, with every stage visible -- "sin aliento" climbing gradually into "Esfuerzo intenso"
+and then "Esfuerzo excesivo" -- rather than a single exhausted state.
+
+Known constraint from earlier work: `PROBE stat VERDICT FROZEN` -- `getStats()` binds on an
+IsoZombie but the engine never ticks it, which is why emotion is simulated on `SR.Mood`.
+Endurance is likely the same shape, so this means simulating the player's curve rather than
+reading a stat. Read how vanilla drives endurance first.
+
+## Companions keep fighting instead of following when the player flees (09-08)
+
+Reported: the player runs to avoid being bitten and the NPC stays behind trading blows.
+
+Wanted rule, and it is narrower than "fight or flee": stay and fight ONLY when actually
+trapped -- cannot move AND several zombies on them. Otherwise disengage and follow. Today they
+treat any engagement as a reason to stand still.
+
+## Dead NPCs must stay, and turn (09-08)
+
+Reported: NPCs vanish on death. Wanted: the body remains, turns into a zombie after the
+sandbox-configured delay, and **is still wearing its bag when it rises** -- so the player can
+see that this specific person was infected and died. Permanence is the point.
+
+Related to the wounds plan, where conversion is deliberately switched off; this is the other
+half of the same feature.
+
+## Looting still happens too far from the container (09-08)
+
+Reported again after the GoAndDo fix: it is much better -- they walk to the furniture instead
+of looting from across the room -- but with two containers close together you cannot tell which
+one is being searched. `REACH` is 0.7 tiles, taken from The Ark's own default. Consider
+tightening it, and check that the standing square chosen is the one facing the container.
+
+Same session: 56 `gives up on ... could not get there in 3 tries` against 7 `nothing left within
+reach`. Still the reachability problem, which is block B.

@@ -35,21 +35,39 @@ local SR = ScenesRelations
 -- would eventually cache our own zero and lose the real value for good.
 local originalIncrease = nil
 
+-- Declared here, above `sweep`, on purpose: a `local` written below the function that reads it
+-- is invisible to it and silently becomes a nil global. Lua 5.1 lexical scoping, and `luac`
+-- compiles it without a word.
+local reported = false
+
 --- Is every "zombie" within panic range one of ours?
 ---
 --- `BanditZombie.CacheLight` is the framework's own registry of live NPCs, the same one
 --- `PanicHandler` reads. `brain.hostile` and `brain.hostileP` are Bandits' two hostility flags
 --- -- general and player-specific -- and an entry with no brain is a real zombie.
 ---
---- `getSeeNearbyCharacterDistance()` is the engine's own notion of how far "nearby" is for a
---- character, which is the number the panic model itself is scaled to. Borrowed from upstream
---- rather than invented so the calm radius matches the fear radius exactly.
+--- WHY A CONSTANT AND NOT THE ENGINE'S OWN NUMBER. The first version of this copied upstream
+--- and called `player:getSeeNearbyCharacterDistance() + 2.0`. It threw on the first sweep:
+---
+---     PANIC handler threw: Object tried to call nil in onlyFriendsNear
+---
+--- That method has **zero callsites in all 2,680 files of pzserver/media/lua/**. The only place
+--- it appears anywhere is the upstream handler that is switched off -- which is very likely why
+--- it is switched off. This is R1 and rule 2 of the pz-lua brief, broken by the author of both:
+--- vendored code is not a verification source, and an identifier that only exists in dead code
+--- has not been verified by anyone.
+---
+--- 10 tiles is deliberate rather than measured: close enough that a survivor standing with you
+--- is inside it, small enough that somebody across the street does not silence a real horde.
+--- If it needs tuning, tune it here -- it is a number we own now, not a number we inherited.
+local PANIC_RADIUS = 10.0
+
 local function onlyFriendsNear(player)
     local cache = BanditZombie and BanditZombie.CacheLight
     if not cache then return false end
 
     local px, py = player:getX(), player:getY()
-    local radius = player:getSeeNearbyCharacterDistance() + 2.0
+    local radius = PANIC_RADIUS
 
     local sawFriend = false
     for _, z in pairs(cache) do
@@ -88,15 +106,25 @@ local function sweep()
         end
     end)
 
-    if not ok and SR.DEBUG then
-        SR.Log("PANIC handler threw: " .. tostring(err))
+    -- Once, not once a minute. The throw that killed the first version was worth exactly one
+    -- line -- it named the nil call and the function -- and a hundred copies of it would have
+    -- buried everything else in a log that is read on another machine.
+    if not ok and not reported then
+        reported = true
+        SR.Log("PANIC handler threw, suppression is OFF for this session: " .. tostring(err))
     end
 end
 
--- Every ten in-game minutes rather than every tick. Panic climbs over seconds, not frames, and
--- a per-frame call that throws is how this project learned about 1,553 exceptions in one
--- session.
-Events.EveryTenMinutes.Add(sweep)
+-- SECOND REASON B4 FAILED, and it would have survived the first fix. This was on
+-- `EveryTenMinutes`, which is about a real MINUTE of standing next to somebody. Panic climbs
+-- continuously, so between two sweeps it walked from calm through "Nervioso" to "Alarmado"
+-- exactly as reported -- suppressing the *increase rate* once a minute cannot hold a value that
+-- rises every second.
+--
+-- `EveryOneMinute` is ~6 real seconds: fast enough to catch the climb early, still 10x cheaper
+-- than a per-tick call. Not `OnTick` -- this reads a cache and calls into BodyDamage, and a
+-- per-frame call that throws is how this project learned about 1,553 exceptions in one session.
+Events.EveryOneMinute.Add(sweep)
 
 Events.OnGameStart.Add(function()
     SR.Log("PANIC ready -- your own people no longer read as a horde")
