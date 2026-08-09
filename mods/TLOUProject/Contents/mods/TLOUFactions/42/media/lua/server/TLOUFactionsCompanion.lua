@@ -117,36 +117,31 @@ Events.OnCreatePlayer.Add(function(_, player)
     -- DELETE THIS BLOCK once those tests pass. Starting equipment is a scenario decision and
     -- belongs in the Scenes mod, not in a spawner, and a permanent free pistol would quietly
     -- change what every later balance observation means.
-    -- EVERY BACK-EQUIPPABLE BAG IN THE BASE GAME, asked for on 2026-08-09: "cuando spawnee,
-    -- quiero aparecer con una mochila de cada una del vainilla para poder hacer pruebas con el
-    -- NPC". The point is capacity: `SR.Loot.CarryBudget` now adds the bag's own
-    -- `getItemContainer():getMaxWeight()` to the carry ceiling, and these 56 span 10 through 35,
-    -- so the difference between a schoolbag and a framepack is finally observable in play.
+    -- SIX BAGS, NOT FIFTY-SIX. The first version of this handed over every back-equippable bag
+    -- in the game and that was the wrong experiment: "siento que la prueba asi no es relevante,
+    -- dame poquitas mochilas de diferentes tamaños para hacer pruebas con varios NPC."
+    -- Correct -- fifty-six bags measure nothing, six across the whole range measure capacity.
     --
-    -- NOT TYPED BY HAND. Generated from pzserver/media/scripts/generated/items/container.txt by
-    -- selecting every item whose block carries `CanBeEquipped = base:back`. Writing 56 ids from
-    -- memory is exactly how this project has invented identifiers before -- see R1.
+    -- `SR.Loot.CarryBudget` adds the bag's own `getItemContainer():getMaxWeight()` to the carry
+    -- ceiling, so what these are FOR is handing a different one to each of several NPCs and
+    -- watching the `carrying X / Y` line diverge. The ceiling below is a 35x spread.
+    --
+    -- Capacities read from pzserver/media/scripts/generated/items/container.txt, not remembered.
     local testKit = {
-        "Base.Pistol", "Base.Bullets9mmBox",
-        "Base.Bag_ALICEpack", "Base.Bag_ALICEpack_Army", "Base.Bag_ALICEpack_DesertCamo",
-        "Base.Bag_BaseballBag", "Base.Bag_BigHikingBag", "Base.Bag_BigHikingBag_Travel",
-        "Base.Bag_BreakdownBag", "Base.Bag_BurglarBag", "Base.Bag_CraftedFramepack_Large",
-        "Base.Bag_CraftedFramepack_Large2", "Base.Bag_CraftedFramepack_Large3", "Base.Bag_CraftedFramepack_Small",
-        "Base.Bag_CrudeLeatherBag", "Base.Bag_CrudeTarpBag", "Base.Bag_DuffelBag",
-        "Base.Bag_DuffelBagTINT", "Base.Bag_FishingBasket", "Base.Bag_FoodCanned",
-        "Base.Bag_FoodSnacks", "Base.Bag_GolfBag", "Base.Bag_GolfBag_Melee",
-        "Base.Bag_HideSlingBag", "Base.Bag_HikingBag_Travel", "Base.Bag_HydrationBackpack",
-        "Base.Bag_HydrationBackpack_Camo", "Base.Bag_InmateEscapedBag", "Base.Bag_MedicalBag",
-        "Base.Bag_Military", "Base.Bag_MoneyBag", "Base.Bag_NormalHikingBag",
-        "Base.Bag_Police", "Base.Bag_RifleCaseCloth", "Base.Bag_RifleCaseCloth2",
-        "Base.Bag_RifleCaseClothCamo", "Base.Bag_SWAT", "Base.Bag_Schoolbag",
-        "Base.Bag_Schoolbag_Kids", "Base.Bag_Schoolbag_Medical", "Base.Bag_Schoolbag_Patches",
-        "Base.Bag_Schoolbag_Travel", "Base.Bag_SheetSlingBag", "Base.Bag_Sheriff",
-        "Base.Bag_ShotgunBag", "Base.Bag_ShotgunCaseCloth", "Base.Bag_ShotgunCaseCloth2",
-        "Base.Bag_ShotgunDblBag", "Base.Bag_ShotgunDblSawnoffBag", "Base.Bag_ShotgunSawnoffBag",
-        "Base.Bag_SurvivorBag", "Base.Bag_TarpFramepack_Large", "Base.Bag_TarpFramepack_Small",
-        "Base.Bag_TarpSlingBag", "Base.Bag_TennisBag", "Base.Bag_ToolBag",
-        "Base.Bag_WeaponBag", "Base.Bag_WorkerBag",
+        "Base.Bag_FannyPackBack",           -- 1   the floor; should fill almost immediately
+        "Base.Bag_Schoolbag",               -- 15  what an NPC usually finds on its own
+        "Base.Bag_DuffelBag",               -- 18
+        "Base.Bag_NormalHikingBag",         -- 20
+        "Base.Bag_ALICEpack",               -- 28
+        "Base.Bag_CraftedFramepack_Large3", -- 35  the ceiling in the base game
+
+        -- THE PISTOL NEEDS A MAGAZINE, and that is why it has never been usable: "la pistola
+        -- que me das al inicio, no tiene cargador, entonces nunca he podido usarla con los NPC."
+        -- Base.Pistol declares `MagazineType = Base.9mmClip` and `ClipSize = 15`
+        -- (weapon.txt), so a box of loose rounds was never enough -- the rounds go in the clip
+        -- and the clip goes in the gun. Base.9mmClip is defined at normal.txt:13772.
+        -- Two clips so a reload can actually be observed rather than inferred.
+        "Base.Pistol", "Base.9mmClip", "Base.9mmClip", "Base.Bullets9mmBox",
     }
 
     local given = 0
@@ -158,8 +153,8 @@ Events.OnCreatePlayer.Add(function(_, player)
             log("could not give " .. itemType .. ": " .. tostring(err))
         end
     end
-    log(string.format("test kit given -- %d of %d items, every vanilla back bag plus a pistol "
-        .. "(TEMPORARY, see comment)", given, #testKit))
+    log(string.format("test kit given -- %d of %d items, six bags from 1 to 35 capacity, "
+        .. "pistol with two clips (TEMPORARY, see comment)", given, #testKit))
 
     pending = true
     attempts = 0

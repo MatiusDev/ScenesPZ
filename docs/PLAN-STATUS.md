@@ -137,15 +137,17 @@ Lo que sí entró ahora:
 - **Tus propios NPC ya no te dan miedo.** Un Bandit *es* un `IsoZombie`, así que el modelo de
   pánico del motor los contaba como horda. Slayer escribió el arreglo y lo dejó apagado
   (`BanditPlayer.lua:132`, `if true then return end`). El nuestro es propio, no toca el suyo.
-- **Kit de prueba: las 56 mochilas equipables del juego base**, generadas desde
-  `container.txt`, no escritas a mano.
+- **Kit de prueba: seis mochilas, de capacidad 1 a 35** — riñonera (1), escolar (15), duffel
+  (18), hiking (20), ALICE (28), framepack (35). Una para cada NPC, que es lo que hace
+  medible la diferencia. Y **la pistola ahora trae dos cargadores**: declara
+  `MagazineType = Base.9mmClip`, así que la caja de balas sola nunca alcanzó.
 - 5 aserciones nuevas (**24** en total).
 
 | # | Qué hacer | Pasa si |
 |---|---|---|
-| **B1** | Personaje nuevo. Mirá el inventario. | Están las 56 mochilas + pistola. Log: `test kit given -- 58 of 58 items`. |
+| **B1** | Personaje nuevo. Mirá el inventario. | Seis mochilas, pistola y **dos cargadores**. Log: `test kit given -- 10 of 10 items`. La pistola por fin dispara. |
 | **B2** | Dale una mochila a un NPC y **quedate mirándolo**, sin alejarte. | **Se le ve puesta en la espalda al instante.** Antes solo aparecía si se despawneaba y volvía. |
-| **B3** | Dale una `Bag_CraftedFramepack_Large3` (capacidad 35) a uno y una `Bag_Schoolbag` (15) a otro. Que looteen la misma casa. | El del framepack aguanta bastante más antes de `stops searching -- full`. La línea de log trae `carrying X / Y` — **Y tiene que ser distinto entre los dos**. |
+| **B3** | Dale la riñonera (1) a uno y el framepack (35) a otro. Que looteen la misma casa. | El del framepack aguanta muchísimo más antes de `stops searching -- full`. La línea trae `carrying X / Y` — **Y tiene que ser muy distinto entre los dos**. Si son iguales, la capacidad no se conectó. |
 | **B4** | Parate pegado a tus compañeros, sin zombis cerca. | **No sube el pánico.** Si aparece un zombi o un bandido hostil, vuelve a subir normal. |
 
 ---
