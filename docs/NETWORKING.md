@@ -40,19 +40,31 @@ firewall      ufw installed
 
 Simplest option, and it matches how you already work: **git**.
 
-On this box, `mods/TLOUProject/` is the repo. On Windows, clone it so the mod folder lands
-where the game looks:
+**This repo holds three mods, not one.** Two projects, three mod folders, three ids:
+
+| Repo path | Mod folder | `id=` | What it is |
+|---|---|---|---|
+| `mods/ScenesProject/Contents/mods/ScenesRelations/` | `ScenesRelations` | `scenesRelations` | the main mod — NPC relationships and behaviour |
+| `mods/ScenesProject/Contents/mods/ScenesDoctor/` | `ScenesDoctor` | `scenesDoctor` | memory/perf diagnostics, emits `SDOC|` lines |
+| `mods/TLOUProject/Contents/mods/TLOUFactions/` | `TLOUFactions` | `tlouFactions` | the faction layer |
+
+Note the shape difference. `~/Zomboid/mods/` takes the **mod folder directly** — the thing
+containing `42/`, not the `Contents/mods/` wrapper above it. The `Contents/` wrapper exists
+only for `~/Zomboid/Workshop/`, which is the upload staging area. So on Windows each of the
+three lands as:
 
 ```
-%USERPROFILE%\Zomboid\mods\TLOUFactions\
+%USERPROFILE%\Zomboid\mods\ScenesRelations\42\...
+%USERPROFILE%\Zomboid\mods\ScenesDoctor\42\...
+%USERPROFILE%\Zomboid\mods\TLOUFactions\42\...
 ```
 
-Note the shape difference. `~/Zomboid/mods/` takes the **mod folder directly** — not the
-`Contents/mods/` wrapper. The `Contents/` wrapper only exists for `~/Zomboid/Workshop/`,
-which is the upload staging area.
+Deploy becomes `git pull` on the Windows side. No new infrastructure, full history, and it
+also gets you rollback when a change breaks the save.
 
-Deploy becomes `git pull` on the Windows side. No new infrastructure, full history,
-and it also gets you rollback when a change breaks the save.
+On this box the same copy is done by `tools/sync-mods.sh`, which flattens all three plus the
+vendored mods into `~/Zomboid/mods/` for the headless smoke test. Read it before inventing a
+Windows-side script — it already documents why symlinks cannot be used here.
 
 Alternative if you want it push-based: `rsync -av --delete` over ssh, or Syncthing for
 continuous sync. Same result, more moving parts.
@@ -63,11 +75,19 @@ continuous sync. Same result, more moving parts.
 
 ### Same wifi (both on 192.168.0.x) — nothing to install
 
-1. On Arch, edit `~/Zomboid/Server/servertest.ini`:
+1. On Arch, edit `~/Zomboid/Server/servertest.ini`. Mod ids are semicolon-separated. What is
+   actually in the working config on this box today, verbatim:
    ```ini
-   Mods=tlouFactions
-   WorkshopItems=3268487204
+   Mods=tlouFactions;scenesDoctor;scenesRelations;Bandits2
+   WorkshopItems=
    ```
+   Two things worth reading twice:
+   - **Bandits is `Bandits2`, and it belongs in `Mods=` like anything else.** A dependency is
+     not implicit; if it is not listed it is not loaded.
+   - **`WorkshopItems=` is empty on purpose here.** That field tells the server to download
+     from Steam. This box does not need it — `tools/sync-mods.sh` copies the vendored Bandits
+     straight into `~/Zomboid/mods/`, which is the whole point of `vendor/` being pinned by
+     `deps.lock.json`. On a machine without that sync you would put `3268487204` here instead.
 2. Start it:
    ```bash
    cd ~/Docs/Workspace/PZ/pzserver
@@ -107,15 +127,65 @@ it from the server browser — it does not block anything.
 
 ---
 
+## Channel C — getting `console.txt` back
+
+The other two channels move the mod *toward* Windows. This one is the return trip, and it is
+the operation that happens most often, because **`console.txt` is the only debugger this
+project has** and it is written on a machine with no agent on it.
+
+On Windows the game writes to:
+
+```
+%USERPROFILE%\Zomboid\console.txt
+```
+
+**The method is manual, and that is a decision, not an omission.** Upload the file to the
+GitHub repo (or paste the relevant slice into the conversation) after a play session. It is
+the simplest thing that works and it needs nothing installed on either side.
+
+Two automated alternatives were evaluated on 2026-08-08 and **rejected**:
+
+- **A webhook or listener inside the mod is impossible.** Project Zomboid's Lua has no
+  network API at all — no HTTP client, no sockets, nothing. Grepping all 2,680 Lua files in
+  `pzserver/media/lua/` returns zero hits. The only write primitive is `getFileWriter()`, and
+  it writes inside the `Zomboid` folder. Any "streaming" design would end up tailing a file.
+- **An SMB share on Windows mounted here over cifs** would work and would remove the manual
+  step entirely — `mount.cifs` and `rsync` are already installed on this box. It was declined
+  as not worth the setup and the DHCP fragility. Revisit only if the manual upload becomes the
+  bottleneck.
+
+Once the file is on this box, run it through the digester rather than reading it whole:
+
+```bash
+./tools/logdoctor.py path/to/console.txt          # collapses repeated errors into signatures
+./tools/logdoctor.py path/to/console.txt --top 25
+```
+
+A runaway loop shows up as one signature with a huge count. `ScenesDoctor`'s `SDOC|MEM`
+samples get charted by the same tool.
+
+**Read `ASSERT` first, always.** `ScenesRelationsAssert.lua` runs in-game at startup and
+checks that the engine is shaped the way the code believes. A `FAIL` there invalidates every
+behavioural observation below it — see `docs/PLAN-STATUS.md` for the count to expect.
+
+---
+
 ## Which loop to actually use
 
 ```
 Day-to-day (fast):
-  edit here → pz-verify smoke test → git push → git pull on Windows → SINGLEPLAYER
+  edit here → pz-review → pz-verify smoke test → git push
+            → git pull on Windows → SINGLEPLAYER
+            → console.txt back here (channel C) → logdoctor.py
 
 Only when testing multiplayer behavior:
   ... → start server here → join from Windows over LAN/Tailscale
 ```
+
+The `pz-review` step is not optional — see the delegation cycle in `CLAUDE.md`. And remember
+what the smoke test cannot see: **a dedicated server never executes `media/lua/client/`**,
+which is most of ScenesRelations. A PASS there means the shared and server halves load,
+nothing more. The in-game assertion harness is the only net for the client half.
 
 Bandits NPC logic is server-side, and in singleplayer the client *is* the host — so
 singleplayer already exercises the faction code. Reach for channel B when you specifically

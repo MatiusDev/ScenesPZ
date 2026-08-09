@@ -169,3 +169,16 @@ must be written by us, on `SR.Mood`.
 
 Not a bug — a scope fact, recorded because stage 06 was written assuming the probe might go
 the other way and halve it. It did not.
+
+## Loot.FetchBag has no attempt cap
+
+`Loot.Search` counts approaches and gives up after `MAX_APPROACHES`; `Loot.FetchBag` does not.
+Since the 08-08 refactor both go through `SR.Move.GoAndDo`, which returns `{}, false` when the
+target square has no free neighbour at all -- a bag dropped in a corner boxed in by furniture.
+`ScenesRelationsCompanion.lua:363` and `:383` then queue nothing, `mood.doing` stays set, and the
+program re-decides the same thing every time the task queue drains.
+
+Not a crash and not per-frame -- a Bandits program only runs on an empty queue -- but it is an
+NPC stuck on an unreachable bag, logging the same line forever. Give it the same cap
+`Loot.Search` has. Found in review 2026-08-08, deliberately not fixed in that commit to keep the
+diff to the regression.
