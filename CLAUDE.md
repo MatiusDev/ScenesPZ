@@ -119,8 +119,16 @@ of truth for both machines and is committed on every version change.
   that touches the engine.
 - `docs/TODO.md` — things seen in play that no stage has claimed yet. Add to it rather
   than derailing the open stage.
-- `docs/PLAN-STATUS.md` — **start here.** Which stage is open, and exactly what the user
-  must test in game to close it. One page, kept current.
+- `docs/PLAN-STATUS.md` — **start here.** An index, under a screen: which block is open and
+  where everything else lives. It points at two files whose shapes are deliberate and must
+  not be mixed:
+  - `docs/TESTING-NOW.md` — the open round only, **rewritten whole** each time. When a round
+    closes, its tests move out; they are never left behind with a verdict appended.
+  - `docs/TEST-LOG.md` — **append-only** history: every round, its verdict, and what it
+    taught. Correct a wrong entry with a new one, never by editing the old.
+
+  All three are Spanish, on purpose — the user reads them with the game open. This is the one
+  exception to English-in-all-artifacts.
 - `docs/plans/` — the staged roadmap from here to the full PRD. `README.md` lists all
   eleven stages with their dependencies; only the current and next stage are written in
   detail, on purpose.

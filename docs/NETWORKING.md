@@ -166,7 +166,7 @@ samples get charted by the same tool.
 
 **Read `ASSERT` first, always.** `ScenesRelationsAssert.lua` runs in-game at startup and
 checks that the engine is shaped the way the code believes. A `FAIL` there invalidates every
-behavioural observation below it — see `docs/PLAN-STATUS.md` for the count to expect.
+behavioural observation below it — see `docs/TESTING-NOW.md` for the count to expect.
 
 ---
 

@@ -1,284 +1,108 @@
-# Qué probar ahora
+# Dónde estamos
 
-Una sola página. Se reescribe cada vez que una etapa abre o cierra. Si esta página y
-cualquier otra se contradicen, ésta es la que está vieja — arreglala.
+Página índice. Corta a propósito: **si algo acá crece más de una pantalla, va a otro archivo.**
 
-> **Nota de idioma.** Este archivo va en español porque es el que vos usás mientras jugás.
+> **Nota de idioma.** Este archivo va en español porque es el que usás mientras jugás.
 > Todo el resto — código, comentarios, planes, commits — sigue en inglés.
 
-Hoja de ruta completa: [`docs/plans/README.md`](plans/README.md).
+| Necesitás | Andá a |
+| :--- | :--- |
+| **Qué probar ahora** | [`docs/TESTING-NOW.md`](TESTING-NOW.md) — se reescribe entera cada corrida |
+| Qué ya se probó y qué aprendimos | [`docs/TEST-LOG.md`](TEST-LOG.md) — solo crece, nunca se corrige hacia atrás |
+| La hoja de ruta completa | [`docs/plans/README.md`](plans/README.md) |
+| Cosas vistas en juego que ninguna etapa reclamó | [`docs/TODO.md`](TODO.md) |
 
 ---
 
-# ► PROBÁ ESTO — corrida del 09-08
+## Cómo trabajamos
 
-**Primero, siempre:** buscá `ASSERT` en `console.txt`. Tiene que decir
-`ASSERT ---- 24 ok, 0 FAILED ----`. Si algo dice `FAIL`, **pará ahí** y mandámelo: el motor no
-tiene la forma que el código cree y ninguna otra observación de abajo significa nada.
+Un bloque a la vez. Cada bloque son 2–3 cosas que **comparten causa**, no 12 sueltas. No abrimos
+el siguiente hasta que el actual pase.
 
-| # | Qué hacer | Pasa si |
-|---|---|---|
-| **B1** | Personaje nuevo. Mirá el inventario. | Seis mochilas, pistola y **dos cargadores**. Log: `test kit given -- 10 of 10 items`. La pistola por fin dispara. |
-| **B2** | Dale una mochila a un NPC y **quedate mirándolo**, sin alejarte. | **Se le ve puesta en la espalda al instante.** Antes solo aparecía si se despawneaba y volvía. |
-| **B3** | Dale la riñonera (cap. 1) a uno y el framepack (cap. 35) a otro. Que looteen la misma casa. | El del framepack aguanta muchísimo más antes de `stops searching -- full`. La línea trae `carrying X / Y` — **la Y tiene que ser muy distinta entre los dos**. Si son iguales, la capacidad no se conectó. |
-| **B4** | Parate pegado a tus compañeros, sin zombis cerca. | **No sube el pánico.** Si aparece un zombi o un bandido hostil, vuelve a subir normal. |
-| **A7** | Tirá una prenda al piso cerca de un NPC **libre** (no compañero). Esperá 2–3 minutos de juego. | Camina, la levanta y se la pone. **Si ves `IDLE ... gave up on ...` repetido, el arreglo no funcionó** — mandámelo. Quedó sin probar de la corrida anterior. |
-
-**Lo que NO hace falta que mires:** que se acerquen al mueble antes de abrirlo, que no aparezca
-`LOOT refused`, que lo que agarran sirva, que suelten lo recogido al morir. Todo eso ya pasó el
-09-08 y está cerrado más abajo.
-
-**Lo que ya sé que sigue roto y no hace falta que reportes de nuevo:** que se traben contra
-puertas y ventanas, y que dejen muchos muebles sin revisar. Son la misma causa —111 abandonos
-por no poder llegar en el último log— y es el bloque que sigue.
+Esto se decidió porque funciona: la corrida del 04-08 dejó 1.422 líneas de log y **una sola
+causa** explicaba cuatro de los síntomas. La del 09-08 repitió el patrón — "solo revisa algunos
+cajones" y "se traba en las puertas" resultaron ser el mismo defecto.
 
 ---
 
-## Cómo vamos a trabajar de ahora en adelante
+## Bloques
 
-Un bloque a la vez. Cada bloque son 2–3 cosas que comparten causa, no 12 sueltas. No abrimos
-el siguiente hasta que el actual pase. Pediste esto y tenías razón: la corrida del 04-08 dejó
-1.422 líneas de log y **una sola causa** explicaba cuatro de los síntomas.
-
----
-
-## Ya confirmado — no lo repitas
-
-| Qué | Evidencia |
+| Bloque | Estado |
 |---|---|
-| Memoria durable entre descargas de celda | corrida 03-08 |
-| La rueda de interacción | *"ya se comporta mejor"* |
-| Corte con vidrios rotos | `cut on broken glass \| 1.80 -> 1.55` |
-| Arma silenciosa adentro de una casa | 5 × `goes quiet indoors` — **nunca había disparado** |
-| Sentarse dejó de ser constante | *"si se sientan, y lo hacen menos seguido que antes"* |
-| Cast out / expulsar | *"esto funciona correctamente"* (prueba 12) |
+| **A — lo que recogen es de verdad** | ✅ **cerrado el 09-08.** Veredicto por prueba en el log. |
+| **A′ — mochila que se ve y que sirve, y el pánico** | 🔵 **abierto, esperando tu corrida.** Ver `TESTING-NOW.md`. |
+| **B — entrar a un edificio** | ⏭ **el que sigue, y es el grande.** Sin empezar. |
+| **C — seguir y huir con matemática de grupo** | especificado, sin empezar |
+| **D — postergados** | ver abajo |
 
----
+### B — entrar a un edificio
 
-# BLOQUE A — segunda vuelta (05-08 noche)
+**Es el que te está rompiendo la partida.** El log del 09-08 lo prueba con números: 111
+abandonos por no poder llegar contra 15 muebles abiertos. Desbloquea el looteo completo, la
+autonomía de los NPC libres, y que dejen de trabarse contra puertas y ventanas.
 
-## Qué pasó en tu corrida
+El orden lógico, que es tuyo y es correcto:
 
-| # | Reportaste | Veredicto |
-|---|---|---|
-| A0 | pasan | ✅ `ASSERT ---- 10 ok, 0 FAILED ----` en el log. El motor tiene la forma que el código cree, así que todo lo demás fue cableado nuestro. |
-| A1/A2 | siguen loteando desde el punto | ❌ confirmado, y era un patrón, no un bug suelto |
-| — | "cogen un montón de cosas que no sirven" | ❌ confirmado con aritmética: John James pasó de `carrying 0.2` a `6.3` en **3 ítems**. El presupuesto es 5.6. Un cajón malo termina su vida de saqueador. |
-| A3/A4 | recoge la mochila, no se la pone, no queda en el cadáver | ❌ confirmado, y son **dos** fallos distintos |
-| A5 | "sí aparecían ítems" | ⚠️ el log muestra 3 × `got N item(s) back after a respawn` — `Restore` funciona. Pero lo que viste en el cadáver puede ser el botín aleatorio de Bandits, no lo que recogió. Se vuelve a medir. |
-| A6 | — | ✅ 6 × `stops searching -- full`. La línea dice por qué. |
+1. Intentar **la puerta** más cercana.
+2. Si está bloqueada, **la ventana** más cercana.
+3. Si ninguna sirve, **dar la vuelta** al edificio.
+4. Si aparecen zombies en el intento, **dejar de entrar y limpiar la zona** primero.
+5. Si vos entraste por una ventana, **priorizar esa misma entrada**.
+6. **Romper la puerta solo como última instancia**, cuando todo lo demás está bloqueado.
 
-## La causa de A1, que es la más importante de toda la sesión
+Lo que ya sabemos antes de diseñar:
 
-No era la casilla adyacente. Era **el orden de la cola**.
+- **Bandits trae `ZAOpenWindow`, `ZASmashWindow`, `ZAClimbFence` — y ninguna acción de puerta.**
+- **The Ark no aporta nada acá.** Sus 27 acciones son vida doméstica.
+- `GetAccessSquare` devuelve casillas inalcanzables: Slayer dejó el chequeo comentado
+  (`42.20/BanditUtils.lua:1051`). `canReachTo` es real pero **solo valida adyacencia**.
 
-`Loot.Search` encolaba las dos cosas juntas:
+Va junto con la percepción: hoy saben dónde está cada zombie porque
+`GetClosestZombieLocation` **no tiene límite de distancia**. Deberían sorprenderse.
 
-```lua
-if dist > 0.9 then tasks[#] = GetMoveTask(...) end
-tasks[#] = { action = "ScenesLoot", x = spot.x, y = spot.y }
-```
+### C — seguir y huir con matemática de grupo
 
-Una tarea de movimiento en Bandits garantiza que **terminó**, nunca que **llegó**. Camino
-bloqueado, puerta, empujón de un zombi, o la escalera de amenaza vaciando la cola: todo eso
-termina el movimiento antes de tiempo — y la tarea siguiente se ejecutaba igual, leía sus
-coordenadas y vaciaba un ropero al otro lado del cuarto.
+Tu descripción es la especificación:
 
-**Slayer nunca tuvo este bug porque nunca escribe una cola que no puede verificar.**
-`BWOAPrograms.GoAndDo` en The Ark devuelve el movimiento **o** la acción, jamás las dos. Un
-programa solo corre con la cola vacía, así que eso sale gratis: camina → cola vacía → el
-programa corre otra vez → ahora sí está al lado → actúa. La distancia se mide **al llegar**,
-no se predice.
+> *"quiere volver a mi porque me está siguiendo, pero ve los zombies y luego huye. Se queda en
+> ese estado de correr y volver, correr y volver."*
 
-Esa es la plantilla que pediste, y quedó escrita como **R13** en `docs/CODE-REVIEW-RULES.md`.
-
-## Qué toqué esta vez
-
-- `Loot.Search` y `Loot.FetchBag`: un paso a la vez, patrón `GoAndDo`.
-- La casilla se marca "ya revisada" **al actuar**, no al planear. Antes, un mueble al que nunca
-  llegó quedaba como hecho.
-- Tope de 3 intentos por mueble: sin callback de fallo de ruta, un objetivo inalcanzable se
-  elegía para siempre.
-- `LosUtil.lineClearCollide`: ya no lotea a través de una pared.
-- `BanditUtils.GetAccessSquare` en vez del de vanilla — es de Slayer, recibe al bandido y
-  devuelve el vecino libre **más cercano a él**, descartando los que tienen pared de por medio.
-- Filtro de lo que vale la pena: comida (no veneno), armas, drenables (vendas), bebida, bolsos.
-  Y ningún ítem que por sí solo se coma lo que queda del presupuesto.
-- `WearBag` ahora reconstruye la lista de muerte y **saca el bolso del inventario suelto** — si
-  no, salía duplicado o no salía.
-- La acción se **niega** a lotear a más de 2 tiles y lo dice en el log.
-
-### Y una segunda tanda, 08-08 de noche
-
-- **Un solo primitivo caminar-luego-actuar**: `SR.Move.GoAndDo` (`ScenesRelationsMove.lua`),
-  copiado de `BWOAPrograms.GoAndDo` de The Ark. Antes esa misma decisión estaba escrita a mano
-  en cuatro lugares y el mismo bug había aparecido en dos. Ahora `Loot.Search`, `Loot.FetchBag`
-  e `Idle.goGet` la comparten.
-- **Bug encontrado en revisión, antes de que lo probaras.** `Idle.goGet` no tiene programa de
-  Bandits detrás: corre desde un barrido `EveryOneMinute` con un candado `mood.wanting` que
-  existía justo para impedir la segunda llamada. Encolaba la caminata y nunca el `PickUp` — el
-  comportamiento de ropa idle quedaba muerto en silencio. Arreglado: el barrido vuelve a llamar
-  a `goGet` con la cola vacía, con tope de 3 intentos.
-- **Bandits y Week One actualizados** (08-06 y 08-07). Las citas `file:line` ahora incluyen la
-  carpeta de versión: `vendor/` trae 42.12 … 42.20 en paralelo y el juego carga solo la que
-  coincide con el build. `GetAccessSquare` está en :1056 en 42.20 y en :1039 en 42.18.
-- 3 aserciones nuevas (19 en ese momento; hoy son 24).
-
-## Bloque A — cerrado el 09-08
-
-| # | Qué era | Veredicto |
-|---|---|---|
-| A0 | los asserts pasan | ✅ `19 ok, 0 FAILED` |
-| A1 | se acerca a cada mueble antes de abrirlo | ✅ *"me parece increíble como ha mejorado esto"* |
-| A2 | cero `LOOT refused` | ✅ **cero**, en 1.4 MB de log |
-| A3 | levanta la mochila y se la pone | ⚠️ se la pone, pero **no se veía** → arreglado, se re-prueba en **B2** |
-| A4 | la mochila queda en el cadáver una sola vez | ✅ |
-| A5 | lo que agarra es útil y aparece al morir | ✅ *"tenían todos los objetos obtenidos en su mochila"* |
-| A6 | suelta lo recogido tras un despawn | ✅ `Restore` en el log |
-| A7 | un NPC libre levanta ropa del piso | ⏳ **sin probar** — llevalo a la corrida de abajo |
-
----
-
-## Tanda 09-08 — mochila que se ve, mochila que sirve, y dejar de tenerte miedo
-
-**← ESTO ES LO QUE TENÉS QUE PROBAR AHORA.** Lo de arriba ya está cerrado.
-
-Lo que el log del 09-08 dijo y vos no podías ver: **no dejan de lootear por estar llenos.**
-Cero paradas por `full`. Lo que hay son **111 × `gives up on X,Y -- could not get there in
-3 tries`** contra 15 muebles abiertos. No llegan. Y esa es la misma causa de que se traben en
-puertas y ventanas — queda para el bloque siguiente, que es el grande.
-
-Lo que sí entró ahora:
-
-- **La mochila ahora se ve.** No era el modelo: `ApplyVisuals` ya llama `resetModel()`
-  (`Bandit.lua:280`). Era que la mochila entraba a la lista visual pero **nunca se equipaba** —
-  Slayer dejó comentada la línea que lo hace (`Bandit.lua:249`). La ponemos nosotros, con
-  `canBeEquipped()` y no `getBodyLocation()`, porque vanilla resuelve ese caso exacto así en
-  `ISInventoryPaneContextMenu.lua:1690`.
-- **La mochila ahora sirve.** Antes no daba **nada** de capacidad: el presupuesto salía del
-  inventario principal, y en PZ una mochila es un contenedor aparte. Ahora
-  `Loot.CarryBudget` le suma `getItemContainer():getMaxWeight()`, así que un framepack de 35
-  rinde más que una escolar de 15. Cadena verificada en `FenrisScenario.lua:409`.
-- **Tus propios NPC ya no te dan miedo.** Un Bandit *es* un `IsoZombie`, así que el modelo de
-  pánico del motor los contaba como horda. Slayer escribió el arreglo y lo dejó apagado
-  (`BanditPlayer.lua:132`, `if true then return end`). El nuestro es propio, no toca el suyo.
-- **Kit de prueba: seis mochilas, de capacidad 1 a 35** — riñonera (1), escolar (15), duffel
-  (18), hiking (20), ALICE (28), framepack (35). Una para cada NPC, que es lo que hace
-  medible la diferencia. Y **la pistola ahora trae dos cargadores**: declara
-  `MagazineType = Base.9mmClip`, así que la caja de balas sola nunca alcanzó.
-- 5 aserciones nuevas (**24** en total).
-
-La tabla de pruebas está arriba del todo, para no tener que bajar hasta acá con el juego abierto.
-
----
-
-# BLOQUE A — primera vuelta (04-08): lo que recogen es de verdad
-
-Esto rompía las pruebas 2, 7 y 10 al mismo tiempo.
-
-## Qué encontré
-
-**Una mochila no tiene `BodyLocation`.** Yo usaba `item:getBodyLocation() == "Back"` para
-reconocer un bolso. Ese campo es de **ropa**. Un bolso es un `InventoryContainer` y se declara
-con `CanBeEquipped = base:back` (`container.txt:57`) — no tiene `BodyLocation` en absoluto.
-
-Un método equivocado, cuatro síntomas tuyos:
-
-- no recogía la mochila del suelo,
-- la meta "buscar mochila" nunca se podía cumplir — **las 28 búsquedas del log dicen
-  `for bag`**, ninguna la encontró,
-- la mochila que sí sacó de un cajón salió como relleno, no como el objetivo,
-- y por eso nunca se la equipó.
-
-La prueba es negativa y total: 1.422 líneas `SREL` y **cero** `found what it wanted`.
-
-**Y lo que recogen no era real.** Bandits guarda las pertenencias en el `brain`, no en
-`zombie:getInventory()`. Su propio comentario lo dice (`Bandit.lua:710`): *"This translates
-weapons, loot, inventory to actual items to be spawned at bandit death"*. Nunca llamábamos a
-esa función, así que la lista de lo que suelta al morir seguía congelada en la del spawn —
-exactamente lo que viste al matarlo. El log lo muestra sin necesidad de matar a nadie: Daniel
-Green subió de `carrying 1.5` a `5.6`, y **reapareció con 1.5** conservando el nombre. El
-cerebro sobrevivió al despawn; el inventario no.
-
-**Y loteaba desde el mismo punto** porque la caminata apuntaba al mueble. Nadie puede pararse
-adentro de un ropero, así que el movimiento no llegaba y la acción corría desde donde estuviera.
-
-## Qué toqué
-
-- El test de "esto es un bolso" ahora es el del propio motor (`ISInventoryPane.lua:967`).
-- Después de saquear: se marca lo tomado, se anota en `brain.scenesCarry` y se reconstruye la
-  lista de muerte con `Bandit.UpdateItemsToSpawnAtDeath`.
-- `Loot.Restore` devuelve lo perdido si un despawn le vació el inventario.
-- Un bolso encontrado en un cajón ahora se **pone**, igual que uno del suelo.
-- Se camina a la casilla libre de al lado del mueble (`AdjacentFreeTileFinder`, lo mismo que
-  usa vanilla para generadores y BBQ).
-
-## Cómo lo probás
-
-| # | Qué hacer | Pasa si |
-|---|---|---|
-| **A0** | Arrancá el juego y buscá `ASSERT` en `console.txt`. **Antes que nada.** | Sale `ASSERT ---- 10 ok, 0 FAILED ----`. Si algo dice `FAIL`, pará: el motor no tiene la forma que el código cree y el resto de las pruebas no significa nada. |
-| **A1** | Entrá a una casa con un compañero y miralo lotear. | **Camina hasta cada mueble** y lo abre parado al lado. No lotea a distancia. |
-| **A2** | Tirá una mochila al piso cerca de él. | La levanta y **se la pone** (se ve en el modelo). Log: `LOOT ... now carries a ...` |
-| **A3** | Poné una mochila en un cajón de una casa. | Igual que A2. Log: `LOOT ... \| BAG Base.Bag_...` |
-| **A4** | Con mochila puesta, dejalo lotear la casa entera. | Sigue abriendo muebles más allá de los 5–6 de antes. |
-| **A5** | Dejalo saquear, alejate hasta que desaparezca, volvé. **Matalo.** | Suelta lo que recogió, no sólo el bate del spawn. |
-| **A6** | Si deja de lotear, mirá el log. | Sale `COMP ... stops searching -- full` o `-- nothing left within reach`. Ahora dice **por qué**. |
-
----
-
-# BLOQUE B — siguiente: seguir y huir con matemática de grupo
-
-Todavía **no está hecho**. Queda escrito acá para no perderlo.
-
-Tu descripción, que es la especificación:
-
-> *"quiere volver a mi porque me está siguiendo, pero ve los zombies y luego huye. Se queda
-> en ese estado de correr y volver, correr y volver."*
-
-Y la regla que pediste:
-
-- **3 o más zombies sobre un solo NPC (o sobre vos solo)** → reposicionarse, no quedarse
-  quieto: hacer distancia y pelear desde ahí.
-- **2 o más de los nuestros contra 3 zombies** → nadie se mueve, se pelea.
-- Grupo chico (2–3): el que no llega **espera y llama**, no oscila. Llamar hace ruido y atrae
-  más zombies — es un costo real, no gratis.
+- **3+ zombies sobre un solo NPC (o sobre vos solo)** → reposicionarse y pelear desde distancia.
+- **2+ de los nuestros contra 3 zombies** → nadie se mueve, se pelea.
+- Grupo chico (2–3): el que no llega **espera y llama**. Llamar hace ruido y atrae más zombies —
+  es un costo real.
 - Grupo grande (4+) con horda encima: huyen todos.
 
-Lo que falta es el conteo de gente **nuestra** cerca; hoy la escalera sólo cuenta zombies.
+Falta el conteo de gente **nuestra** cerca; hoy la escalera solo cuenta zombies.
 
----
-
-# BLOQUE C — postergado, con razón
+### D — postergados, con razón
 
 | Qué | Por qué espera |
 |---|---|
-| No se cura solo | Necesita vendas en el inventario. Sin el bloque A no hay con qué probarlo. |
-| Ventana disputada, leer | Vos mismo los bajaste de prioridad. |
-| ¿Descansan de verdad? | A medias. La resistencia sólo baja en Bandits; nuestro descanso es la única fuente. Se mide después del bloque A. |
-| Los sueltos siguen en idle | Hay que agrandarles el radio sin que barran el mapa. Diseño en `03-autonomy.md`. |
-| No aparece compañero al revivir | **El log dice que sí se pide**: 3 respawns, 3 × `TLOU\| companion requested`. Ningún NPC aparece después. El fallo está **adentro de `BanditServer.Spawner.Clan`**, no en nuestro handler. Investigación aparte. |
+| No se cura solo | Necesita vendas en el inventario. |
+| Ventana disputada, leer | Los bajaste de prioridad vos mismo. |
+| ¿Descansan de verdad? | La resistencia solo baja en Bandits; nuestro descanso es la única fuente. |
+| Los sueltos siguen en idle | Bloqueado por B: un NPC autónomo que no cruza una puerta falla más visiblemente que uno quieto. Diseño en `03-autonomy.md`, y las 27 acciones domésticas de The Ark son el material. |
+| Disciplina de fuego y el flag grupal de "no hagamos ruido" | Bloqueado por B, y detallado en `TODO.md`. |
+| No aparece compañero al revivir | **El log dice que sí se pide**: 3 respawns, 3 × `TLOU\| companion requested`, ningún NPC. El fallo está **adentro de `BanditServer.Spawner.Clan`**. |
 
 ---
 
-## Recordá antes de probar
-
-- `git pull` en la PC de juego. La corrida anterior se probó con código viejo.
-- Personaje **nuevo** si vas a mirar el compañero inicial.
-- El kit de prueba (mochila + pistola + munición) sigue puesto y es **temporal**.
-- Mandame `console.txt` y una línea por prueba, de la A1 a la A6.
-
----
-
-## En qué estamos
+## En qué etapa va cada plan
 
 | Etapa | Estado |
 |---|---|
 | [00 — Mundo de pruebas](plans/00-test-world.md) | construida, confirmada a medias |
 | [01 — Memoria durable](plans/01-durable-memory.md) | **confirmada** |
 | [02 — Rueda de interacción](plans/02-interaction-wheel.md) | **confirmada** |
-| [03 — Autonomía](plans/03-autonomy.md) | bloque A abierto; B y C sin empezar |
+| [03 — Autonomía](plans/03-autonomy.md) | bloque A cerrado; B sin empezar |
 | [Heridas y curación](plans/wounds-and-healing.md) | etapa 1 construida; conversión **apagada** a propósito |
 
-En [`docs/TODO.md`](TODO.md): los cadáveres no retienen a la horda, `ClimbFence` está
-comentado en Bandits, y la conversión de NPC espera al modelo de heridas.
+---
+
+## Deuda que no es de ningún bloque
+
+- El kit de prueba en `TLOUFactionsCompanion.lua` es **temporal** y hay que borrarlo.
+- `SR.DEBUG` tiene que quedar en `false` antes de publicar.
+- Nunca llamamos `Bandit.ForceSyncPart` después de mutar el estado de loot — defecto de
+  multijugador que el smoke test **no puede ver por construcción**.

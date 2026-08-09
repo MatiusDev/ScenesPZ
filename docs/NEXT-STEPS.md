@@ -11,7 +11,9 @@ precisely because the entity does not survive a cell unload.
 
 **Read instead:**
 
-- `docs/PLAN-STATUS.md` -- what is open and what to test next. Start here.
+- `docs/PLAN-STATUS.md` -- where the project is, and an index to everything else. Start here.
+- `docs/TESTING-NOW.md` -- what to test in game right now.
+- `docs/TEST-LOG.md` -- what every past round proved.
 - `docs/plans/README.md` -- the staged roadmap.
 - `docs/CAPABILITY-MAP.md` -- engine questions already settled, with their evidence.
 - `docs/TODO.md` -- observations from play that no stage has claimed yet.
