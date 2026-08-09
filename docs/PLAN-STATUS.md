@@ -10,6 +10,30 @@ Hoja de ruta completa: [`docs/plans/README.md`](plans/README.md).
 
 ---
 
+# ► PROBÁ ESTO — corrida del 09-08
+
+**Primero, siempre:** buscá `ASSERT` en `console.txt`. Tiene que decir
+`ASSERT ---- 24 ok, 0 FAILED ----`. Si algo dice `FAIL`, **pará ahí** y mandámelo: el motor no
+tiene la forma que el código cree y ninguna otra observación de abajo significa nada.
+
+| # | Qué hacer | Pasa si |
+|---|---|---|
+| **B1** | Personaje nuevo. Mirá el inventario. | Seis mochilas, pistola y **dos cargadores**. Log: `test kit given -- 10 of 10 items`. La pistola por fin dispara. |
+| **B2** | Dale una mochila a un NPC y **quedate mirándolo**, sin alejarte. | **Se le ve puesta en la espalda al instante.** Antes solo aparecía si se despawneaba y volvía. |
+| **B3** | Dale la riñonera (cap. 1) a uno y el framepack (cap. 35) a otro. Que looteen la misma casa. | El del framepack aguanta muchísimo más antes de `stops searching -- full`. La línea trae `carrying X / Y` — **la Y tiene que ser muy distinta entre los dos**. Si son iguales, la capacidad no se conectó. |
+| **B4** | Parate pegado a tus compañeros, sin zombis cerca. | **No sube el pánico.** Si aparece un zombi o un bandido hostil, vuelve a subir normal. |
+| **A7** | Tirá una prenda al piso cerca de un NPC **libre** (no compañero). Esperá 2–3 minutos de juego. | Camina, la levanta y se la pone. **Si ves `IDLE ... gave up on ...` repetido, el arreglo no funcionó** — mandámelo. Quedó sin probar de la corrida anterior. |
+
+**Lo que NO hace falta que mires:** que se acerquen al mueble antes de abrirlo, que no aparezca
+`LOOT refused`, que lo que agarran sirva, que suelten lo recogido al morir. Todo eso ya pasó el
+09-08 y está cerrado más abajo.
+
+**Lo que ya sé que sigue roto y no hace falta que reportes de nuevo:** que se traben contra
+puertas y ventanas, y que dejen muchos muebles sin revisar. Son la misma causa —111 abandonos
+por no poder llegar en el último log— y es el bloque que sigue.
+
+---
+
 ## Cómo vamos a trabajar de ahora en adelante
 
 Un bloque a la vez. Cada bloque son 2–3 cosas que comparten causa, no 12 sueltas. No abrimos
@@ -98,30 +122,31 @@ Esa es la plantilla que pediste, y quedó escrita como **R13** en `docs/CODE-REV
 - **Bandits y Week One actualizados** (08-06 y 08-07). Las citas `file:line` ahora incluyen la
   carpeta de versión: `vendor/` trae 42.12 … 42.20 en paralelo y el juego carga solo la que
   coincide con el build. `GetAccessSquare` está en :1056 en 42.20 y en :1039 en 42.18.
-- 3 aserciones nuevas (19 en total).
+- 3 aserciones nuevas (19 en ese momento; hoy son 24).
 
-## Cómo lo probás — segunda vuelta
+## Bloque A — cerrado el 09-08
 
-| # | Qué hacer | Pasa si |
+| # | Qué era | Veredicto |
 |---|---|---|
-| **A0** | Buscá `ASSERT` en `console.txt`. **Antes que nada.** | `ASSERT ---- 24 ok, 0 FAILED ----`. Si algo dice `FAIL`, pará y mandámelo. |
-| **A1** | Entrá a una casa con un compañero y miralo. | **Camina hasta cada mueble** y lo abre parado al lado. |
-| **A2** | Buscá `LOOT refused` en el log. | **No aparece ni una vez.** Si aparece, la cola se sigue rompiendo y ahí está la prueba. |
-| **A3** | Tirá una mochila al piso cerca. | La levanta y **se la pone** (se ve en el modelo). Log: `LOOT ... now carries a ...` |
-| **A4** | Matalo después de que se la puso. | La mochila está en el cadáver, **una sola vez**. |
-| **A5** | Dejalo lotear una casa entera. | Abre más de 5–6 muebles. Lo que agarra es útil: comida, vendas, armas — no ropa. |
-| **A6** | Alejate hasta que desaparezca, volvé, matalo. | Suelta lo que recogió. |
-| **A7** | Tirá una prenda al piso cerca de un NPC **libre** (no compañero) y esperá 2–3 minutos de juego. | Camina, la levanta y se la pone. Log: `IDLE ... wants ...` seguido de que se la ponga. **Si ves `IDLE ... gave up on ...` repetido, el arreglo de esta noche no funcionó** — mandámelo. |
+| A0 | los asserts pasan | ✅ `19 ok, 0 FAILED` |
+| A1 | se acerca a cada mueble antes de abrirlo | ✅ *"me parece increíble como ha mejorado esto"* |
+| A2 | cero `LOOT refused` | ✅ **cero**, en 1.4 MB de log |
+| A3 | levanta la mochila y se la pone | ⚠️ se la pone, pero **no se veía** → arreglado, se re-prueba en **B2** |
+| A4 | la mochila queda en el cadáver una sola vez | ✅ |
+| A5 | lo que agarra es útil y aparece al morir | ✅ *"tenían todos los objetos obtenidos en su mochila"* |
+| A6 | suelta lo recogido tras un despawn | ✅ `Restore` en el log |
+| A7 | un NPC libre levanta ropa del piso | ⏳ **sin probar** — llevalo a la corrida de abajo |
 
 ---
 
 ## Tanda 09-08 — mochila que se ve, mochila que sirve, y dejar de tenerte miedo
 
-Tu corrida del 09-08 pasó A0 (19/19) y A2 (**cero** `LOOT refused`). Lo que el log dijo y vos
-no podías ver: **no dejan de lootear por estar llenos.** Cero paradas por `full`. Lo que hay
-son **111 × `gives up on X,Y -- could not get there in 3 tries`** contra 15 muebles abiertos.
-No llegan. Y esa es la misma causa de que se traben en puertas y ventanas — queda para el
-bloque siguiente, que es el grande.
+**← ESTO ES LO QUE TENÉS QUE PROBAR AHORA.** Lo de arriba ya está cerrado.
+
+Lo que el log del 09-08 dijo y vos no podías ver: **no dejan de lootear por estar llenos.**
+Cero paradas por `full`. Lo que hay son **111 × `gives up on X,Y -- could not get there in
+3 tries`** contra 15 muebles abiertos. No llegan. Y esa es la misma causa de que se traben en
+puertas y ventanas — queda para el bloque siguiente, que es el grande.
 
 Lo que sí entró ahora:
 
@@ -143,12 +168,7 @@ Lo que sí entró ahora:
   `MagazineType = Base.9mmClip`, así que la caja de balas sola nunca alcanzó.
 - 5 aserciones nuevas (**24** en total).
 
-| # | Qué hacer | Pasa si |
-|---|---|---|
-| **B1** | Personaje nuevo. Mirá el inventario. | Seis mochilas, pistola y **dos cargadores**. Log: `test kit given -- 10 of 10 items`. La pistola por fin dispara. |
-| **B2** | Dale una mochila a un NPC y **quedate mirándolo**, sin alejarte. | **Se le ve puesta en la espalda al instante.** Antes solo aparecía si se despawneaba y volvía. |
-| **B3** | Dale la riñonera (1) a uno y el framepack (35) a otro. Que looteen la misma casa. | El del framepack aguanta muchísimo más antes de `stops searching -- full`. La línea trae `carrying X / Y` — **Y tiene que ser muy distinto entre los dos**. Si son iguales, la capacidad no se conectó. |
-| **B4** | Parate pegado a tus compañeros, sin zombis cerca. | **No sube el pánico.** Si aparece un zombi o un bandido hostil, vuelve a subir normal. |
+La tabla de pruebas está arriba del todo, para no tener que bajar hasta acá con el juego abierto.
 
 ---
 
