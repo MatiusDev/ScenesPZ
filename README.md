@@ -8,13 +8,18 @@ framework.
 ## Layout
 
 ```
-mods/TLOUProject/       the mod, laid out as a Steam Workshop project
+mods/ScenesProject/     ScenesRelations (the main mod) + ScenesDoctor
+mods/TLOUProject/       TLOUFactions
   Contents/             the only directory uploaded to the Workshop
-docs/                   modding reference and network setup
-tools/workshop.py       Steam Workshop CLI
+vendor/                 pinned upstream mods, read-only reference (deps.lock.json)
+docs/                   modding reference, plans, and the review rules
+tools/                  deps.py, lint.sh, sync-mods.sh, logdoctor.py, workshop.py
 .claude/agents/         subagent definitions for this project
 CLAUDE.md               architecture rules and delegation routing
 ```
+
+Three mods ship from this repo, not one — see the table under **The mods** below, and
+`docs/NETWORKING.md` for where each folder lands on a machine that owns the game.
 
 `pzserver/` is gitignored — it is a 6.9 GB dedicated-server install used as a headless
 smoke test and as the offline vanilla API reference. Reinstall with:

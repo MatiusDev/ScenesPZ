@@ -53,7 +53,7 @@ gone in 42.20 — turned into 1,553 exceptions in a single session and killed th
 ```lua
 -- an engine method disappearing must degrade, not cascade
 local ok, err = pcall(function() obj:transmitCompleteItemToClients() end)
-if not ok then ScenesDoctor.log("ERR", "transmit failed: " .. tostring(err)) end
+if not ok then SR.Log("transmit failed: " .. tostring(err)) end
 ```
 
 Do this at engine boundaries. Not on our own pure functions — there it just hides bugs.
@@ -78,5 +78,11 @@ dump that shipped to 933k subscribers. Nothing outside the intended file list go
 
 - 4 spaces. `local` by default. Early returns.
 - English in code, comments, and commits.
-- Lint before every commit: `luajit -bl <file>` (PZ is Lua 5.1). Free, no game required.
-- Behind `ScenesDoctor.DEBUG`, `print()` generously — `console.txt` is the only debugger.
+- **Lint before every commit: `./tools/lint.sh`.** It runs `luajit -bl` over every mod file
+  (PZ is Lua 5.1, so luajit parses it without the game) *and* resolves every item id against
+  the 6,386 definitions in `pzserver/media/scripts/`. Free, no game required. Do not run the
+  raw `luajit` call by hand — it catches syntax and nothing else.
+- **Logging goes through `SR.Log`**, behind `SR.DEBUG`. `console.txt` is the only debugger
+  this project has, and it is read on a different machine, so a decision that cannot print
+  why it was made cannot be fixed. `ScenesDoctor` has its own `SDOC|` channel for memory and
+  call-count samples; it is not the general logger.
