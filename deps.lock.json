@@ -1,20 +1,20 @@
 {
   "game_build": "42.20.0",
-  "checked_at": "2026-08-05T06:37:56Z",
+  "checked_at": "2026-08-09T00:17:09Z",
   "mods": {
     "3268487204": {
       "name": "[B42] Bandits NPC",
       "role": "hard dependency - tlouFactions requires Bandits2",
       "vendor_path": "vendor/Bandits",
-      "steam_updated": "2026-08-02T23:36:23Z",
-      "vendored_at": "2026-08-03T01:24:21Z"
+      "steam_updated": "2026-08-06T19:33:23Z",
+      "vendored_at": "2026-08-09T00:16:41Z"
     },
     "3403180543": {
       "name": "[B42] Week One NPC",
       "role": "reference only - narrative patterns we imitate",
       "vendor_path": "vendor/WeekOne",
-      "steam_updated": "2026-06-03T09:18:22Z",
-      "vendored_at": "2026-08-03T01:24:21Z"
+      "steam_updated": "2026-08-07T19:39:08Z",
+      "vendored_at": "2026-08-09T00:17:09Z"
     },
     "3707475814": {
       "name": "The Ark",

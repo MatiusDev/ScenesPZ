@@ -133,7 +133,8 @@ local function run()
     end)
 
     -- WHERE SOMEBODY STANDS TO OPEN A DRAWER. Bandits' own, and it takes the bandit as an
-    -- argument -- `square:DistToProper(bandit)`, BanditUtils.lua:1064 -- so unlike vanilla's
+    -- argument -- `square:DistToProper(bandit)`, Bandits/42.20/.../BanditUtils.lua:1081 -- so
+    -- unlike vanilla's
     -- AdjacentFreeTileFinder it is already designed to be handed an IsoZombie.
     check("BanditUtils.GetAccessSquare exists", function()
         return type(BanditUtils) == "table" and type(BanditUtils.GetAccessSquare) == "function"
@@ -144,6 +145,37 @@ local function run()
     -- The Ark's walk-then-act decisions on it.
     check("LosUtil.lineClearCollide exists", function()
         return type(LosUtil) == "table" and type(LosUtil.lineClearCollide) == "function"
+    end)
+
+    -- THE SHARED WALK-THEN-ACT PRIMITIVE. All four things below are what
+    -- `SR.Move.GoAndDo` (ScenesRelationsMove.lua) is built on. `GetAccessSquare` and
+    -- `lineClearCollide` above were already covered; these two were not, because before this
+    -- file no caller asked the engine directly -- they went through `zombie:getCell()` and a
+    -- copy of the same logic instead.
+
+    -- WHETHER THE PRIMITIVE EVEN NEEDS TO DETOUR. `square:isNotBlocked(false)` decides
+    -- between standing on the target square itself and asking `GetAccessSquare` for a
+    -- neighbour -- confirmed against `pzserver/media/lua/shared/Foraging/forageSystem.lua:1695`,
+    -- which reads the same call the same way.
+    check("a live grid square responds to isNotBlocked(false)", function()
+        local player = getSpecificPlayer(0)
+        local square = player and player:getSquare()
+        if not square then return false, "no player square available yet" end
+        local ok, blocked = pcall(function() return square:isNotBlocked(false) end)
+        return ok and type(blocked) == "boolean", tostring(blocked)
+    end)
+
+    -- WHERE THE PRIMITIVE RESOLVES COORDINATES INTO A SQUARE. `getCell()` -- the global,
+    -- the same one `BWOAPrograms.GoAndDo` calls -- not `zombie:getCell()`, which is what every
+    -- caller used before this file existed.
+    check("getCell() returns the loaded cell", function()
+        return type(getCell) == "function" and getCell() ~= nil
+    end)
+
+    -- THE PRIMITIVE ITSELF. If this is missing, every one of Loot.Search, Loot.FetchBag, and
+    -- ScenesRelationsIdle's goGet silently queues nothing.
+    check("SR.Move.GoAndDo exists", function()
+        return type(SR.Move) == "table" and type(SR.Move.GoAndDo) == "function"
     end)
 
     -- WHAT IS WORTH CARRYING. The 05-08 run filled three survivors with 6kg of nothing and they

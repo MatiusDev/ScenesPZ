@@ -114,6 +114,21 @@ built by people who chose to stay.
    Correctness over speed, always.
 7. **English in all artifacts** — code, comments, docs, commit messages. Lowercase
    filenames. Conventional commits, no AI attribution.
+8. **Changing a function means reading every caller, and reading what re-invokes them.**
+   Not the call line — the loop or event the caller lives in. On 2026-08-08 a correct
+   extraction of `SR.Move.GoAndDo` (walk-or-act, never both) was wired into three call
+   sites. Two were inside Bandits programs, which re-run automatically whenever the task
+   queue empties, so returning one leg at a time worked. The third,
+   `ScenesRelationsIdle.goGet`, ran from an `EveryOneMinute` sweep behind a `mood.wanting`
+   latch that existed specifically to prevent a second call. It queued the walk, never the
+   pickup, and the whole behaviour died silently. Lint passed. The primitive was right and
+   the caller had no motor to drive it.
+   **Ask it explicitly, in writing, for every call site you touch: what calls this again,
+   and under what condition?** If the answer is "nothing", a function that returns work in
+   installments cannot go there.
+9. **Report before you finish, not after.** State what you changed, what you deliberately
+   did not change, and every assumption you could not verify. A silent success is
+   indistinguishable from a silent failure to the orchestrator reading your output.
 
 ### Before you start
 

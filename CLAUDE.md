@@ -44,10 +44,33 @@ These are not style preferences — each one maps to a specific way PZ mods brea
 | reviewing a diff before the user tests it | `pz-review` |
 
 Orchestrator (me) handles: architecture decisions, folder layout, cross-cutting naming,
-git, network/deploy, and reading `console.txt` the user pastes. Research before writing —
-`pz-research` first, then a writer. `pz-verify` after every change that touches loadable files.
+git, network/deploy, and reading `console.txt` the user pastes.
 
-Single-file mechanical edits stay inline. Do not delegate a one-line fix.
+### The cycle — a writer's output is not done when the writer says it is
+
+```
+pz-research  ->  writer (pz-lua | pz-data)  ->  pz-review  ->  pz-verify  ->  user tests
+```
+
+Four rules hold this together, and each one is here because skipping it cost something:
+
+1. **Research before writing.** `pz-research` first, then a writer. Never a writer alone on
+   a question that starts with "how does the game/Bandits do X".
+2. **No writer output reaches a commit, a sync, or the gaming PC without `pz-review`.**
+   Not "when it looks risky" — always. On 2026-08-08 `pz-lua` correctly extracted a
+   walk-then-act primitive and silently killed the idle-clothing behaviour by wiring it into
+   a caller with no re-entry motor. Lint passed, the diff read beautifully, and it went to
+   disk unreviewed because nothing in this file said review was mandatory. Now it does.
+3. **A writer that produced no report produced no verified work.** A subagent can die
+   mid-task — spend limits, timeouts, context exhaustion — and leave lint-clean files with
+   no account of what it changed or what it could not check. Treat those files as a stranger's
+   patch: review them before believing them, whatever `lint.sh` says.
+4. **`pz-verify` after every change touching loadable files**, and remember what it cannot
+   see: a dedicated server never executes `media/lua/client/`, which is most of this mod. A
+   PASS there means "the shared and server halves load", nothing more.
+
+Single-file mechanical edits stay inline. Do not delegate a one-line fix — but rule 2 still
+applies to the diff, and inline work is reviewed by the same agent as delegated work.
 
 Before building NPC behavior, `pz-lua` and `pz-research` read `docs/BANDITS-API.md` first.
 It is a lookup table, not background reading — the point is to answer "does this already

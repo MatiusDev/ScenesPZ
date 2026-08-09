@@ -307,8 +307,31 @@ Two consequences that are easy to miss when splitting a planner this way:
 Belt and braces: the action itself should refuse to act at range and say so in the log. The
 queue is not ours alone, and a silent wrong result is the expensive kind (R2).
 
+### R13b — the caller needs a motor, and not every caller has one
+
+**Cost: the entire idle-clothing behaviour, dead and silent, 2026-08-08.**
+
+Splitting a decision into installments only works if something calls the caller again. In
+Bandits that motor is free and invisible: a program re-runs by itself every time the task
+queue empties. It is so reliable that it is easy to forget it is a *property of the caller*
+and not of the function.
+
+`SR.Move.GoAndDo` was extracted correctly and wired into three call sites. Two lived inside
+Bandits programs and worked. The third, `ScenesRelationsIdle.goGet`, ran from an
+`Events.EveryOneMinute` sweep guarded by a `mood.wanting` latch — and the latch existed
+precisely to stop a second call. It queued the walk, the queue drained, the pickup was never
+queued, and the sweep concluded the NPC had "given up". Every time. `lint.sh` passed.
+
+The primitive was right. The caller had no engine to drive it.
+
+So whenever a function returns work in installments, the question is not "is this function
+correct" but **"what calls this again, and under what condition?"** Ask it per call site, in
+writing, even when the answer is obvious. If the answer is "nothing", that call site needs
+either its own re-invocation (a loop, a re-entrant sweep) or the all-at-once version.
+
 > Does the diff queue an action whose correctness depends on a movement that precedes it in
-> the same queue? Does anything get marked done before it happened?
+> the same queue? Does anything get marked done before it happened? For every changed
+> function that returns partial work, is there a named re-invoker for each of its callers?
 
 ---
 

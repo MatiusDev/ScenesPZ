@@ -4,6 +4,8 @@ pzserver/
 # Tooling scratch
 .playwright-mcp/
 .atl/
+.iwe/
+.codegraph/
 __pycache__/
 *.pyc
 

@@ -40,6 +40,7 @@
 -- which is exactly the requested behaviour and needs no separate rule.
 
 require "ScenesRelations"
+require "ScenesRelationsMove"
 
 local SR = ScenesRelations
 
@@ -524,37 +525,16 @@ end
 --- REPORTED: "se ve la animacion de como desde el mismo punto lotea todas las cosas o revisa
 --- todo los cajones... el deberia acercarse a cada cajon y lotear uno por uno."
 ---
---- `BanditUtils.GetAccessSquare(gridSquare, bandit)` (BanditUtils.lua:1039) replaced vanilla's
---- `AdjacentFreeTileFinder.Find` here, and the swap is not a preference. Theirs takes the
---- bandit as its second argument and uses it -- `square:DistToProper(bandit)` at :1064 -- so it
---- returns the free neighbour CLOSEST TO THIS NPC out of all eight, and rejects any square with
---- a wall between (`gridSquare:isWallTo(testSquare)`, :1054). Vanilla's returns the first free
---- tile that passes its own test, which can be the far side of the wardrobe.
----
---- Only consulted when the container square is actually blocked, which is how The Ark gates it
---- (`if not square:isNotBlocked(false)`, BWOAPrograms.GoAndDo). A container on an open floor
---- tile is stood on, not walked around.
-local function standingSpot(zombie, spot)
-    local cell = zombie:getCell()
-    if not cell then return spot end
-
-    local square = cell:getGridSquare(spot.x, spot.y, spot.z)
-    if not square then return spot end
-
-    local ok, free = pcall(function()
-        if square:isNotBlocked(false) then return square end
-        return BanditUtils.GetAccessSquare(square, zombie)
-    end)
-
-    if ok and free then
-        return { x = free:getX(), y = free:getY(), z = free:getZ() }
-    end
-    return spot
-end
-
--- Tiles. Inside this, the NPC is at the furniture and may open it. Outside, it walks.
--- 0.7 is The Ark's own default for the same decision (BWOAPrograms.GoAndDo `precision`).
-local REACH = 0.7
+--- This used to be its own function here, resolving the standing square with
+--- `BanditUtils.GetAccessSquare(gridSquare, bandit)` (Bandits/42.20/.../BanditUtils.lua:1056)
+--- exactly the way
+--- described below -- and REACH (0.7, The Ark's own default) lived here too. Both moved into
+--- `SR.Move.GoAndDo` (ScenesRelationsMove.lua) once `Loot.FetchBag` turned out to need the
+--- identical decision: `BanditUtils.GetAccessSquare` takes the bandit and returns the free
+--- neighbour CLOSEST TO THIS NPC, rejecting any square with a wall between
+--- (`gridSquare:isWallTo(testSquare)`, :1071), and it is only consulted when the
+--- container square is actually blocked (`square:isNotBlocked(false)`). A container on an open
+--- floor tile is stood on, not walked around. See that file for the full derivation.
 
 -- How many times we will re-issue a walk to the same container before writing it off. There is
 -- no path-failure callback here, so an unreachable spot would otherwise be chosen, walked at,
@@ -585,22 +565,19 @@ local MAX_APPROACHES = 3
 ---
 --- The rule this leaves behind, and it is bigger than looting: a task cannot check its own
 --- preconditions, so anything a task depends on must be true when it is QUEUED, not when it
---- was planned.
+--- was planned. `SR.Move.GoAndDo` (ScenesRelationsMove.lua) is that rule extracted into one
+--- function so it cannot drift out of sync between this file and any other caller again.
 function Loot.Search(zombie, mood, spot, want)
-    local stand = standingSpot(zombie, spot)
-    local bx, by, bz = zombie:getX(), zombie:getY(), zombie:getZ()
-    local dist = BanditUtils.DistTo(bx, by, stand.x + 0.5, stand.y + 0.5)
+    local task = {
+        action = "ScenesLoot", anim = "Loot", time = 200,
+        x = spot.x, y = spot.y, z = spot.z,
+        want = want,
+    }
+    local tasks, arrived = SR.Move.GoAndDo(zombie, spot, task)
 
-    -- Close in a straight line is not the same as close. Without this an NPC on the far side of
-    -- a partition is 0.6 tiles from a cupboard it cannot touch, and reaches through the wall.
-    local ok, blocked = pcall(function()
-        return LosUtil.lineClearCollide(
-            math.floor(bx), math.floor(by), math.floor(bz),
-            math.floor(stand.x), math.floor(stand.y), math.floor(stand.z), false)
-    end)
-    if not ok then blocked = false end
-
-    if dist > REACH or blocked then
+    if not arrived then
+        -- The approach cap. There is no path-failure callback here, so an unreachable spot
+        -- would otherwise be chosen, walked at, and chosen again forever.
         mood.approach = mood.approach or {}
         local k = key(spot.x, spot.y, spot.z)
         mood.approach[k] = (mood.approach[k] or 0) + 1
@@ -615,9 +592,7 @@ function Loot.Search(zombie, mood, spot, want)
             return {}
         end
 
-        -- Walk, not Run. Indoors, and the whole point of searching a house is that it is quiet
-        -- enough to search a house.
-        return { BanditUtils.GetMoveTask(0, stand.x, stand.y, stand.z, "Walk", dist, false) }
+        return tasks
     end
 
     -- Here, and only here, is the square marked. The old code marked it at PLANNING time, so a
@@ -625,11 +600,7 @@ function Loot.Search(zombie, mood, spot, want)
     markSearched(mood, spot.x, spot.y, spot.z)
     if mood.approach then mood.approach[key(spot.x, spot.y, spot.z)] = nil end
 
-    return { {
-        action = "ScenesLoot", anim = "Loot", time = 200,
-        x = spot.x, y = spot.y, z = spot.z,
-        want = want,
-    } }
+    return tasks
 end
 
 -- BAGS -------------------------------------------------------------------------------
@@ -691,18 +662,15 @@ end
 --- once the pickup has actually been queued; setting that flag on the walk leg made the next
 --- sweep look in an empty inventory and conclude somebody else had taken it.
 ---
---- Returns the tasks and whether this is the pickup leg.
+--- Returns the tasks and whether this is the pickup leg. `SR.Move.GoAndDo`'s own
+--- `tasks, arrived` shape IS this contract -- `arrived` reads exactly as "this is the pickup
+--- leg" -- so there is nothing to translate.
 function Loot.FetchBag(zombie, want)
-    local dist = BanditUtils.DistTo(zombie:getX(), zombie:getY(), want.x + 0.5, want.y + 0.5)
-
-    if dist > REACH then
-        return { BanditUtils.GetMoveTask(0, want.x, want.y, want.z, "Walk", dist, false) }, false
-    end
-
-    return { {
+    local task = {
         action = "PickUp", anim = "LootLow", itemType = want.itemType,
         x = want.x, y = want.y, z = want.z, cnt = 1,
-    } }, true
+    }
+    return SR.Move.GoAndDo(zombie, want, task)
 end
 
 --- Put it on. Called once the pickup has drained, so the item is theirs before it is worn.

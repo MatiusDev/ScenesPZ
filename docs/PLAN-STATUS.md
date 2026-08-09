@@ -83,19 +83,35 @@ Esa es la plantilla que pediste, y quedó escrita como **R13** en `docs/CODE-REV
 - `WearBag` ahora reconstruye la lista de muerte y **saca el bolso del inventario suelto** — si
   no, salía duplicado o no salía.
 - La acción se **niega** a lotear a más de 2 tiles y lo dice en el log.
-- 6 aserciones nuevas (16 en total).
+
+### Y una segunda tanda, 08-08 de noche
+
+- **Un solo primitivo caminar-luego-actuar**: `SR.Move.GoAndDo` (`ScenesRelationsMove.lua`),
+  copiado de `BWOAPrograms.GoAndDo` de The Ark. Antes esa misma decisión estaba escrita a mano
+  en cuatro lugares y el mismo bug había aparecido en dos. Ahora `Loot.Search`, `Loot.FetchBag`
+  e `Idle.goGet` la comparten.
+- **Bug encontrado en revisión, antes de que lo probaras.** `Idle.goGet` no tiene programa de
+  Bandits detrás: corre desde un barrido `EveryOneMinute` con un candado `mood.wanting` que
+  existía justo para impedir la segunda llamada. Encolaba la caminata y nunca el `PickUp` — el
+  comportamiento de ropa idle quedaba muerto en silencio. Arreglado: el barrido vuelve a llamar
+  a `goGet` con la cola vacía, con tope de 3 intentos.
+- **Bandits y Week One actualizados** (08-06 y 08-07). Las citas `file:line` ahora incluyen la
+  carpeta de versión: `vendor/` trae 42.12 … 42.20 en paralelo y el juego carga solo la que
+  coincide con el build. `GetAccessSquare` está en :1056 en 42.20 y en :1039 en 42.18.
+- 3 aserciones nuevas (19 en total).
 
 ## Cómo lo probás — segunda vuelta
 
 | # | Qué hacer | Pasa si |
 |---|---|---|
-| **A0** | Buscá `ASSERT` en `console.txt`. **Antes que nada.** | `ASSERT ---- 16 ok, 0 FAILED ----`. Si algo dice `FAIL`, pará y mandámelo. |
+| **A0** | Buscá `ASSERT` en `console.txt`. **Antes que nada.** | `ASSERT ---- 19 ok, 0 FAILED ----`. Si algo dice `FAIL`, pará y mandámelo. |
 | **A1** | Entrá a una casa con un compañero y miralo. | **Camina hasta cada mueble** y lo abre parado al lado. |
 | **A2** | Buscá `LOOT refused` en el log. | **No aparece ni una vez.** Si aparece, la cola se sigue rompiendo y ahí está la prueba. |
 | **A3** | Tirá una mochila al piso cerca. | La levanta y **se la pone** (se ve en el modelo). Log: `LOOT ... now carries a ...` |
 | **A4** | Matalo después de que se la puso. | La mochila está en el cadáver, **una sola vez**. |
 | **A5** | Dejalo lotear una casa entera. | Abre más de 5–6 muebles. Lo que agarra es útil: comida, vendas, armas — no ropa. |
 | **A6** | Alejate hasta que desaparezca, volvé, matalo. | Suelta lo que recogió. |
+| **A7** | Tirá una prenda al piso cerca de un NPC **libre** (no compañero) y esperá 2–3 minutos de juego. | Camina, la levanta y se la pone. Log: `IDLE ... wants ...` seguido de que se la ponga. **Si ves `IDLE ... gave up on ...` repetido, el arreglo de esta noche no funcionó** — mandámelo. |
 
 ---
 

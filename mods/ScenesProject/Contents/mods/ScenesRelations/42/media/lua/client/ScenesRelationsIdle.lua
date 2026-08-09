@@ -36,6 +36,7 @@
 
 require "ScenesRelations"
 require "ScenesRelationsAutonomy"
+require "ScenesRelationsMove"
 
 local SR = ScenesRelations
 
@@ -143,21 +144,42 @@ local function findWanted(zombie, location)
     return best
 end
 
---- Walk there, then pick it up. Task shapes copied from the only place in Bandits that
---- builds them (BanditPrograms.lua:58), not invented.
+--- Walk there, then pick it up -- never both queued at once. Task shape copied from the only
+--- place in Bandits that builds it (BanditPrograms.lua:58), not invented.
+---
+--- This used to add the move task and then unconditionally add the pickup task right behind
+--- it, regardless of whether the walk actually arrived. `ZombieActions.PickUp.onComplete`
+--- (vendor/Bandits/.../ZombieActions/ZAPickUp.lua:14) has no distance check of its own -- it
+--- grabs whatever matches `itemType` off `task.x, task.y, task.z` no matter where the NPC is
+--- standing when the task runs -- so a move cut short by a shove, a blocked path, or the
+--- autonomy ladder clearing the queue let this pick something up from across the room,
+--- silently. Same bug class as the one documented at length above `Loot.Search`
+--- (ScenesRelationsLoot.lua) and the same fix: `SR.Move.GoAndDo` (ScenesRelationsMove.lua)
+--- never returns both tasks. Precision kept at the original 0.9 rather than the primitive's
+--- 0.7 default so the walk-vs-act threshold here does not change.
+---
+--- AND THE CATCH THAT COMES WITH IT. `GoAndDo` only ever queues one leg, so somebody has to
+--- call it again for the second one. In Loot that somebody is free: a Bandits program re-runs
+--- by itself every time the task queue empties. Here there is no program -- this is a
+--- `EveryOneMinute` sweep guarded by a `mood.wanting` latch, and the latch is precisely what
+--- stops a second call. Returning `arrived` is how the sweep knows the difference between "it
+--- is walking, ask me again" and "the pickup is queued, wait for it."
 local function goGet(zombie, want)
-    local dist = BanditUtils.DistTo(zombie:getX(), zombie:getY(), want.x + 0.5, want.y + 0.5)
-
-    if dist > 0.9 then
-        Bandit.AddTask(zombie, BanditUtils.GetMoveTask(0, want.x, want.y, want.z,
-            "Walk", dist, false))
-    end
-
-    Bandit.AddTask(zombie, {
+    local task = {
         action = "PickUp", anim = "LootLow", itemType = want.itemType,
         x = want.x, y = want.y, z = want.z, cnt = 1,
-    })
+    }
+    local tasks, arrived = SR.Move.GoAndDo(zombie, want, task, { precision = 0.9 })
+    for _, t in ipairs(tasks) do
+        Bandit.AddTask(zombie, t)
+    end
+    return arrived, #tasks > 0
 end
+
+-- How many empty-queue sweeps we will spend walking at the same item before writing it off.
+-- Same reasoning as MAX_APPROACHES in ScenesRelationsLoot.lua: there is no path-failure
+-- callback, so an item behind a locked door would otherwise be walked at forever.
+local MAX_TRIES = 3
 
 --- Putting it on. Bandits dresses an NPC through brain.clothing plus ApplyVisuals
 --- (Bandit.lua:178, called from banditize at BanditServerSpawner.lua:420). The Equip task
@@ -214,17 +236,27 @@ local function sweep()
 
                 if brain and mood then
                     if mood.wanting then
-                        -- Already sent for something. Finish it, or give up if the queue
-                        -- emptied without the item leaving the ground -- unreachable, or
-                        -- somebody else took it first.
+                        -- Already sent for something, and the queue has run dry. Three things
+                        -- can be true here and they are not the same thing: the item is gone
+                        -- from the ground (we have it -- wear it), the walk leg finished and
+                        -- the pickup has not been queued yet (ask GoAndDo again), or we have
+                        -- asked enough times and it is unreachable.
                         if not BanditBrain.HasTask(brain) then
                             if not stillOnGround(zombie, mood.wanting) then
                                 wearIt(zombie, brain, mood.wanting)
+                                mood.wanting = nil
                             else
-                                SR.Log(string.format("IDLE %s gave up on %s",
-                                    tostring(brain.fullname), mood.wanting.itemType))
+                                mood.tries = (mood.tries or 0) + 1
+                                local arrived, queued = goGet(zombie, mood.wanting)
+                                if arrived or not queued or mood.tries >= MAX_TRIES then
+                                    if not arrived then
+                                        SR.Log(string.format("IDLE %s gave up on %s",
+                                            tostring(brain.fullname), mood.wanting.itemType))
+                                        mood.wanting = nil
+                                    end
+                                    mood.tries = nil
+                                end
                             end
-                            mood.wanting = nil
                         end
                     elseif isIdle(zombie, brain) then
                         local taste = tasteOf(brain)
