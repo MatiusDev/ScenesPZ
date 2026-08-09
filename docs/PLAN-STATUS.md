@@ -104,7 +104,7 @@ Esa es la plantilla que pediste, y quedó escrita como **R13** en `docs/CODE-REV
 
 | # | Qué hacer | Pasa si |
 |---|---|---|
-| **A0** | Buscá `ASSERT` en `console.txt`. **Antes que nada.** | `ASSERT ---- 19 ok, 0 FAILED ----`. Si algo dice `FAIL`, pará y mandámelo. |
+| **A0** | Buscá `ASSERT` en `console.txt`. **Antes que nada.** | `ASSERT ---- 24 ok, 0 FAILED ----`. Si algo dice `FAIL`, pará y mandámelo. |
 | **A1** | Entrá a una casa con un compañero y miralo. | **Camina hasta cada mueble** y lo abre parado al lado. |
 | **A2** | Buscá `LOOT refused` en el log. | **No aparece ni una vez.** Si aparece, la cola se sigue rompiendo y ahí está la prueba. |
 | **A3** | Tirá una mochila al piso cerca. | La levanta y **se la pone** (se ve en el modelo). Log: `LOOT ... now carries a ...` |
@@ -112,6 +112,41 @@ Esa es la plantilla que pediste, y quedó escrita como **R13** en `docs/CODE-REV
 | **A5** | Dejalo lotear una casa entera. | Abre más de 5–6 muebles. Lo que agarra es útil: comida, vendas, armas — no ropa. |
 | **A6** | Alejate hasta que desaparezca, volvé, matalo. | Suelta lo que recogió. |
 | **A7** | Tirá una prenda al piso cerca de un NPC **libre** (no compañero) y esperá 2–3 minutos de juego. | Camina, la levanta y se la pone. Log: `IDLE ... wants ...` seguido de que se la ponga. **Si ves `IDLE ... gave up on ...` repetido, el arreglo de esta noche no funcionó** — mandámelo. |
+
+---
+
+## Tanda 09-08 — mochila que se ve, mochila que sirve, y dejar de tenerte miedo
+
+Tu corrida del 09-08 pasó A0 (19/19) y A2 (**cero** `LOOT refused`). Lo que el log dijo y vos
+no podías ver: **no dejan de lootear por estar llenos.** Cero paradas por `full`. Lo que hay
+son **111 × `gives up on X,Y -- could not get there in 3 tries`** contra 15 muebles abiertos.
+No llegan. Y esa es la misma causa de que se traben en puertas y ventanas — queda para el
+bloque siguiente, que es el grande.
+
+Lo que sí entró ahora:
+
+- **La mochila ahora se ve.** No era el modelo: `ApplyVisuals` ya llama `resetModel()`
+  (`Bandit.lua:280`). Era que la mochila entraba a la lista visual pero **nunca se equipaba** —
+  Slayer dejó comentada la línea que lo hace (`Bandit.lua:249`). La ponemos nosotros, con
+  `canBeEquipped()` y no `getBodyLocation()`, porque vanilla resuelve ese caso exacto así en
+  `ISInventoryPaneContextMenu.lua:1690`.
+- **La mochila ahora sirve.** Antes no daba **nada** de capacidad: el presupuesto salía del
+  inventario principal, y en PZ una mochila es un contenedor aparte. Ahora
+  `Loot.CarryBudget` le suma `getItemContainer():getMaxWeight()`, así que un framepack de 35
+  rinde más que una escolar de 15. Cadena verificada en `FenrisScenario.lua:409`.
+- **Tus propios NPC ya no te dan miedo.** Un Bandit *es* un `IsoZombie`, así que el modelo de
+  pánico del motor los contaba como horda. Slayer escribió el arreglo y lo dejó apagado
+  (`BanditPlayer.lua:132`, `if true then return end`). El nuestro es propio, no toca el suyo.
+- **Kit de prueba: las 56 mochilas equipables del juego base**, generadas desde
+  `container.txt`, no escritas a mano.
+- 5 aserciones nuevas (**24** en total).
+
+| # | Qué hacer | Pasa si |
+|---|---|---|
+| **B1** | Personaje nuevo. Mirá el inventario. | Están las 56 mochilas + pistola. Log: `test kit given -- 58 of 58 items`. |
+| **B2** | Dale una mochila a un NPC y **quedate mirándolo**, sin alejarte. | **Se le ve puesta en la espalda al instante.** Antes solo aparecía si se despawneaba y volvía. |
+| **B3** | Dale una `Bag_CraftedFramepack_Large3` (capacidad 35) a uno y una `Bag_Schoolbag` (15) a otro. Que looteen la misma casa. | El del framepack aguanta bastante más antes de `stops searching -- full`. La línea de log trae `carrying X / Y` — **Y tiene que ser distinto entre los dos**. |
+| **B4** | Parate pegado a tus compañeros, sin zombis cerca. | **No sube el pánico.** Si aparece un zombi o un bandido hostil, vuelve a subir normal. |
 
 ---
 

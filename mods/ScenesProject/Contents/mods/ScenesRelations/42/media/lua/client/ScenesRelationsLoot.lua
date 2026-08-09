@@ -203,8 +203,12 @@ ZombieActions.ScenesLoot.onComplete = function(zombie, task)
     local inventory = zombie:getInventory()
     if not inventory then return true end
 
-    local ok, budget = pcall(function() return inventory:getMaxWeight() * WEIGHT_BUDGET end)
-    if not ok or type(budget) ~= "number" then return true end
+    -- The bag counts. `Loot.CarryBudget` is a table field rather than a local so it can be
+    -- called from here, above where it is written -- a `local function` declared below this
+    -- point would be invisible to it and would silently evaluate to nil.
+    local brain = BanditBrain.Get(zombie)
+    local budget = Loot.CarryBudget(zombie, brain)
+    if budget <= 0 then return true end
 
     local taken = 0
     local foundBag = nil
@@ -450,16 +454,54 @@ local function markSearched(mood, x, y, z)
     mood.looted[key(x, y, z)] = true
 end
 
+--- How much this NPC may carry, bag included.
+---
+--- WHY THIS IS NOT JUST `getMaxWeight()`. In Project Zomboid a worn bag is a SEPARATE
+--- container -- a player's rucksack has its own `ItemContainer` and its own capacity, and the
+--- main inventory's `getMaxWeight()` does not move when you put one on. Our NPCs put
+--- everything in the main inventory, so before this function a survivor who found a 35-capacity
+--- framepack could still only carry what a survivor with no bag could. The bag was a picture
+--- and a death-drop entry, nothing else.
+---
+--- Reading the capacity off the item is `item:getItemContainer():getMaxWeight()`. That chain is
+--- the one vanilla uses on a real bag -- `part:AddItem("Base.Bag_Military"):getItemContainer()`
+--- at DebugUIs/Scenarios/FenrisScenario.lua:409. Not `getCapacity()`: that one exists, but on
+--- FLUID containers (Fluids/ISFluidBar.lua:27), which is the R2 mistake all over again.
+---
+--- `brain.bag` is the store, not `getInventory()` -- the bag is instanced fresh here each time
+--- rather than looked up, because the live inventory does not survive a despawn.
+local function bagCapacity(brain)
+    if not brain or not brain.bag or not brain.bag.name then return 0 end
+    local ok, cap = pcall(function()
+        local item = BanditCompatibility.InstanceItem(brain.bag.name)
+        if not item or not instanceof(item, "InventoryContainer") then return 0 end
+        local container = item:getItemContainer()
+        if not container then return 0 end
+        return container:getMaxWeight()
+    end)
+    if not ok or type(cap) ~= "number" then return 0 end
+    return cap
+end
+
+--- The weight this NPC is willing to reach before it stops searching.
+function Loot.CarryBudget(zombie, brain)
+    local inventory = zombie:getInventory()
+    if not inventory then return 0 end
+    local ok, base = pcall(function() return inventory:getMaxWeight() end)
+    if not ok or type(base) ~= "number" then return 0 end
+    return (base + bagCapacity(brain)) * WEIGHT_BUDGET
+end
+
 --- Whether this NPC has room for anything at all. Somebody already at their budget should
 --- not walk across a room to open a drawer they cannot use.
-function Loot.HasRoom(zombie)
+function Loot.HasRoom(zombie, brain)
     local inventory = zombie:getInventory()
     if not inventory then return false end
-    local ok, full = pcall(function()
-        return inventory:getCapacityWeight() >= inventory:getMaxWeight() * WEIGHT_BUDGET
-    end)
-    if not ok then return false end
-    return not full
+    local budget = Loot.CarryBudget(zombie, brain)
+    if budget <= 0 then return false end
+    local ok, carrying = pcall(function() return inventory:getCapacityWeight() end)
+    if not ok or type(carrying) ~= "number" then return false end
+    return carrying < budget
 end
 
 --- The nearest container this NPC has not been through, anywhere in the building it is
@@ -718,6 +760,39 @@ function Loot.WearBag(zombie, brain, itemType)
     if not ok then
         SR.Log("LOOT could not apply the bag: " .. tostring(err))
         return false
+    end
+
+    -- ACTUALLY PUT IT ON. `ApplyVisuals` pushes an ItemVisual into the model's visual list and
+    -- then calls `resetModelNextFrame()` and `resetModel()` (Bandits 42.20 Bandit.lua:280-281),
+    -- so the model IS rebuilt -- but a bag is not clothing, and a visual entry alone does not
+    -- hang it on anybody's back. Slayer wrote the line that does and left it commented out:
+    --
+    --     -- bandit:setWornItem(item:canBeEquipped(), item)     Bandit.lua:249
+    --
+    -- Reported symptom that sent us here: the bag showed up on an NPC that walked out of range
+    -- and came back -- because the respawn rebuilds the whole character from the brain -- and
+    -- never on one that stayed in view.
+    --
+    -- `canBeEquipped()` and not `getBodyLocation()`, and that is not a guess. Vanilla resolves
+    -- the slot for exactly this case at ISUI/ISInventoryPaneContextMenu.lua:1690 --
+    -- `(IsClothing() or IsInventoryContainer()) and getBodyLocation() or canBeEquipped()` --
+    -- and an InventoryContainer's BodyLocation is empty, which the assertion harness proves
+    -- every startup. So the fallback IS the path a bag takes, and "back" is what it yields.
+    --
+    -- Wrapped because `setWornItem` is bound on IsoGameCharacter and our receiver is an
+    -- IsoZombie. That is the R2 shape exactly, so the harness asserts it rather than trusting
+    -- it, and a failure here degrades to "carried but invisible" instead of taking the mod down.
+    local worn = pcall(function()
+        local item = BanditCompatibility.InstanceItem(itemType)
+        if not item then return end
+        local where = item:canBeEquipped()
+        if not where or where == "" then return end
+        zombie:setWornItem(where, item)
+        zombie:resetModelNextFrame()
+    end)
+    if not worn then
+        SR.Log(string.format("LOOT %s carries a %s but it will not render",
+            tostring(brain.fullname), itemType))
     end
 
     -- The bag is on the brain now, so this is the call that puts it on the corpse.

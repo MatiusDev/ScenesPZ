@@ -182,3 +182,35 @@ Not a crash and not per-frame -- a Bandits program only runs on an empty queue -
 NPC stuck on an unreachable bag, logging the same line forever. Give it the same cap
 `Loot.Search` has. Found in review 2026-08-08, deliberately not fixed in that commit to keep the
 diff to the regression.
+
+## Firearm discipline and the "let's keep it quiet" group flag
+
+Asked for 2026-08-09, deliberately deferred until building entry works.
+
+An NPC with a gun fires it first. Wanted instead:
+
+- **As a companion, mirror the player's weapon class.** If the player is on melee, they are on
+  melee. Autonomy to open fire returns only when they are far enough away that the noise is
+  their problem, not yours.
+- **As a free NPC, choose freely.**
+- **A talk option that sets a GROUP flag, not a per-NPC one.** "No hagamos ruido" said to one
+  survivor must reach every companion nearby, and must keep reaching anyone who joins later,
+  until they leave the player's radius. The explicit requirement: never walk NPC to NPC
+  repeating it.
+- **Later, NPC-to-NPC propagation**: one survivor tells another to holster, and the line only
+  fires when the receiver is actually carrying a firearm.
+
+Bandits already ships `ZAShoot`, `ZAAim`, `ZARack`, `ZALoad`, `ZAUnload`, `ZAEquip` and
+`ZAUnequip`, so the mechanism exists; what is missing is the decision layer and the flag.
+
+## Free NPCs are still too idle
+
+Asked for 2026-08-09. Non-companion NPCs mostly stand around. With looting, movement and
+autonomy now working, they should loot on their own initiative, clear zombies, and shelter in
+buildings. Blocked by the same pathing/entry problem as everything else -- an autonomous NPC
+that cannot get through a door will just fail more visibly than one standing still.
+
+Worth mining The Ark for the domestic half: it ships 27 actions that are almost all
+settlement life -- Cook, Eat, SitInChair, SleepLong, UseRadio, CleanFloor, ToggleTorch,
+PlayVHS, TurnOven, PlayPiano. None of them help with entry, but they are exactly what "idle"
+should look like once the NPC is inside.

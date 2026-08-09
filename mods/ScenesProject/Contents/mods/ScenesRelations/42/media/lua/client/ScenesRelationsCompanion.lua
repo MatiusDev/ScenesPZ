@@ -405,7 +405,7 @@ function SR.Companion.FreeActivity(bandit, brain, mood, name)
     --
     -- Logged once per reason per episode -- a per-sweep line would bury everything else.
     if mood.indoors then
-        local room = SR.Loot.HasRoom(bandit)
+        local room = SR.Loot.HasRoom(bandit, brain)
         local spot = room and SR.Loot.FindContainer(bandit, mood) or nil
         local why = (not room) and "full" or (not spot) and "nothing left within reach" or nil
 

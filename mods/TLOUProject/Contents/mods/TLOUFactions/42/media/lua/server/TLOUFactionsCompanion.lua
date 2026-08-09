@@ -117,11 +117,49 @@ Events.OnCreatePlayer.Add(function(_, player)
     -- DELETE THIS BLOCK once those tests pass. Starting equipment is a scenario decision and
     -- belongs in the Scenes mod, not in a spawner, and a permanent free pistol would quietly
     -- change what every later balance observation means.
-    for _, itemType in ipairs({ "Base.Bag_Schoolbag", "Base.Pistol", "Base.Bullets9mmBox" }) do
+    -- EVERY BACK-EQUIPPABLE BAG IN THE BASE GAME, asked for on 2026-08-09: "cuando spawnee,
+    -- quiero aparecer con una mochila de cada una del vainilla para poder hacer pruebas con el
+    -- NPC". The point is capacity: `SR.Loot.CarryBudget` now adds the bag's own
+    -- `getItemContainer():getMaxWeight()` to the carry ceiling, and these 56 span 10 through 35,
+    -- so the difference between a schoolbag and a framepack is finally observable in play.
+    --
+    -- NOT TYPED BY HAND. Generated from pzserver/media/scripts/generated/items/container.txt by
+    -- selecting every item whose block carries `CanBeEquipped = base:back`. Writing 56 ids from
+    -- memory is exactly how this project has invented identifiers before -- see R1.
+    local testKit = {
+        "Base.Pistol", "Base.Bullets9mmBox",
+        "Base.Bag_ALICEpack", "Base.Bag_ALICEpack_Army", "Base.Bag_ALICEpack_DesertCamo",
+        "Base.Bag_BaseballBag", "Base.Bag_BigHikingBag", "Base.Bag_BigHikingBag_Travel",
+        "Base.Bag_BreakdownBag", "Base.Bag_BurglarBag", "Base.Bag_CraftedFramepack_Large",
+        "Base.Bag_CraftedFramepack_Large2", "Base.Bag_CraftedFramepack_Large3", "Base.Bag_CraftedFramepack_Small",
+        "Base.Bag_CrudeLeatherBag", "Base.Bag_CrudeTarpBag", "Base.Bag_DuffelBag",
+        "Base.Bag_DuffelBagTINT", "Base.Bag_FishingBasket", "Base.Bag_FoodCanned",
+        "Base.Bag_FoodSnacks", "Base.Bag_GolfBag", "Base.Bag_GolfBag_Melee",
+        "Base.Bag_HideSlingBag", "Base.Bag_HikingBag_Travel", "Base.Bag_HydrationBackpack",
+        "Base.Bag_HydrationBackpack_Camo", "Base.Bag_InmateEscapedBag", "Base.Bag_MedicalBag",
+        "Base.Bag_Military", "Base.Bag_MoneyBag", "Base.Bag_NormalHikingBag",
+        "Base.Bag_Police", "Base.Bag_RifleCaseCloth", "Base.Bag_RifleCaseCloth2",
+        "Base.Bag_RifleCaseClothCamo", "Base.Bag_SWAT", "Base.Bag_Schoolbag",
+        "Base.Bag_Schoolbag_Kids", "Base.Bag_Schoolbag_Medical", "Base.Bag_Schoolbag_Patches",
+        "Base.Bag_Schoolbag_Travel", "Base.Bag_SheetSlingBag", "Base.Bag_Sheriff",
+        "Base.Bag_ShotgunBag", "Base.Bag_ShotgunCaseCloth", "Base.Bag_ShotgunCaseCloth2",
+        "Base.Bag_ShotgunDblBag", "Base.Bag_ShotgunDblSawnoffBag", "Base.Bag_ShotgunSawnoffBag",
+        "Base.Bag_SurvivorBag", "Base.Bag_TarpFramepack_Large", "Base.Bag_TarpFramepack_Small",
+        "Base.Bag_TarpSlingBag", "Base.Bag_TennisBag", "Base.Bag_ToolBag",
+        "Base.Bag_WeaponBag", "Base.Bag_WorkerBag",
+    }
+
+    local given = 0
+    for _, itemType in ipairs(testKit) do
         local ok, err = pcall(function() player:getInventory():AddItem(itemType) end)
-        if not ok then log("could not give " .. itemType .. ": " .. tostring(err)) end
+        if ok then
+            given = given + 1
+        else
+            log("could not give " .. itemType .. ": " .. tostring(err))
+        end
     end
-    log("test kit given -- schoolbag, pistol, 9mm box (TEMPORARY, see comment)")
+    log(string.format("test kit given -- %d of %d items, every vanilla back bag plus a pistol "
+        .. "(TEMPORARY, see comment)", given, #testKit))
 
     pending = true
     attempts = 0

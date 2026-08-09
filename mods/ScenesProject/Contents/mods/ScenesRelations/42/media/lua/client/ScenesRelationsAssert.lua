@@ -205,6 +205,41 @@ local function run()
         return type(Bandit) == "table" and type(Bandit.ApplyVisuals) == "function"
     end)
 
+    -- HOW MUCH A BAG ACTUALLY HOLDS. `Loot.CarryBudget` adds this to the carry ceiling, so a
+    -- survivor with a 35-capacity framepack fills up later than one with a schoolbag. The chain
+    -- is item -> getItemContainer() -> getMaxWeight(), taken from a real bag in vanilla at
+    -- DebugUIs/Scenarios/FenrisScenario.lua:409. NOT `getCapacity()`, which is real but belongs
+    -- to fluid containers (Fluids/ISFluidBar.lua:27) -- the R2 mistake wearing a different hat.
+    check("a schoolbag exposes getItemContainer():getMaxWeight()", function()
+        local bag = item("Base.Bag_Schoolbag")
+        local container = bag and bag:getItemContainer()
+        local max = container and container:getMaxWeight()
+        return type(max) == "number" and max > 0, tostring(max)
+    end)
+
+    -- THE PANIC SUPPRESSOR'S THREE ASSUMPTIONS. Every one of them would fail silently: a nil
+    -- stat id sets nothing, a missing accessor throws inside a pcall we would never read.
+    check("CharacterStat.PANIC exists", function()
+        return type(CharacterStat) == "table" and CharacterStat.PANIC ~= nil,
+            tostring(CharacterStat and CharacterStat.PANIC)
+    end)
+
+    check("getBodyDamage():getPanicIncreaseValue() returns a number", function()
+        local player = getSpecificPlayer(0)
+        local bd = player and player:getBodyDamage()
+        local v = bd and bd:getPanicIncreaseValue()
+        return type(v) == "number", tostring(v)
+    end)
+
+    check("BanditUtils.DistToManhattan exists", function()
+        return type(BanditUtils) == "table" and type(BanditUtils.DistToManhattan) == "function"
+    end)
+
+    -- The registry the panic sweep reads. Empty is fine and normal; missing is not.
+    check("BanditZombie.CacheLight is a table", function()
+        return type(BanditZombie) == "table" and type(BanditZombie.CacheLight) == "table"
+    end)
+
     SR.Log(string.format("ASSERT ---- %d ok, %d FAILED ----", passed, failed))
 
     -- Said twice on purpose. A failure buried among a thousand other lines is a failure
