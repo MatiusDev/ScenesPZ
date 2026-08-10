@@ -79,6 +79,22 @@ def rel(path):
 SET_RE = re.compile(r"\bmood\.([A-Za-z_]\w*)\s*=\s*(.+)$")
 FALSY = {"nil", "false"}
 
+# A ONE-LINE `if ... then mood.x = nil end` WAS INVISIBLE TO BOTH HALVES OF THIS CHECK, and it
+# cost a false BLOCK on 2026-08-10 before anybody noticed the tool was the thing that was wrong.
+#
+# SET_RE captures everything after the `=` to end of line, so that statement yields the right-hand
+# side `"nil end"` -- which is not in FALSY, so the clear was never recorded and the flag read as
+# "set and NEVER cleared". The same hole ran the other way and was worse: `then mood.x = true end`
+# yields `"true end"`, which fails LITERAL_RE, so a latch DECLARED on one line was never even
+# detected as a setter. The check was blind to the most compact way of writing the exact defect it
+# exists to find.
+#
+# Cutting the right-hand side at the first block-closing keyword fixes both directions at once. It
+# is deliberately a keyword list rather than a Lua parser: these are the only three tokens that can
+# legally follow a complete assignment on the same line, and anything more ambitious belongs in a
+# real parser rather than in a grep with opinions.
+TAIL_RE = re.compile(r"\s+(end|else|elseif)\b.*$")
+
 # THE LINE BETWEEN A LATCH AND A MEASUREMENT, and getting it right is what makes this check
 # usable rather than noise. The first version flagged `mood.fear`, `mood.friends` and
 # `mood.rung` -- all of which are recomputed unconditionally every sweep and are exactly the
@@ -108,7 +124,7 @@ def check_latches(files):
             m = SET_RE.search(code)
             if not m:
                 continue
-            name, rhs = m.group(1), m.group(2).strip().rstrip(",")
+            name, rhs = m.group(1), TAIL_RE.sub("", m.group(2).strip()).strip().rstrip(",")
             first = rhs.split(",")[0].strip()
             if first in FALSY or rhs in FALSY:
                 clearers.setdefault(name, n)

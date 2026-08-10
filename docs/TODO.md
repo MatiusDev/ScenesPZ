@@ -31,6 +31,58 @@ poison, ours does not.
 
 ---
 
+## La mochila de un NPC no es un contenedor — es una calcomanía (10-08)
+
+**Esto es la respuesta real a "el NPC lootea antes de conseguir su bolso" y a "que mantenga
+los objetos dentro del bolso".** Las dos peticiones chocan contra el mismo hecho, y hasta que
+se resuelva no hay forma honesta de cumplirlas.
+
+Hoy `Loot.WearBag` hace exactamente dos cosas
+(`mods/ScenesProject/Contents/mods/ScenesRelations/42/media/lua/client/ScenesRelationsLoot.lua:911-937`):
+
+```lua
+brain.bag = { name = itemType }   -- un campo
+...
+inventory:Remove(item)            -- y el objeto REAL se borra del inventario
+```
+
+No queda ningún `ItemContainer` detrás. `ApplyVisuals` dibuja el sprite en la espalda
+(`vendor/Bandits/mods/Bandits/42.20/media/lua/shared/Bandit.lua:234`) y ahí termina. Por eso:
+
+- **No se puede "guardar en la mochila"** — no existe el destino. Todo lo que carga un NPC vive
+  en `getInventory()`, y por eso todo aparece en el inventario general. No es un bug de orden
+  de operaciones; no hay a dónde moverlo.
+- **El presupuesto de carga no puede subir por llevar mochila.** `Loot.CarryBudget` sumaba
+  `getItemContainer():getMaxWeight()` del bolso y por eso mentía — `carrying 11.1 / 8.0`, 139%,
+  está en el log del 09-08. Se quitó por eso (`ScenesRelationsLoot.lua:640-664`).
+- **El kit de prueba de seis mochilas no medía nada.** El experimento asumía que capacidades de
+  1 a 35 harían divergir la línea `carrying X / Y` entre NPC. No puede: las seis producían el
+  mismo techo. Se retiró el 10-08 a pedido del usuario, y con esta razón.
+
+### Qué haría falta para cumplirlo de verdad
+
+`setClothingItem_Back(item)` es vanilla y verificado — nueve callsites en
+`pzserver/media/lua/client/DebugUIs/Scenarios/` (p. ej. `Trailer2Scenario.lua:116`). Poner el
+objeto real ahí le daría al NPC un `getItemContainer()` de verdad, dos límites separados
+(mochila e inventario general) y un destino para guardar. **Pero abre el problema que
+`WearBag` ya resolvió una vez a la mala:**
+
+`Bandit.UpdateItemsToSpawnAtDeath` construye el cadáver desde el inventario vivo con
+`getAllEvalRecurse` (`Bandit.lua:727-732`, que **aplana** los contenedores) **y además**
+instancia `brain.bag` por separado (`Bandit.lua:855`, `addItemToSpawnAtDeath` en `:1141`). Una
+mochila que esté en los dos lados cae **dos veces** en el cuerpo — reportado en juego como
+"quedó dos veces con la mochila", y la razón por la que hoy se borra del inventario.
+
+Así que el trabajo no es "guardar loot en la mochila". Es **elegir un modelo de persistencia**,
+y es el mismo que ya está pendiente arriba (`brain.scenesCarry` → `permaInv` de The Ark). The
+Ark evita toda esta clase de problema no dejando nada en `getInventory()`: `ZACollect` entrega
+el item directo a `BWOAPermaInv` y destruye el objeto.
+
+**Se hace junto con esa migración, no antes.** Hacerlo suelto significa escribir un tercer
+modelo de carga y después tirarlo.
+
+---
+
 ## Bandits do not reanimate
 
 **Seen:** an NPC killed by a bite stays dead. It should stand back up after whatever delay

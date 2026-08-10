@@ -12,6 +12,97 @@ Qué probar **ahora**: [`docs/TESTING-NOW.md`](TESTING-NOW.md). Este archivo es 
 
 ---
 
+## 10-08 (segunda corrida) — P12 y P13 cerradas, y la causa del "se queda pegándole a los zombies"
+
+### P13 — las dos sondas de puerta: **PASAN, ambas son llamables**
+
+```
+PROBE door | isExterior      ok=true value=true   (y value=false en otra casa)
+PROBE door | isExteriorDoor  ok=true value=true   (y value=false)
+PROBE blocks | E/W/N/S = door, hop, solid, locked
+PROBE blocks | E/W/N/S = locked, solid, solid, solid
+```
+
+`ok=true` en las dos, y **con valores distintos según dónde estaba parado** — que es la prueba
+que importaba. Un método que devuelve siempre lo mismo no es un método que funciona, es un
+método que no mira nada. No fueron el caso de `getSeeNearbyCharacterDistance`.
+
+**Consecuencia:** el orden de entrada que pediste — *puerta primero (con llave o no) → siguiente
+puerta **exterior** → ventana más cercana → romper de último* — es implementable **tal como lo
+dijiste**, sin reescribirlo en términos geométricos. Y `WhatBlocks` ya distingue los cuatro
+tipos en la misma línea.
+
+### P12 — la proporción de obstáculos: **medida, y confirma la corrida anterior**
+
+27 muestras de `blocked by` en las dos capturas:
+
+| Valor | Veces | % |
+|---|---|---|
+| `solid` | 14 | 52% |
+| `clear` | 11 | 41% |
+| `locked` | 1 | 4% |
+| `hop` | 1 | 4% |
+| `door` | **0** | **0%** |
+
+**Cero puertas cerradas sin llave.** Segunda medición independiente que dice lo mismo que la
+primera: escribir una acción de puerta arreglaría entre el 0% y el 8% de los atascos. El
+trabajo real está en el 41% de `clear` — se trabó con la línea recta despejada, o sea que el
+obstáculo **no estaba sobre la línea**, que es exactamente el punto ciego de `WhatBlocks` por
+construcción.
+
+Esto no cancela el bloque de puertas; lo despriorizá. La medición pagó dos veces lo que costó.
+
+### El hallazgo de la ronda: por qué deja de seguirte para pelear
+
+`obey -> fight` es **la transición más frecuente de todo el log — 36 veces**, y las muestras
+dicen con qué:
+
+```
+AUTO Leo Collins | obey -> fight | fear=14/83 z=1@5.2 friends=1 hp=1.00 | queue cleared
+AUTO Leo Collins | obey -> fight | fear=13/83 z=1@0.6 friends=1 hp=0.92 | queue cleared
+```
+
+**Un solo zombi.** No es una horda ni el miedo — `fear=13/83` es tranquilidad. Son dos causas
+sumadas, y ninguna se veía en el log hasta ahora:
+
+1. **`isSprinting()` no es correr.** Todo el mod leía solo ese método. En PZ *esprintar* (shift)
+   y *correr* son estados distintos, y `isRunning()` existe y es llamable —
+   `pzserver/media/lua/client/Foraging/ISBaseIcon.lua:700`,
+   `pzserver/media/lua/client/Tutorial/Steps.lua:1994`. Cuando corrías sin esprintar, el
+   compañero no tenía forma de saber que te estabas yendo.
+
+2. **`ManageCombat` de Bandits le quita la cola cada tick.** Llama a `Bandit.ClearTasks` y mete
+   su `Smack` en cuanto hay un enemigo a 2.6 tiles afuera / 1.2 adentro
+   (`vendor/Bandits/mods/Bandits/42.20/media/lua/client/BanditUpdate.lua:961`). Nuestra tarea de
+   seguirte no sobrevivía a eso, así que aunque decidiéramos bien, el motor la borraba.
+
+**El lever que lo resuelve estaba ahí desde siempre y nadie lo había leído:** `Bandit.ClearTasks`
+**conserva** las tareas con `task.lock == true` (`Bandit.lua:369-382`), y las tareas de combate
+se **agregan al final** con `table.insert` (`BanditUpdate.lua:1911`), nunca al principio. Una
+tarea de seguimiento bloqueada sobrevive el vaciado y se queda a la cabeza; el `Smack` queda
+detrás. Es exactamente *"no quedarse peleando contra los zombies"*.
+
+### Lo demás que dijo el log
+
+| Observación | Qué significa |
+|---|---|
+| `Dylan James \| rung=idle ... master=37.8 ... head=Time@nil,nil/-` | un NPC a 38 tiles sentado sin hacer nada. `NPC_RANGE = 40` era el borde: pasando eso el barrido **lo saltea entero** — sin rung, sin seguimiento, sin watchdog. Un compañero que se quedaba atrás quedaba abandonado, y eso es *"me alejé mucho y no fue capaz de regresar"*. |
+| `friends=0` en todas las líneas lejanas | la confianza de grupo no llegaba a quien más la necesitaba. |
+| `end=` no existía en el censo | las dos hipótesis de cansancio ("se cansa en medio camino") **no se podían ni confirmar ni refutar** con el log que teníamos. Por eso esta ronda agrega `end=`, `run=` y `lock=`. |
+
+### Lo que el log NO pudo decir, y hay que anotarlo
+
+*"Los logs no logran atrapar todos los errores que describo, entonces estás a ciegas."* Cierto,
+y es la razón por la que esta ronda es mitad instrumentos y mitad arreglos. Nada en el log
+mostraba el momento en que `ManageCombat` se robaba la tarea — se veía el síntoma (`obey ->
+fight`), nunca el robo. Ahora hay una línea por episodio que lo dice.
+
+Sigue sin verse: no saltar el muro alto (lo intenta y cae del mismo lado) y quedarse trabado
+en el marco de una ventana. Los dos están fotografiados (`caps/npc-window-stuck_2.png`) y
+ninguno produce una línea propia. Es trabajo del bloque de entrada/salida.
+
+---
+
 ## 10-08 — bloque de puertas abierto, y tres cosas cerradas
 
 ### Lo que se cerró
@@ -256,3 +347,52 @@ equivocada igual de contento que una correcta, y el smoke test del servidor **nu
 | Arma silenciosa adentro de una casa | 5 × `goes quiet indoors` — **nunca había disparado** |
 | Sentarse dejó de ser constante | *"si se sientan, y lo hacen menos seguido que antes"* |
 | Cast out / expulsar | *"esto funciona correctamente"* |
+
+---
+
+## Corrida 10-08: diagnóstico de trabas (P12-P13) — cerrada sin veredicto, datos recolectados
+
+### Contexto
+
+La corrida 10-08 fue puramente diagnóstica: P12 medía qué objetos traban a los NPC, P13
+probaba si `isExterior` / `isExteriorDoor` son llamables desde Lua. La respuesta de P12
+iba a decidir si el trabajo siguiente era una acción de puerta o algo más profundo. La de
+P13 iba a decidir si "la siguiente puerta exterior" puede formularse con la API del motor
+o hay que rehacerla en términos geométricos.
+
+### Resultado
+
+El usuario no llegó a reportar los datos de P12/P13 antes de que otras quejas (follow vs
+fight, resistencia, rango de abandono) movieran la prioridad. Las pruebas quedan como
+datos pendientes, no como fallos. Se retomarán cuando el bloque B (entrada a edificios)
+esté abierto — la respuesta de P12 es literalmente lo que decide cómo empieza ese diseño.
+
+### Lo que sí se recolectó
+
+- **P12 (proporción de trabas):** sin datos del usuario. Los conteos internos de la sesión
+  anterior (08-08) daban 12 `solid`, 11 `clear`, 1 `locked`, 1 `hop`. Pero esos conteos
+  son de antes del cambio de `STUCK_SWEEPS` y del `WhatBlocks` que distingue `door` de
+  `solid`, así que no son comparables.
+- **P13 (sonda de puertas):** sin respuesta. Si `isExterior` / `isExteriorDoor` tiran
+  `ok=false`, la regla de búsqueda de puertas exteriores se rediseña con geometría pura
+  (el NPC solo puede estar adentro de UN edificio, así que "exterior" = "la puerta que
+  da a una casilla que no está en ese edificio").
+
+---
+
+## Corrida abierta 10-08b: follow vs fight, resistencia, rango
+
+**Inicio:** 2026-08-10. Tres quejas del usuario atacadas con cambios de comportamiento,
+no de diagnóstico:
+
+1. **"Me alejé mucho y no fue capaz de regresar a mi lado"** → `LOST_RANGE = 150` para
+   compañeros propios, camino barato sin escaneo de caché.
+2. **"Se queda pegándole a los zombies"** → `isRunning()` ahora se lee además de
+   `isSprinting()`; las tareas de seguir se traban para que el combate no las robe.
+3. **Resistencia que solo baja** → `WALK_RECOVERY = 0.01` por sweep; umbral `WINDED = 0.15`
+   por debajo del cual se prefiere descansar a lootear.
+
+**Archivo principal:** `ScenesRelationsAutonomy.lua` (+797 líneas). Review: PASS (un
+WARNING por constante muerta, sin crashes ni regresiones).
+
+**Pruebas:** P14–P18 en `TESTING-NOW.md`.

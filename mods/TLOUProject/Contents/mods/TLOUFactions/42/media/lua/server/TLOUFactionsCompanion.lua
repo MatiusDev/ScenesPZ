@@ -105,42 +105,33 @@ Events.OnCreatePlayer.Add(function(_, player)
 
     -- A TEST KIT, AND IT IS ONLY THAT.
     --
-    -- ASKED FOR: "no tengo forma de conseguir una mochila de una, si me spawneas al inicio
-    -- con una mochila, puedo hacer esta prueba" and "dame tambien un arma de fuego".
-    --
-    -- Three of the open tests cannot be run without these: giving a bag to an NPC that has
-    -- none, hearing whether they switch to melee indoors, and watching two survivors decide
-    -- differently with a gun in the picture. Every id is verified in
-    -- pzserver/media/scripts/generated/ -- Bag_Schoolbag at container.txt:49, Pistol at
-    -- weapon.txt:10996, Bullets9mmBox at normal.txt:13669.
+    -- ASKED FOR: "dame tambien un arma de fuego" -- hearing whether an NPC switches to melee
+    -- indoors, and watching two survivors decide differently with a gun in the picture, cannot
+    -- be tested without one. Every id is verified in pzserver/media/scripts/generated/ --
+    -- Pistol at weapon.txt:10996, Bullets9mmBox at normal.txt:13669, 9mmClip at normal.txt:13772.
     --
     -- DELETE THIS BLOCK once those tests pass. Starting equipment is a scenario decision and
     -- belongs in the Scenes mod, not in a spawner, and a permanent free pistol would quietly
     -- change what every later balance observation means.
-    -- SIX BAGS, NOT FIFTY-SIX. The first version of this handed over every back-equippable bag
-    -- in the game and that was the wrong experiment: "siento que la prueba asi no es relevante,
-    -- dame poquitas mochilas de diferentes tamaños para hacer pruebas con varios NPC."
-    -- Correct -- fifty-six bags measure nothing, six across the whole range measure capacity.
     --
-    -- `SR.Loot.CarryBudget` adds the bag's own `getItemContainer():getMaxWeight()` to the carry
-    -- ceiling, so what these are FOR is handing a different one to each of several NPCs and
-    -- watching the `carrying X / Y` line diverge. The ceiling below is a 35x spread.
+    -- THE SIX BAGS ARE GONE, ON REQUEST: "la prueba de los bolsos, ya la podemos quitar, para no
+    -- spawnear con todos esos bolsos, deja que el jugador solo spawnee con la pistola, los
+    -- cargadores y las balas."
     --
-    -- Capacities read from pzserver/media/scripts/generated/items/container.txt, not remembered.
+    -- They measured what they were for and the answer was not the one the experiment assumed.
+    -- The spread of capacities was supposed to make the `carrying X / Y` line diverge per NPC
+    -- via `SR.Loot.CarryBudget`. It cannot: a worn bag on an NPC is `brain.bag = { name = ... }`
+    -- -- a field plus a sprite, with the real item REMOVED from the inventory
+    -- (ScenesRelationsLoot.lua:927-937). There is no second container behind it, so every bag in
+    -- that list produced exactly the same ceiling and the six of them were measuring one number
+    -- six times. Handing them out from now on would only keep six bags out of the loot economy.
+    --
+    -- THE PISTOL NEEDS A MAGAZINE, and that is why it was once unusable: "la pistola que me das
+    -- al inicio, no tiene cargador, entonces nunca he podido usarla con los NPC." Base.Pistol
+    -- declares `MagazineType = Base.9mmClip` and `ClipSize = 15` (weapon.txt), so a box of loose
+    -- rounds was never enough -- the rounds go in the clip and the clip goes in the gun. Two
+    -- clips so a reload can actually be observed rather than inferred.
     local testKit = {
-        "Base.Bag_FannyPackBack",           -- 1   the floor; should fill almost immediately
-        "Base.Bag_Schoolbag",               -- 15  what an NPC usually finds on its own
-        "Base.Bag_DuffelBag",               -- 18
-        "Base.Bag_NormalHikingBag",         -- 20
-        "Base.Bag_ALICEpack",               -- 28
-        "Base.Bag_CraftedFramepack_Large3", -- 35  the ceiling in the base game
-
-        -- THE PISTOL NEEDS A MAGAZINE, and that is why it has never been usable: "la pistola
-        -- que me das al inicio, no tiene cargador, entonces nunca he podido usarla con los NPC."
-        -- Base.Pistol declares `MagazineType = Base.9mmClip` and `ClipSize = 15`
-        -- (weapon.txt), so a box of loose rounds was never enough -- the rounds go in the clip
-        -- and the clip goes in the gun. Base.9mmClip is defined at normal.txt:13772.
-        -- Two clips so a reload can actually be observed rather than inferred.
         "Base.Pistol", "Base.9mmClip", "Base.9mmClip", "Base.Bullets9mmBox",
     }
 
@@ -153,8 +144,8 @@ Events.OnCreatePlayer.Add(function(_, player)
             log("could not give " .. itemType .. ": " .. tostring(err))
         end
     end
-    log(string.format("test kit given -- %d of %d items, six bags from 1 to 35 capacity, "
-        .. "pistol with two clips (TEMPORARY, see comment)", given, #testKit))
+    log(string.format("test kit given -- %d of %d items, pistol with two clips and a box, "
+        .. "no bags (TEMPORARY, see comment)", given, #testKit))
 
     pending = true
     attempts = 0
