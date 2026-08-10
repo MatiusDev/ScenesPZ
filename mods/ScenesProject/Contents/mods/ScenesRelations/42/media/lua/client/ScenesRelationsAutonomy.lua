@@ -118,15 +118,6 @@ local LEASH = 12
 -- Tiles. How close the master has to have gotten, while moving, for a companion who broke
 -- for SURVIVE to count as found rather than merely somewhere in the area. Same number as
 -- FOLLOW_ENGAGE -- that already means "close enough to be walking with you."
--- Tiles the player may drift from where a follow task was aimed before that task is re-aimed.
---
--- A follow task walks to a FIXED coordinate (ZAMove.lua:9 -- nothing in Bandits tracks a moving
--- character, despite the `isPlayer` field), so the destination goes stale the moment you keep
--- walking. Too small and the NPC re-paths every tick, which is jittery and costs a pathfind each
--- time; too large and it keeps arriving where you used to be, which is the reported "siempre
--- está muchos pasos por detrás". Three tiles is about one second of walking.
-local FOLLOW_STALE = 3.0
-
 local REJOIN_RANGE = FOLLOW_ENGAGE
 
 -- Sweeps a rejoin may hold before it expires no matter what. About half a real minute at this
@@ -549,45 +540,6 @@ end
 --- reported "despues de un rato los veo cansado de nuevo".
 ---
 --- A re-assertion is a correction to a journey already being paid for, not a new journey.
--- WHO PRODUCED A TASK. Written onto every task we queue so that replacing one objective's work
--- does not destroy another's. Bandits' own tasks carry no such field, and that is deliberate:
--- an untagged task belongs to the framework and we never throw it away.
-Autonomy.GOAL_FOLLOW = "follow"
-
---- Drop every queued task belonging to ONE objective. Everything else survives untouched.
----
---- WHY THIS EXISTS. `assertFollow` used to call `Bandit.ClearTasks`, which wipes the whole queue.
---- Re-asserting the follow is a REFRESH -- the objective is still correct, only the coordinate
---- has aged -- and paying for a refresh by destroying everything the NPC was doing is what makes
---- a companion look like it never finishes anything. It is also what makes secondary objectives
---- impossible: nothing can survive six seconds.
----
---- THE COORDINATE REALLY DOES AGE, and the comment that used to deny it was wrong.
---- `ZombieActions.Move` paths to `task.x, task.y, task.z` -- a fixed point captured at onStart
---- (vendor/Bandits/mods/Bandits/42.20/media/lua/shared/ZombieActions/ZAMove.lua:9). The `tid` and
---- `isPlayer` fields that `GetMoveTaskTarget` writes have ZERO readers anywhere in that tree, so
---- nothing tracks anybody. A follow task walks to where the player WAS. Refreshing is genuinely
---- necessary; clearing the queue to do it never was.
----
---- `task.lock == true` is respected because that is Bandits' own "do not clear me" marker, the
---- same one `Bandit.ClearTasks` honours (Bandit.lua:369).
-local function dropOwnTasks(zombie, goal)
-    local brain = BanditBrain.Get(zombie)
-    if not brain or type(brain.tasks) ~= "table" then return 0 end
-
-    local kept, dropped = {}, 0
-    for _, task in ipairs(brain.tasks) do
-        if task.srGoal == goal and task.lock ~= true then
-            dropped = dropped + 1
-        else
-            table.insert(kept, task)
-        end
-    end
-
-    brain.tasks = kept
-    return dropped
-end
-
 local function assertFollow(zombie, master, dist, free)
     local walkType = "Walk"
     local endurance = 0
@@ -602,14 +554,8 @@ local function assertFollow(zombie, master, dist, free)
         master:getX(), master:getY(), master:getZ(),
         BanditUtils.GetCharacterID(master), true, walkType, dist)
 
-    -- Ours, so we are allowed to replace it -- and only it.
-    task.srGoal = Autonomy.GOAL_FOLLOW
-
-    -- Replace the previous follow, keep everybody else's work. AddTaskFirst rather than AddTask
-    -- because following IS the primary objective on this branch: it goes to the head, and
-    -- whatever the NPC was doing waits behind it instead of being destroyed.
-    dropOwnTasks(zombie, Autonomy.GOAL_FOLLOW)
-    Bandit.AddTaskFirst(zombie, task)
+    Bandit.ClearTasks(zombie)
+    Bandit.AddTask(zombie, task)
     return walkType
 end
 
@@ -1044,29 +990,14 @@ local function fastFollow()
                     mood.fastDist = dist
 
                     if owned and free and (sprinting or widening or dist > LEASH) then
-                        -- THE GUARD WAS RIGHT, ITS REASON WAS WRONG, AND THE REASON IS WHY THEY
-                        -- TRAIL. It used to say the move task "tracks the player as a target".
-                        -- It does not: `ZombieActions.Move` paths to a FIXED point captured at
-                        -- onStart (ZAMove.lua:9), and the `isPlayer`/`tid` fields have zero
-                        -- readers in all of Bandits 42.20. A follow task walks to where you WERE.
-                        --
-                        -- So "already chasing" was never a reason to leave it alone -- it only
-                        -- happened to avoid re-pathing every tick, which would be jittery and
-                        -- expensive. Both things can be true at once: do not re-path constantly,
-                        -- but DO re-path once the target has gone stale. That staleness is
-                        -- exactly the reported "siempre está muchos pasos por detrás del
-                        -- jugador".
+                        -- Only re-assert when they are not already chasing. The move task
+                        -- tracks the player as a target, so re-pushing it every second
+                        -- would restart the walk each time and they would never arrive.
                         local head = brain.tasks and brain.tasks[1]
                         local chasing = head and (head.action == "Move" or head.action == "GoTo")
-                            and head.srGoal == Autonomy.GOAL_FOLLOW
+                            and head.isPlayer
 
-                        local stale = false
-                        if chasing and head.x and head.y then
-                            stale = BanditUtils.DistTo(head.x, head.y, player:getX(), player:getY())
-                                > FOLLOW_STALE
-                        end
-
-                        if not chasing or stale then
+                        if not chasing then
                             local walkType = assertFollow(zombie, player, dist, true)
                             mood.taskSig, mood.taskTicks = nil, 0
                             SR.Log(string.format(
