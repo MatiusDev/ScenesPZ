@@ -10,6 +10,63 @@ borrado.
 
 Qué probar **ahora**: [`docs/TESTING-NOW.md`](TESTING-NOW.md). Este archivo es lo que ya pasó.
 
+---
+
+## 10-08 — bloque de puertas abierto, y tres cosas cerradas
+
+### Lo que se cerró
+
+| Prueba | Veredicto |
+|---|---|
+| **P0** errores de motor en `console.txt` | **PASA.** Cero. Los generaba una aserción nuestra que llamaba a un método inexistente dentro de un `pcall` para probar que seguía sin existir; el `pcall` lo atrapaba y la prueba pasaba, pero el motor imprimía igual su traza Java **en cada arranque**. La aserción fabricaba la alarma que venía a prevenir. Eliminada. |
+| **P2** parpadeo del pánico | **PASA.** El patrón de decidir lento / aplicar rápido funcionó. |
+| **P3** el pánico no queda apagado | **PASA.** Ni un `fast suppression is OFF` en toda la sesión. |
+| **P6** una sola mochila en el cadáver | **PASA.** El duplicado salía de que `UpdateItemsToSpawnAtDeath` arma el cuerpo desde el inventario vivo **y** desde `brain.bag` por separado; el paso de vestir metía una mochila real al inventario y se convertía en la segunda. |
+| **P9** dejan de lootear y siguen al jugador | **PASA, y con consecuencia de diseño.** Funciona con `ClearTasks`, que era justo lo que el paso 4 del plan venía a reemplazar. El paso 4 arreglaría un problema que ya no se reporta. |
+| **P10** la mochila se ve al instante | **PASA.** |
+
+### El hallazgo de la ronda
+
+`Bandit.ApplyVisuals` — la función que **ya llamábamos** — empieza con:
+
+```lua
+local skin = banditVisuals:getSkinTexture()
+if not skin or skin:find("^FemaleBody") or skin:find("^MaleBody") then return end
+```
+
+`FemaleBody`/`MaleBody` **son las texturas normales**. En cualquier NPC ya vestido y a la vista, la función **se salía en la línea 84** y nunca llegaba al bloque de la mochila. Tres intentos —`setWornItem`, `resetModelNextFrame`, `resetModel`— fueron todos la pregunta equivocada.
+
+El rodeo es de Slayer: The Ark viste NPC vivos delante del jugador poniendo `setSkinTextureName("x")` antes de llamar, porque `"x"` no matchea ninguno de los dos patrones. Su propio `-- sic!` anota que se ve mal y es a propósito.
+
+**La lección:** yo había cerrado esto dos veces como *"verificado: no alcanzable desde Lua"*, con evidencia bien argumentada. Era una conclusión sólida sobre evidencia incompleta — la forma más peligrosa de estar equivocado, porque no se siente como una duda. Se destrabó porque el usuario insistió en no guiarnos por las limitaciones.
+
+### Lo que se descartó, y por qué vale
+
+**El corte de interrupción rápida (paso 3) se escribió, se revisó y NO se commiteó.** La premisa era falsa: `ManageCombat` corre cada tick de Bandits y **vacía la cola por su cuenta** para meter el ataque (`BanditUpdate.lua:1210-1212`). "Está looteando y lo muerden, suelta el cajón" nunca estuvo bloqueado.
+
+Y el interruptor era **dañino**: cancelaba a 4 tiles, pero Bandits solo pelea a `1.2` adentro. Entre 1.2 y 4 —donde se lootea— cancelaba una tarea que nadie iba a reemplazar. **Hasta 60 segundos de parálisis.**
+
+**Invariante que queda:** un rango de interrupción tiene que ser **menor o igual** al rango en que algo lo reemplaza. Cancelar más lejos que el alcance del reemplazo crea una banda muerta.
+
+**El seguimiento (44dde76) se revirtió** por tres defectos: la función era código muerto (la tarea vive 0.33 s contra un throttle de 800 ms), la ruta al refugio se acumulaba, y una interrupción de seguimiento hacía que Loot registrara un rechazo falso que **borra el mueble a los tres**.
+
+### Números que se movieron
+
+| Señal | Antes | Después |
+|---|---|---|
+| `gives up ... could not get there` | 96 | **34** |
+| errores de motor por arranque | 1 | **0** |
+| `carrying` sobre capacidad | 139% | dentro del límite |
+
+El 139% salía de que el presupuesto sumaba la capacidad de la mochila a un techo medido contra el **inventario principal**, al que una mochila puesta no aporta nada.
+
+### Herramientas que salieron de esta ronda
+
+- **`tools/audit.py`** — la mitad mecánica de una revisión: latches sin limpieza, vida real de las tareas en segundos, sitios de cirugía de cola, citas a vendor sin carpeta de versión, `pcall` descartados, y `luacheck` con un allowlist de 7.342 globales cosechado de los árboles reales.
+- **Un hueco que el lint tenía y nadie sabía:** el `luac` local es **5.5** y el juego corre **Kahlua 5.1**. Aceptaba `goto`. Ahora hay un chequeo bloqueante.
+- **Hook de `pre-push`** por `core.hooksPath`, así que viaja con el repo y también protege la PC de juego.
+
+
 Más nuevo arriba.
 
 ---
