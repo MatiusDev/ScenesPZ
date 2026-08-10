@@ -243,6 +243,45 @@ local function run()
         return ok, ok and nil or "not reachable from Lua -- try isExterior() or go geometric"
     end)
 
+    -- THE OBSTACLE CLASSIFIER. Every predicate it uses has a vanilla Lua callsite, which is the
+    -- bar R1 sets -- but "the method exists" and "the method answers for THIS receiver" are
+    -- different claims, and only the second one matters. `isHoppable` is called on an IsoObject
+    -- in shared/Moveables/ISMoveablesAction.lua:12; we call it on whatever a grid square hands
+    -- back, which is not guaranteed to be the same thing.
+    check("SR.Move.WhatBlocks exists", function()
+        return type(SR.Move) == "table" and type(SR.Move.WhatBlocks) == "function"
+    end)
+
+    check("WhatBlocks runs the obstacle predicates without throwing", function()
+        local player = getSpecificPlayer(0)
+        if not player then return false, "SKIPPED: no player yet" end
+
+        -- NOT a zero-length line. The first version asked about the player's own square, and a
+        -- zero-length line is CLEAR, so `WhatBlocks` returned before reaching a single predicate
+        -- -- the check passed identically whether the classifier worked or not, which is the
+        -- worst kind of green.
+        --
+        -- Eight tiles in each of four directions instead. Standing anywhere indoors or near a
+        -- street, at least one of those lines crosses a wall, a door or a fence, so `classify`
+        -- runs against real objects the engine built. That is the only question worth asking
+        -- here: a method proven on an IsoObject in vanilla is not thereby proven on whatever a
+        -- grid square hands back.
+        local px, py, pz = player:getX(), player:getY(), player:getZ()
+        local kinds = {}
+        for _, d in ipairs({ {8, 0}, {-8, 0}, {0, 8}, {0, -8} }) do
+            local ok, kind = pcall(function()
+                return SR.Move.WhatBlocks(player, px + d[1], py + d[2], pz)
+            end)
+            if not ok then
+                return false, "threw: " .. tostring(kind)
+            end
+            kinds[#kinds + 1] = tostring(kind)
+        end
+
+        SR.Log("PROBE blocks | E/W/N/S = " .. table.concat(kinds, ", "))
+        return true
+    end)
+
     -- The vanilla adjacency finder, and the one we would use instead of GetAccessSquare. Vanilla
     -- calls it for DOORS as well as windows despite the name
     -- (client/ISUI/ISWorldObjectContextMenu.lua:2552), and nothing inside it is player-only --

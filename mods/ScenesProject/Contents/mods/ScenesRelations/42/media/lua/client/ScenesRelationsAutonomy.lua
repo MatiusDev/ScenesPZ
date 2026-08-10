@@ -638,10 +638,34 @@ local function watchdog(zombie, brain, mood, name)
     mood.taskTicks = (mood.taskTicks or 0) + 1
     if mood.taskTicks < STUCK_SWEEPS then return false end
 
+    -- NAME THE OBSTACLE, not just the symptom. Clearing the queue unsticks an NPC and teaches
+    -- nobody anything: "stuck on Move@10701,10272" has been in the log for weeks and never once
+    -- said whether the thing in the way was a door somebody could have opened, a fence somebody
+    -- could have climbed, or a wall that was never passable.
+    --
+    -- That distinction is the whole of block 6, and this is the cheapest place in the mod to
+    -- collect it -- the watchdog already knows an NPC has stopped moving, and `Move.WhatBlocks`
+    -- is a pure query. Bandits' own handler cannot do this: it scans for objects, and a map wall
+    -- is not an object, so its silence is indistinguishable from success.
+    -- WRAPPED, because CLEARING THE QUEUE IS THE SAFETY NET AND MUST SURVIVE THE DIAGNOSTICS.
+    -- Unwrapped, a throw anywhere inside WhatBlocks -- getCell, getGridSquare, getObjects -- would
+    -- propagate out of watchdog, out of the per-NPC loop, and out of `sweep` itself, which is
+    -- registered bare on Events.EveryOneMinute. Three things would follow: the stuck NPC never
+    -- gets unstuck, every remaining NPC is skipped for that sweep, and it repeats every six
+    -- seconds forever, because the NPC is still stuck next time. Diagnostics that can disable the
+    -- fix they are diagnosing are worse than no diagnostics.
+    local blocking = "unknown"
+    if SR.Move and SR.Move.WhatBlocks and task.x and task.y then
+        local okWhy, kind = pcall(SR.Move.WhatBlocks, zombie,
+            task.x, task.y, task.z or zombie:getZ())
+        blocking = okWhy and tostring(kind or "clear") or "probe threw"
+    end
+
     Bandit.ClearTasks(zombie)
     mood.taskSig, mood.taskTicks = nil, 0
-    SR.Log(string.format("AUTO %s | stuck on %s for %d sweeps without moving -- queue cleared",
-        name, signature, STUCK_SWEEPS))
+    SR.Log(string.format(
+        "AUTO %s | stuck on %s for %d sweeps without moving -- blocked by %s -- queue cleared",
+        name, signature, STUCK_SWEEPS, blocking))
     return true
 end
 

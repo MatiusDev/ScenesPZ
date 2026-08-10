@@ -73,6 +73,169 @@ local Move = SR.Move
 --- Callers pass `tasks` straight to `Bandit.AddTask`, or return it upward the way
 --- `Loot.Search` and `Loot.FetchBag` already do -- both patterns exist in this mod today and
 --- neither needs to change to use this.
+-- WHAT IS IN THE WAY ---------------------------------------------------------------------
+--
+-- REPORTED, and the reason this exists: "los NPC se siguen trabando mucho entre los objetos...
+-- se quedan caminando contra una pared, una ventana, una valla."
+--
+-- WHY BANDITS DOES NOT ALREADY FIX IT. `ManageCollisions`
+-- (vendor/Bandits/mods/Bandits/42.20/media/lua/client/BanditUpdate.lua:520) is a REACTIVE bump
+-- handler and it has three holes, each of which we watched happen in play:
+--
+--   1. it returns immediately unless the active task is `Move` or `GoTo` (:533), so a collision
+--      during anything else is seen by nobody;
+--   2. it scans `square:getObjects()` for a fence, window or door -- and a plain map WALL is not
+--      an IsoObject at all, it is a square-level collision flag. The loop finds nothing and
+--      returns silently, every tick, forever;
+--   3. it holds no state. Nothing counts collisions, nothing escalates, nothing gives up.
+--
+-- Meanwhile `ZAMove.onWorking` keeps returning "not done" while collided, so the walk animation
+-- plays into the wall indefinitely. That is the whole of the reported symptom.
+--
+-- It is also `local`, so it cannot be extended -- only replicated. And the behaviour it is
+-- replicating is native: vanilla zombies cross fences and doors from the engine, with no Lua
+-- surface at all beyond a sandbox probability. Bandits rebuilt it object type by object type,
+-- and the wall never got a branch because natively it never needed one.
+--
+-- SO WE ASK BEFORE WALKING INSTEAD OF AFTER BUMPING. `LosUtil.lineClearCollide` is a pure query
+-- -- unlike `pathToLocation`, which COMMITS the character (WalkToTimedAction.lua:42) and is why
+-- comparing two candidate routes would make an NPC visibly start and stop once per candidate.
+--
+-- THE HONEST LIMIT: no engine call answers "what is blocking this line". LosUtil returns a
+-- boolean. So this walks the line itself and classifies what it finds -- the same classification
+-- Bandits does, moved to a place that runs before the first step rather than after the collision.
+--
+-- Every predicate below has vanilla Lua callsites, which is the bar R1 sets:
+--   instanceof(obj, "IsoDoor")   server/BuildRecipeCode/buildRecipeCode.lua:110
+--   door:IsOpen()                server/BuildRecipeCode/buildRecipeCode.lua:27
+--                                  (both corrected: the lines first cited here were
+--                                   ISWorldObjectContextMenu.lua:2176 and :2203, and neither
+--                                   showed what it claimed -- :2176 tests IsoThumpable, and
+--                                   :2203 is reached with windows and curtains as well as
+--                                   doors. The claims were true; the audit trail was not, and
+--                                   a citation nobody can follow is R1 theatre.)
+--   door:isLocked()              client/DebugUIs/AdminContextMenu.lua:80
+--   door:isBarricaded()          shared/Moveables/ISMoveableSpriteProps.lua:907
+--   obj:isHoppable()             shared/Moveables/ISMoveablesAction.lua:12
+--   obj:isTallHoppable()         client/TimedActions/ISClimbOverFence.lua:69
+
+Move.BLOCK_DOOR   = "door"      -- shut, unlocked: openable
+Move.BLOCK_LOCKED = "locked"    -- shut and locked: this way is closed
+Move.BLOCK_HOP    = "hop"       -- a low fence: climbable
+Move.BLOCK_TALL   = "tall"      -- a tall fence: climbable, slower
+Move.BLOCK_SOLID  = "solid"     -- something we cannot act on, including a plain wall
+
+--- Classify one object. Returns a Move.BLOCK_* constant, or nil if it is not an obstacle.
+local function classify(obj)
+    local ok, kind = pcall(function()
+        local isDoor = instanceof(obj, "IsoDoor")
+            or (instanceof(obj, "IsoThumpable") and obj:isDoor() == true)
+
+        if isDoor then
+            if obj:IsOpen() then return nil end          -- already open, not in the way
+            if obj:isBarricaded() then return Move.BLOCK_SOLID end
+            if obj:isLocked() then return Move.BLOCK_LOCKED end
+            return Move.BLOCK_DOOR
+        end
+
+        if obj:isTallHoppable() then return Move.BLOCK_TALL end
+        if obj:isHoppable() then return Move.BLOCK_HOP end
+        return nil
+    end)
+    return ok and kind or nil
+end
+
+--- The first thing standing between two points, and where it is.
+---
+--- Returns kind, x, y, z -- or nil when the line is clear, and Move.BLOCK_SOLID with no
+--- coordinates when the line is blocked by something that is not an object we can act on. That
+--- second case IS the wall, and reporting it as "solid" rather than as "clear" is the whole
+--- difference from what happens today.
+---
+--- Walks the line in whole tiles. Bounded by the distance it was asked about, so a long journey
+--- costs proportionally more -- callers pass targets that are already within a search radius.
+function Move.WhatBlocks(zombie, tx, ty, tz)
+    local cell = getCell()
+    if not cell then return nil end
+
+    local bx, by, bz = zombie:getX(), zombie:getY(), zombie:getZ()
+
+    -- A DIFFERENT FLOOR IS NOT A WALL. This used to answer BLOCK_SOLID, which reads as "nothing
+    -- can be done here" and poisons the telemetry this exists to collect -- `getZ()` is a float
+    -- that dips mid-staircase, so an NPC on a stair could report a wall where there were stairs.
+    -- Unknown is the honest answer: we did not look.
+    if math.floor(bz) ~= math.floor(tz) then return nil end
+
+    local okClear, blocked = pcall(function()
+        return LosUtil.lineClearCollide(
+            math.floor(bx), math.floor(by), math.floor(bz),
+            math.floor(tx), math.floor(ty), math.floor(tz), false)
+    end)
+    -- A throw is treated as CLEAR, matching the rest of this file: falling back to walking is
+    -- always safe, and inventing an obstacle would stop journeys that were fine.
+    if not okClear or not blocked then return nil end
+
+    local z = math.floor(bz)
+
+    --- Everything on one square, first classifiable object wins.
+    ---
+    --- KNOWN LIMIT, written down rather than hidden: this does not ask whether the object faces
+    --- the direction of travel. Doors and fences are north/west EDGE objects, so a square can
+    --- carry a fence that runs across a completely different boundary. Bandits gates its own
+    --- equivalent on `bandit:isFacingObject(object, 0.5)`
+    --- (vendor/Bandits/mods/Bandits/42.20/media/lua/client/BanditUpdate.lua:573).
+    ---
+    --- Left out deliberately for now: nothing ACTS on this classification yet, so the cost of
+    --- being wrong is one mislabelled log line rather than an NPC climbing a fence that was
+    --- never in its way. It has to be added before anything acts, and that is the first thing
+    --- the next pass does.
+    local function scan(x, y)
+        local square = cell:getGridSquare(x, y, z)
+        if not square then return nil end
+        local objects = square:getObjects()
+        for j = 0, objects:size() - 1 do
+            local kind = classify(objects:get(j))
+            if kind then return kind end
+        end
+        return nil
+    end
+
+    -- BOTH ENDPOINTS ARE SCANNED, and they are the two most likely squares to hold the blocker.
+    --
+    -- The first version started at step 1 and stopped at `floor(steps)`, so it scanned NEITHER.
+    -- The NPC's own square was skipped -- and Bandits checks that one FIRST (BanditUpdate.lua:544)
+    -- precisely because a fence or door is an edge object belonging to the tile you are standing
+    -- on. The target square was cut off by the truncation. For a two-tile move it sampled exactly
+    -- one square, and it was neither the one the NPC was on nor the one it was going to.
+    --
+    -- Worse, a separate `steps < 1` guard returned BLOCK_SOLID before any of this ran -- and that
+    -- branch is reachable ONLY when the two tiles are adjacent, which is to say only in the door,
+    -- window and fence case. The single most important input answered "an impassable wall".
+    local sx, sy = math.floor(bx), math.floor(by)
+    local ex, ey = math.floor(tx), math.floor(ty)
+
+    local kind = scan(sx, sy)
+    if kind then return kind, sx, sy, z end
+
+    local dx, dy = ex - sx, ey - sy
+    local steps = math.max(math.abs(dx), math.abs(dy))
+
+    if steps >= 1 then
+        for i = 1, steps do
+            local x = sx + math.floor(dx * i / steps + 0.5)
+            local y = sy + math.floor(dy * i / steps + 0.5)
+            kind = scan(x, y)
+            if kind then return kind, x, y, z end
+        end
+    elseif ex ~= sx or ey ~= sy then
+        kind = scan(ex, ey)
+        if kind then return kind, ex, ey, z end
+    end
+
+    -- The line is blocked and nothing on it is an object we can act on. A map wall.
+    return Move.BLOCK_SOLID
+end
+
 function Move.GoAndDo(zombie, point, task, opts)
     opts = opts or {}
 
