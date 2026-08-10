@@ -386,6 +386,13 @@ local STUCK_SWEEPS = 2
 -- covers several tiles in six seconds; one wrestling a window latch covers none.
 local MOVED_EPSILON = 0.6
 
+-- Sweeps before the same obstacle square is re-attempted. Without it, an NPC stuck at a
+-- fence that cannot be climbed or a door that cannot be opened would try the same action
+-- every sweep forever -- the same loop the user described as "se quedo atascado en la vaya
+-- ... se quedaba corriendo contra la puerta cerrada y eso hacia que bajar mucho su
+-- endurance, entonces descansaba y volvía a correr."
+local OBSTACLE_RETRY = 8
+
 -- Only these can stall in a way clearing the queue would fix: every one of them completes
 -- by getting somewhere or interacting with something at a fixed spot, so an unchanged
 -- fingerprint plus an unchanged position means it is not going to finish.
@@ -967,6 +974,84 @@ local function watchdog(zombie, brain, mood, name)
     -- Only ours: a Bandits lock (Die, Zombify, Exhausted, GetUp) is theirs and their state
     -- machines depend on it surviving.
     unlockOurs(brain)
+
+    -- WHAT THE 10-08 SESSION ADDED, AND WHY CLEARING THE QUEUE WAS NOT ENOUGH.
+    --
+    -- The watchdog has been clearing the queue on a stuck NPC for weeks. It unsticks them for
+    -- one sweep, and the next sweep re-queues the same follow/loot task to the same blocked
+    -- destination -- so they walk back into the same wall and the watchdog fires again.
+    --
+    -- "se quedo atascado en la vaya... se quedaba corriendo contra la puerta cerrada y eso
+    -- hacia que bajar mucho su endurance, entonces descansaba y volvia a correr" is exactly
+    -- that loop described by the user: stuck → clear → re-queue → stuck → endurance zero →
+    -- exhausted → rest → re-queue → stuck again. Clearing alone is a safety net with no exit.
+    --
+    -- Now, for obstacles a Bandits action can overcome, the watchdog queues that action FIRST
+    -- and then clears the old one. After the action completes and the task queue drains, the
+    -- sweep re-evaluates and queues a fresh follow/loot -- which now paths through the cleared
+    -- obstacle rather than into it.
+    --
+    -- Obstacles that cannot be acted on (solid walls, locked doors with no key) are still just
+    -- cleared, because the only fix is a different route and that belongs to block B.
+    --
+    -- RETRY COOLDOWN, because a fence ClimbFence cannot clear or a door that stays locked
+    -- would otherwise loop forever. The cooldown key includes the square so a different
+    -- obstacle on a different tile gets its own fresh attempt.
+    local obstacleKey = string.format("%d.%d.%d.%s",
+        task.x or 0, task.y or 0, task.z or zombie:getZ(), blocking)
+    local lastAttempt = mood.obstacleAttempts and mood.obstacleAttempts[obstacleKey]
+    if not lastAttempt or (sweepNumber - lastAttempt) >= OBSTACLE_RETRY then
+        local overcame = false
+
+        if blocking == "hop" or blocking == "tall" then
+            -- ZAClimbFence exists and is callable -- the action handler is live in Bandits
+            -- 42.20 even though the upstream code that queues it is commented out. The anim
+            -- differs: tall fences use ClimbFenceTall, low ones use ClimbFenceEnd.
+            -- LOCKED because unlockOurs (above) has already run, so our follow lock is gone,
+            -- but the task we are about to insert must survive the ClearTasks that runs next.
+            -- Upstream's own ClimbFence queues (commented out) also use lock=true.
+            local anim = (blocking == "tall") and "ClimbFenceTall" or "ClimbFenceEnd"
+            local climbTask = { action = "ClimbFence", anim = anim, lock = true,
+                x = task.x, y = task.y, z = task.z or zombie:getZ(), srGoal = SR.GOAL.FOLLOW }
+            Bandit.AddTaskFirst(zombie, climbTask)
+            overcame = true
+            SR.Log(string.format(
+                "AUTO %s | stuck on %s for %d sweeps -- blocked by %s -- queued ClimbFence(%s)",
+                name, signature, STUCK_SWEEPS, blocking, anim))
+
+        elseif blocking == "door" then
+            -- Try to open the door. getIsoDoor is Bandits API on IsoGridSquare
+            -- (vendor/Bandits/42.20/BanditUtils.lua:490); vanilla uses getIsoDoor() on
+            -- IsoCell at one callsite but the square variant is Bandits-only.
+            -- door:ToggleDoor(character) is vanilla (Tests/TimedActionsTests.lua:422)
+            -- but only ever called with an IsoPlayer -- IsoZombie extends IsoGameCharacter
+            -- so the Java binding may accept it. pcall protects us either way.
+            local square = zombie:getCell():getGridSquare(task.x, task.y, task.z or zombie:getZ())
+            if square then
+                local door = square:getIsoDoor()
+                if door and not door:IsOpen() then
+                    local okDoor = pcall(function() door:ToggleDoor(zombie) end)
+                    overcame = okDoor
+                    if overcame then
+                        SR.Log(string.format(
+                            "AUTO %s | stuck on %s for %d sweeps -- blocked by door -- toggled it",
+                            name, signature, STUCK_SWEEPS))
+                    elseif not mood.doorProbeDone then
+                        mood.doorProbeDone = true
+                        SR.Log(string.format(
+                            "AUTO %s | ToggleDoor(zombie) threw -- door open via Lua may not work on IsoZombie",
+                            name))
+                    end
+                end
+            end
+        end
+
+        if overcame then
+            if not mood.obstacleAttempts then mood.obstacleAttempts = {} end
+            mood.obstacleAttempts[obstacleKey] = sweepNumber
+        end
+    end
+
     Bandit.ClearTasks(zombie)
     mood.taskSig, mood.taskTicks = nil, 0
     SR.Log(string.format(
@@ -1431,6 +1516,17 @@ local function sweep()
                             SR.Loot and tostring(SR.Loot.HasBag(brain)) or "?",
                             headDescription(tail),
                             tostring(headLocked)))
+                    end
+
+                    -- Per-NPC: expire obstacle retry records that are four times past the
+                    -- cooldown window. Cheap -- the table is almost always empty or tiny --
+                    -- and leaving them forever is a leak.
+                    if mood.obstacleAttempts then
+                        for key, at in pairs(mood.obstacleAttempts) do
+                            if (sweepNumber - at) > OBSTACLE_RETRY * 4 then
+                                mood.obstacleAttempts[key] = nil
+                            end
+                        end
                     end
                 end
 
