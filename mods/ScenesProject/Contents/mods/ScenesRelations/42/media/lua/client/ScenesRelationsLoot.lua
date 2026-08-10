@@ -617,26 +617,50 @@ end
 ---
 --- `brain.bag` is the store, not `getInventory()` -- the bag is instanced fresh here each time
 --- rather than looked up, because the live inventory does not survive a despawn.
-local function bagCapacity(brain)
-    if not brain or not brain.bag or not brain.bag.name then return 0 end
-    local ok, cap = pcall(function()
-        local item = BanditCompatibility.InstanceItem(brain.bag.name)
-        if not item or not instanceof(item, "InventoryContainer") then return 0 end
-        local container = item:getItemContainer()
-        if not container then return 0 end
-        return container:getMaxWeight()
-    end)
-    if not ok or type(cap) ~= "number" then return 0 end
-    return cap
-end
+-- `bagCapacity(brain)` lived here. It instanced the bag from `brain.bag` and read
+-- `getItemContainer():getMaxWeight()` -- verified against a real bag at
+-- DebugUIs/Scenarios/FenrisScenario.lua:409, and deliberately NOT `getCapacity()`, which is
+-- real but belongs to fluid containers. The measurement was correct; the USE of it was not.
+--
+-- Its only caller added that capacity to a budget checked against the MAIN inventory, which a
+-- worn bag never contributes to. Deleted rather than left unused, because a helper that
+-- measures something real is the most tempting kind of dead code to wire back in. It comes
+-- back from git the day loot actually goes into the bag -- see Loot.CarryBudget below for why
+-- that is a change to the carrying model and not to looting.
 
 --- The weight this NPC is willing to reach before it stops searching.
+--- What this NPC may carry before it stops searching.
+---
+--- THE BAG'S CAPACITY USED TO BE ADDED HERE AND IT WAS A LIE. The budget is checked against
+--- `inventory:getCapacityWeight()`, which measures the MAIN inventory -- and in this game a worn
+--- bag is a SEPARATE container that contributes nothing to it. So the ceiling was raised by a
+--- capacity the thing being measured never gains.
+---
+--- The arithmetic, from a real session: base 8.0, a duffel adds 18, budget becomes (8+18)*0.7 =
+--- 18.2, and the NPC keeps taking until the main inventory reads 18.2 against a real maximum of
+--- 8. The log caught it exactly -- `carrying 11.1 / 8.0`, 139% -- and `stops searching -- full`
+--- appeared ZERO times in the whole run, because the budget believed there was room in a
+--- container nothing was ever put into.
+---
+--- WHY THE ANSWER IS TO REMOVE IT RATHER THAN TO START USING THE BAG. Putting loot inside the
+--- bag does not survive death, and that is not an opinion:
+--- `Bandit.UpdateItemsToSpawnAtDeath` builds the corpse with `getAllEvalRecurse`
+--- (vendor/Bandits/mods/Bandits/42.20/media/lua/shared/Bandit.lua:727), which FLATTENS -- it
+--- walks into containers and then adds every item it found INDIVIDUALLY (:729-731). Items put in
+--- a bag in the live inventory would come off the corpse loose regardless. The only construction
+--- where contents stay inside is the one upstream does for itself: instance a fresh bag, fill it
+--- via `bag:getInventory():AddItem` (:1129), and add THAT as one object (:1140). It is local to
+--- that function and there is no getter for the death-drop list, so it cannot be reached.
+---
+--- Storing loot in the bag is therefore a change to how carrying is modelled, not a change to
+--- looting, and it is tracked as such in docs/PLAN-OBJETIVOS.md. Until then the honest ceiling
+--- is the one the NPC actually has.
 function Loot.CarryBudget(zombie, brain)
     local inventory = zombie:getInventory()
     if not inventory then return 0 end
     local ok, base = pcall(function() return inventory:getMaxWeight() end)
     if not ok or type(base) ~= "number" then return 0 end
-    return (base + bagCapacity(brain)) * WEIGHT_BUDGET
+    return base * WEIGHT_BUDGET
 end
 
 --- Whether this NPC has room for anything at all. Somebody already at their budget should
