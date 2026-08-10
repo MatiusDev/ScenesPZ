@@ -52,7 +52,7 @@ git, network/deploy, and reading `console.txt` the user pastes.
 pz-research  ->  writer (pz-lua | pz-data)  ->  pz-review  ->  pz-verify  ->  user tests
 ```
 
-Four rules hold this together, and each one is here because skipping it cost something:
+Five rules hold this together, and each one is here because skipping it cost something:
 
 1. **Research before writing.** `pz-research` first, then a writer. Never a writer alone on
    a question that starts with "how does the game/Bandits do X".
@@ -61,11 +61,28 @@ Four rules hold this together, and each one is here because skipping it cost som
    walk-then-act primitive and silently killed the idle-clothing behaviour by wiring it into
    a caller with no re-entry motor. Lint passed, the diff read beautifully, and it went to
    disk unreviewed because nothing in this file said review was mandatory. Now it does.
-3. **A writer that produced no report produced no verified work.** A subagent can die
+3. **There is no such thing as a self-review, and attempting one is worse than skipping it.**
+   The orchestrator reviewing its own work has now shipped two defects in two days that an
+   independent `pz-review` then found in one pass. On 2026-08-10 a self-review "fixed" a
+   cross-floor predicate at one call site and left the same predicate with INVERTED POLARITY at
+   the other, breaking the feature it was fixing and regressing behaviour that already worked.
+   The author is blind in the same place twice; that is what makes it structural rather than
+   careless.
+
+   So: **always launch `pz-review`.** Never substitute reading your own diff for it, however
+   well you understand the change and however small it looks. A self-review costs tokens and
+   buys confidence that is not warranted, which is the worst trade available.
+
+   **If a spend limit kills the review agent**, the change is UNREVIEWED — say so plainly and do
+   not commit on the strength of your own reading. When the user next says to continue after a
+   spend-limit stop, **relaunch the review before doing anything else**. A half-finished piece of
+   work is resumed; a killed review is re-run.
+
+4. **A writer that produced no report produced no verified work.** A subagent can die
    mid-task — spend limits, timeouts, context exhaustion — and leave lint-clean files with
    no account of what it changed or what it could not check. Treat those files as a stranger's
    patch: review them before believing them, whatever `lint.sh` says.
-4. **`pz-verify` after every change touching loadable files**, and remember what it cannot
+5. **`pz-verify` after every change touching loadable files**, and remember what it cannot
    see: a dedicated server never executes `media/lua/client/`, which is most of this mod. A
    PASS there means "the shared and server halves load", nothing more.
 

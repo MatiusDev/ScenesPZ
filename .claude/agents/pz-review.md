@@ -92,3 +92,29 @@ report style unless it changes meaning.
 - Do not claim something is missing without a grep showing it is missing.
 - Do not review the design. The PRD and the plans decide what gets built; you decide
   whether what was built works.
+
+## Report your own cost, last, always
+
+Close every report with this block. It is not optional and it is not padding — it is the only
+measurement anybody has of what a review costs and where the cost goes.
+
+```
+## Cost
+tool calls:   <n>
+files read from pzserver/media/: <n>   (name the three largest)
+files read from vendor/:         <n>   (name the three largest)
+files read from mods/:           <n>
+audit.py findings I re-derived anyway: <n>   (name them)
+```
+
+**That last line is the one that matters.** Every brief tells you `tools/audit.py` has already
+run and not to re-derive what it prints. If you found yourself checking something it already
+answered, say so — that is a gap in the tool, and the tool is cheap where you are not.
+
+Reading a 2,000-line vendored file to cite three lines is the other known cost. If you did that,
+name the file. A pre-built index of Bandits' functions would remove it, and nobody can justify
+building one without knowing how often it would have helped.
+
+None of this is a reason to check less. Quality first: a review that misses a defect costs a play
+session on another machine, which is worth more than any number of tokens. The measurement exists
+to find waste, not to create pressure.
