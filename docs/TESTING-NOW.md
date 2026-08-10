@@ -30,7 +30,18 @@ riesgosa tenía defectos severos confirmados por revisión. Se arregló lo peor 
 | **P4** | Lootea con un NPC y después matalo. | El log lista **qué** ítems tomó: `LOOT ... took 3 from x,y [Base.TinnedBeans, ...]`. El cadáver debería coincidir. |
 | **P5** | Miralos cuando estén cansados. | Se sientan **solo** por cansancio. No debería quedar ninguna línea `the lazy sort`. |
 
-### Nuevas de esta tanda
+### La importante de esta tanda
+
+| # | Qué hacer | Pasa si |
+|---|---|---|
+| **P10** | Dale una mochila a un NPC **que ya esté a la vista** y no te muevas. | **Se le ve puesta, ahí mismo.** Si sale `LOOT put the skin back by hand`, mandámelo: significa que funcionó pero el brain no traía piel que restaurar. Si el NPC queda con un aspecto roto o invisible, avisame **de inmediato** — sería la red de seguridad fallando y se revierte en un minuto. |
+
+Antes de esto hacía falta alejarse y volver. La causa no era el motor: `Bandit.ApplyVisuals`
+tiene una guarda arriba que lo hace **salir sin hacer nada** si la piel del NPC es una textura
+normal de cuerpo — o sea, siempre que ya esté vestido y a la vista. Llamábamos a la función
+correcta y se negaba a correr.
+
+### Nuevas de la tanda anterior
 
 | # | Qué hacer | Pasa si |
 |---|---|---|
