@@ -892,10 +892,14 @@ function Loot.WearBag(zombie, brain, itemType)
     -- remove the bag and stop there -- correct when the bag was pure decoration on the brain,
     -- wrong now that it has to be a real worn object. The wear step below puts exactly one back.
     --
-    -- Removing them all first is what keeps the death drop honest: `Bandit.UpdateItemsToSpawnAtDeath`
-    -- builds the corpse from the live inventory AND from `brain.bag` separately, so two copies
-    -- in the inventory become two bags on the ground. A4 passed last round with this block here
-    -- and must be re-checked now that the bag comes back.
+    -- Removing them all is what keeps the death drop honest, and this is now the ONLY thing that
+    -- does. `Bandit.UpdateItemsToSpawnAtDeath` builds the corpse from the live inventory
+    -- (`getAllEvalRecurse`, Bandits 42.20 Bandit.lua:727) AND instances `brain.bag` separately
+    -- (:855). Any copy left loose in the inventory therefore becomes a second bag on the body.
+    --
+    -- The wear step that used to follow put one back deliberately, and that is precisely what
+    -- produced "quedó dos veces con la mochila". It has been removed -- see the block below --
+    -- so nothing re-adds it and `brain.bag` is the single source of truth again.
     pcall(function()
         local inventory = zombie:getInventory()
         if not inventory then return end
@@ -944,66 +948,42 @@ function Loot.WearBag(zombie, brain, itemType)
     -- Wrapped because `setWornItem` is declared on IsoGameCharacter and our receiver is an
     -- IsoZombie -- the R2 shape exactly. The log line now reports which step failed instead of
     -- announcing a generic failure, because "it did not render" was the one thing we already knew.
-    local okWorn, wornErr = pcall(function()
-        local inventory = zombie:getInventory()
-        if not inventory then error("no inventory", 0) end
-
-        local item = inventory:AddItem(itemType)
-        if not item then error("AddItem returned nil for " .. itemType, 0) end
-
-        local where = item:canBeEquipped()
-        if not where or where == "" then
-            error("canBeEquipped() is empty -- not a wearable container", 0)
-        end
-
-        zombie:setWornItem(where, item)
-        zombie:resetModelNextFrame()
-    end)
-
-    if okWorn then
-        SR.Log(string.format("LOOT %s wears the %s", tostring(brain.fullname), itemType))
-    else
-        SR.Log(string.format("LOOT %s carries a %s but cannot wear it -- %s",
-            tostring(brain.fullname), itemType, tostring(wornErr)))
-    end
-
-    -- ATTEMPT THREE, AND IT IS AN EXPERIMENT RATHER THAN A FIX -- labelled as one so nobody
-    -- later reads it as settled. Attempt two succeeded: the log prints `wears the ...` with no
-    -- error, and the bag IS equipped. What it does not do is REDRAW. Reported as "sigue sin
-    -- renderizarla de inmediato, me tocó alejarme y volver a verlo para que renderizara".
+    -- ATTEMPT TWO AND THREE LIVED HERE, AND THEY ARE GONE BECAUSE THE EXPERIMENT ANSWERED NO.
     --
-    -- WHAT THE ENGINE ACTUALLY SHOWS, and it is less than we assumed. Vanilla's real bag-wear
-    -- path is ISWearClothing:complete() -- shared/TimedActions/ISWearClothing.lua:118 -- and it
-    -- calls `setWornItem` and NOTHING ELSE. No reset of any kind. On an IsoPlayer the bag simply
-    -- appears, which means the redraw is native per-frame work, not a Lua call we forgot.
-    -- There is no "refresh worn items" entry point anywhere in the 2,680 engine Lua files.
+    -- Attempt two added the bag to the inventory and called `setWornItem` on it. Attempt three
+    -- added `resetModel()` afterwards, on the theory that ORDER was the untested variable --
+    -- ApplyVisuals resets BEFORE the item is worn, so resetting AFTER might be what was missing.
     --
-    -- So the honest reading of "walk away and come back" is the one in docs/BANDITS-API.md:290 --
-    -- Bandits REBUILDS the IsoZombie from the brain on range re-entry, and that rebuild is the
-    -- only path confirmed to render this. The bag was never missing; the model was never rebuilt.
+    -- Both worked, in the only sense the code can check. The log printed
+    -- `LOOT Anthony Wright wears the Base.Bag_ALICEpack` with no error, twice over two sessions,
+    -- with `resetModel` executing on this exact IsoZombie receiver. The bag was equipped.
     --
-    -- WHAT IS NEW HERE IS THE ORDER, NOT THE CALL. An earlier draft wrapped this in a pcall and
-    -- logged "resetModel is not available on this NPC", on the theory that it might be the
-    -- HaloTextHelper shape from docs/CAPABILITY-MAP.md:39 -- a method bound for the shared base
-    -- class that throws for IsoZombie specifically. That guard was dead code and the theory was
-    -- already disproven twenty lines up: `Bandit.ApplyVisuals`, called at line 764 of this same
-    -- function, ends with `bandit:resetModel()` at
-    -- vendor/Bandits/mods/Bandits/42.20/media/lua/shared/Bandit.lua:281. It ran, on this exact
-    -- IsoZombie receiver, twice in the last session with no failure line. The method is bound.
-    -- Looking only at the engine tree for proof, while the proof sat in the function above, is
-    -- its own lesson: R1 says vendored code is not a verification SOURCE, not that our own
-    -- successful execution of it proves nothing.
+    -- IT STILL DID NOT RENDER. Reported after the third attempt: "sigue sin verse la mochila al
+    -- equiparla, simplemente no me muestra esa animación ni la mochila, el NPC la recoge del
+    -- suelo y de una desaparece."
     --
-    -- So the only untested variable left is ORDER. ApplyVisuals resets BEFORE the item is worn;
-    -- this resets AFTER. Vanilla's own bag-wear path (ISWearClothing.lua:118) calls setWornItem
-    -- and nothing else, because on an IsoPlayer the redraw is native per-frame work -- there is
-    -- no "refresh worn items" entry point anywhere in the 2,680 engine Lua files. If a reset
-    -- after the fact does not render it either, then forcing a live worn-item redraw on an
-    -- already-visible IsoZombie is not reachable from Lua, and the design has to move to the
-    -- rebuild path that IS confirmed to work: Bandits reconstructs the IsoZombie from the brain
-    -- on range re-entry (docs/BANDITS-API.md:290), which is exactly why walking away and coming
-    -- back has been the only thing that shows the bag.
-    zombie:resetModel()
+    -- So the question is settled, and settled NEGATIVELY: forcing a live worn-item redraw on an
+    -- already-visible IsoZombie is not reachable from Lua. Vanilla's own bag-wear path
+    -- (shared/TimedActions/ISWearClothing.lua:118) calls `setWornItem` and NOTHING else, because
+    -- on an IsoPlayer the redraw is native per-frame work; there is no "refresh worn items" entry
+    -- point anywhere in the 2,680 engine Lua files. The one path confirmed to render this is the
+    -- rebuild Bandits does from the brain on range re-entry (docs/BANDITS-API.md:290) -- which is
+    -- exactly why walking away and coming back was always the only thing that worked.
+    --
+    -- AND KEEPING IT COST SOMETHING REAL, which is why this is a revert and not a shrug.
+    -- `Bandit.UpdateItemsToSpawnAtDeath` builds the corpse from the live inventory
+    -- (`getAllEvalRecurse`, Bandits 42.20 Bandit.lua:727) AND instances `brain.bag` separately
+    -- (:855). A real bag sitting in the inventory therefore became a SECOND bag on the body --
+    -- reported as "quedó dos veces con la mochila", and a regression against A4, which had passed
+    -- before the wear step existed. The comment that used to sit above the removal block even
+    -- said this had to be re-checked once the bag came back. It was, and it failed.
+    --
+    -- `brain.bag` is the single store again. The bag renders on the next natural rebuild, and the
+    -- corpse carries exactly one.
+    SR.Log(string.format("LOOT %s now has a %s on the brain (renders on next rebuild)",
+        tostring(brain.fullname), itemType))
+
+
 
     -- The bag is on the brain now, so this is the call that puts it on the corpse.
     pcall(function() Bandit.UpdateItemsToSpawnAtDeath(zombie, brain) end)
