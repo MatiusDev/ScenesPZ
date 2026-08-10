@@ -30,6 +30,15 @@ riesgosa tenía defectos severos confirmados por revisión. Se arregló lo peor 
 | **P4** | Lootea con un NPC y después matalo. | El log lista **qué** ítems tomó: `LOOT ... took 3 from x,y [Base.TinnedBeans, ...]`. El cadáver debería coincidir. |
 | **P5** | Miralos cuando estén cansados. | Se sientan **solo** por cansancio. No debería quedar ninguna línea `the lazy sort`. |
 
+### Nuevas de esta tanda
+
+| # | Qué hacer | Pasa si |
+|---|---|---|
+| **P6** | Matá un NPC que tenga mochila y contá las mochilas en el cadáver. | **Una sola.** Dos era la regresión que reportaste. |
+| **P7** | Miralo con la mochila puesta. | Ya **no** se ve al instante, y eso es lo esperado: aparece cuando el NPC se descargue y recargue por juego normal. Si **nunca** aparece, decímelo — significaría que ni siquiera se está escribiendo en el brain, que es un problema distinto. |
+| **P8** | Caminá y corré con un compañero siguiéndote, un rato largo. | Se mantiene cerca en vez de llegar siempre a donde estabas. Buscá `fast follow` en el log. |
+| **P9** | Poné a un NPC a lootear una casa y **alejate** para que tenga que seguirte. | Te sigue **y** conserva lo que estaba haciendo. Lo que hay que vigilar: que al terminar de seguirte **no** se vuelva caminando al mueble que dejó. Si lo hace, mandámelo — es el riesgo conocido de este cambio. |
+
 ### Qué NO probar todavía
 
 Huida y reenganche, y el rechazo de loot por pared. Están arreglados a medias a propósito — el
