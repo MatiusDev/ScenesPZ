@@ -393,6 +393,9 @@ local MOVED_EPSILON = 0.6
 -- endurance, entonces descansaba y volvía a correr."
 local OBSTACLE_RETRY = 8
 
+-- One-time probe, not per-NPC. If ToggleDoor throws on an IsoZombie, log it once and stop.
+local doorToggleProbed = false
+
 -- Only these can stall in a way clearing the queue would fix: every one of them completes
 -- by getting somewhere or interacting with something at a fixed spot, so an unchanged
 -- fingerprint plus an unchanged position means it is not going to finish.
@@ -1036,8 +1039,8 @@ local function watchdog(zombie, brain, mood, name)
                         SR.Log(string.format(
                             "AUTO %s | stuck on %s for %d sweeps -- blocked by door -- toggled it",
                             name, signature, STUCK_SWEEPS))
-                    elseif not mood.doorProbeDone then
-                        mood.doorProbeDone = true
+                    elseif not doorToggleProbed then
+                        doorToggleProbed = true
                         SR.Log(string.format(
                             "AUTO %s | ToggleDoor(zombie) threw -- door open via Lua may not work on IsoZombie",
                             name))
