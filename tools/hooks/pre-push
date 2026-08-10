@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+#
+# Refuse to push a tree that fails the mechanical checks.
+#
+# WHY A HOOK AND NOT A HABIT. On 2026-08-10 a commit went to the gaming PC without review and
+# carried three defects, one of which permanently deleted containers an NPC had walked to. The
+# fix for that is not "remember to run the checks" -- it is that pushing without them is not
+# possible. Every mistake here costs a game restart on ANOTHER machine to detect.
+#
+# WHAT THIS GATES, AND WHAT IT DELIBERATELY DOES NOT.
+#   lint.sh   -- syntax, and every item id resolving against the 6386 the engine defines.
+#   audit.py  -- the mechanical half of a review: unpaired latches, vendor citations with no
+#                version folder, undefined globals (the nil-global trap that killed a whole
+#                behaviour on 08-08).
+#
+# It does NOT gate pz-review. That is a call to a model, it needs judgement -- "does this loop
+# terminate", "does the caller have a re-entry motor" -- and a hook cannot ask those. Automate
+# the gate, not the review.
+#
+# Install:  ./tools/hooks/install.sh
+# Bypass:   only with a reason you would write in the commit message.
+
+set -u
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT" || exit 1
+
+fail=0
+
+echo "pre-push: lint"
+if ! ./tools/lint.sh; then
+    echo "pre-push: lint FAILED" >&2
+    fail=1
+fi
+
+echo "pre-push: audit"
+if ! ./tools/audit.py; then
+    echo "pre-push: audit FAILED" >&2
+    fail=1
+fi
+
+if [ "$fail" -ne 0 ]; then
+    cat >&2 <<'MSG'
+
+pre-push BLOCKED.
+
+Fix what is reported above. If you genuinely need to push anyway -- a broken tree you
+want backed up, a checkpoint before a rewrite -- say so explicitly:
+
+    git push --no-verify
+
+and put the reason in the commit message, because the next person to read the log is
+going to be you, on the other machine, wondering why this shipped.
+MSG
+    exit 1
+fi
+
+echo "pre-push: clean"
+exit 0
