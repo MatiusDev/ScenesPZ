@@ -293,3 +293,85 @@ end
 function SR.Log(msg)
     print("SREL| " .. tostring(msg))
 end
+
+-- WHO OWNS A TASK ------------------------------------------------------------------------
+--
+-- Every task this mod queues carries the objective that produced it. Bandits' own tasks carry
+-- no such field, and that asymmetry is the point: an untagged task belongs to the framework
+-- and we never throw it away.
+--
+-- WHY THIS EXISTS BEFORE ANYTHING USES IT. Replacing one objective's work today means
+-- `Bandit.ClearTasks`, which wipes the WHOLE queue -- so a companion pulled into following
+-- loses whatever it was doing, and no secondary objective can survive six seconds. Replacing
+-- only what an objective owns is what makes "a primary objective plus secondaries" possible at
+-- all, and that needs a way to ask "whose is this?".
+--
+-- The first attempt at the surviving queue shipped with only `follow` tagged and had to be
+-- reverted: ScenesRelationsThreat read a foreign queue head as a lost shelter route and
+-- re-queued it every sweep, and a follow interrupting a loot task made ScenesLoot record a
+-- refusal that writes a container off after three. Both failures were the SAME missing fact --
+-- nothing could tell whose task was at the head. So the tagging lands first, everywhere, on
+-- its own, and the behaviour that depends on it lands after.
+--
+-- A typo'd goal string fails safe: it is a tag nothing matches, so the task is simply never
+-- swept up. A NIL goal does NOT, and that distinction is the whole reason SR.Own guards below.
+SR.GOAL = {
+    FOLLOW  = "follow",   -- catching up with, or staying beside, the player
+    SHELTER = "shelter",  -- getting behind a wall because fear won
+    LOOT    = "loot",     -- searching a container, or walking to one
+    ERRAND  = "errand",   -- fetching one specific thing this NPC decided it wants
+    REST    = "rest",     -- sitting down to recover endurance
+    CARE    = "care",     -- bandaging, healing, looking after somebody
+    FIGHT   = "fight",    -- readying for, or dealing with, something hostile
+    -- No GEAR. It was here for "putting something on or in hand" and had exactly one producer,
+    -- the Equip that arms a companion -- which the FIGHT branch emits, so FIGHT is what owns
+    -- it. Putting on clothes is an ERRAND. A named constant with no producer is the same lie
+    -- BREACH_PANIC was: it documents a rule nothing enforces, and the next reader believes it.
+    -- Ours, but produced by arbitration rather than by any objective: the ladder making an NPC
+    -- wait for a spot another one claimed. It is not the framework's, so it must not read as
+    -- the framework's -- see SR.Own.
+    ARBITRATE = "arbitrate",
+    -- Ours and UNATTRIBUTED, which should never happen and is loud when it does.
+    UNKNOWN = "unknown",
+}
+
+--- Stamp a task with the objective that produced it, and hand it back.
+---
+--- Written to be used inline at the point of construction -- `SR.Own(SR.GOAL.LOOT, { ... })` --
+--- because a tag applied anywhere else is a tag somebody will forget on the next new task.
+--- WHY A NIL GOAL CANNOT BE ALLOWED THROUGH, and why the first version was wrong to say it
+--- failed safe. The comment above SR.GOAL used to claim that a bad goal is "a tag nothing
+--- matches". That is true of a TYPO. It is the exact opposite of true for nil, because nil is
+--- not "no match" -- it is the marker this mod reserves for tasks Bandits itself queued, the
+--- ones we promise never to touch.
+---
+--- A step-4 consumer written the obvious way --
+---
+---     if task.srGoal == mine then drop(task) end
+---
+--- with `mine` nil would therefore delete EVERY framework task in the queue: Die, Zombify, the
+--- GetUp after a knockdown. Silently, and only in the situation where something upstream forgot
+--- a tag. Two call sites can produce a nil goal today by propagating one (`SR.Move.GoAndDo` and
+--- the ladder's wait task), and any future caller of GoAndDo that forgets to tag gets an
+--- untagged walk for free.
+---
+--- So this is the one place that can refuse, and it refuses. UNKNOWN matches no objective, so
+--- the task survives every sweep -- the safe direction -- and the log line makes the omission
+--- findable instead of leaving it to be discovered by a queue that emptied itself.
+local warnedUnknown = false
+
+function SR.Own(goal, task)
+    if type(task) ~= "table" then return task end
+
+    if goal == nil then
+        goal = SR.GOAL.UNKNOWN
+        if not warnedUnknown then
+            warnedUnknown = true
+            SR.Log(string.format("OWN a %s task was queued with no objective -- tagged unknown",
+                tostring(task.action)))
+        end
+    end
+
+    task.srGoal = goal
+    return task
+end

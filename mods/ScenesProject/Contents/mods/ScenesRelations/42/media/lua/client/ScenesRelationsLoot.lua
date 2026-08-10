@@ -781,11 +781,11 @@ local MAX_APPROACHES = 3
 --- was planned. `SR.Move.GoAndDo` (ScenesRelationsMove.lua) is that rule extracted into one
 --- function so it cannot drift out of sync between this file and any other caller again.
 function Loot.Search(zombie, mood, spot, want)
-    local task = {
+    local task = SR.Own(SR.GOAL.LOOT, {
         action = "ScenesLoot", anim = "Loot", time = 200,
         x = spot.x, y = spot.y, z = spot.z,
         want = want,
-    }
+    })
     local tasks, arrived = SR.Move.GoAndDo(zombie, spot, task)
 
     if not arrived then
@@ -879,10 +879,10 @@ end
 --- `tasks, arrived` shape IS this contract -- `arrived` reads exactly as "this is the pickup
 --- leg" -- so there is nothing to translate.
 function Loot.FetchBag(zombie, want)
-    local task = {
+    local task = SR.Own(SR.GOAL.LOOT, {
         action = "PickUp", anim = "LootLow", itemType = want.itemType,
         x = want.x, y = want.y, z = want.z, cnt = 1,
-    }
+    })
     return SR.Move.GoAndDo(zombie, want, task)
 end
 

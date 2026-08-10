@@ -165,7 +165,7 @@ local function quietWeaponTask(bandit, brain)
     local ok, equipped = pcall(function() return bandit:isPrimaryEquipped(weapons.melee) end)
     if not ok or equipped then return nil end
 
-    return { action = "Equip", itemPrimary = weapons.melee, time = 60 }
+    return SR.Own(SR.GOAL.FIGHT, { action = "Equip", itemPrimary = weapons.melee, time = 60 })
 end
 
 -- RESTING ------------------------------------------------------------------------------
@@ -192,8 +192,8 @@ local function restTasks(bandit, brain, mood)
             tostring(brain.fullname), endurance, threshold,
             mood.indoors and "indoors" or "outdoors"))
 
-        return { { action = "Sleep", anim = "Sit", time = REST_TIME,
-                   endurance = REST_RECOVERY } }
+        return { SR.Own(SR.GOAL.REST, { action = "Sleep", anim = "Sit", time = REST_TIME,
+                   endurance = REST_RECOVERY }) }
     end
 
     -- Not tired, not the sitting sort: watch the way trouble would come from. This is what
@@ -201,7 +201,8 @@ local function restTasks(bandit, brain, mood)
     -- something, it is just not a copy of you.
     local ok, closest = pcall(function() return BanditUtils.GetClosestZombieLocation(bandit) end)
     if ok and closest and closest.dist and closest.dist < 24 then
-        return { { action = "FaceLocation", x = closest.x, y = closest.y, time = 100 } }
+        return { SR.Own(SR.GOAL.REST,
+            { action = "FaceLocation", x = closest.x, y = closest.y, time = 100 }) }
     end
 
     return nil
@@ -273,7 +274,7 @@ local function scenesMain(bandit)
     if SR.Wounds and SR.Wounds.NeedsDressing(bandit, brain) then
         SR.Log(string.format("COMP %s stops to dress a wound | %.1f tiles from master",
             name, dist))
-        return { status = true, next = "Main", tasks = { { action = "Bandage" } } }
+        return { status = true, next = "Main", tasks = { SR.Own(SR.GOAL.CARE, { action = "Bandage" }) } }
     end
 
     -- Too far to be doing anything but closing the gap. Their follow code is at the bottom
@@ -335,7 +336,7 @@ function SR.Companion.FreeActivity(bandit, brain, mood, name)
     -- action, the animation and the sound stay theirs.
     if SR.Wounds and SR.Wounds.NeedsDressing(bandit, brain) then
         SR.Log(string.format("COMP %s stops to dress a wound", name))
-        return { status = true, next = "Main", tasks = { { action = "Bandage" } } }
+        return { status = true, next = "Main", tasks = { SR.Own(SR.GOAL.CARE, { action = "Bandage" }) } }
     end
 
     -- GOING BACK TO WHAT THEY WERE DOING. The stage's own done-criterion, in its words:
@@ -446,8 +447,8 @@ function SR.Companion.FreeActivity(bandit, brain, mood, name)
         SR.Log(string.format("COMP %s sits down with a book | endurance %.2f",
             name, enduranceOf(brain)))
         return { status = true, next = "Main", tasks = {
-            { action = "Sleep", anim = "SitAction", time = READ_TIME,
-              endurance = READ_RECOVERY },
+            SR.Own(SR.GOAL.REST, { action = "Sleep", anim = "SitAction", time = READ_TIME,
+              endurance = READ_RECOVERY }),
         } }
     end
 

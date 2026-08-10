@@ -560,7 +560,7 @@ local function assertFollow(zombie, master, dist, free)
         BanditUtils.GetCharacterID(master), true, walkType, dist)
 
     Bandit.ClearTasks(zombie)
-    Bandit.AddTask(zombie, task)
+    Bandit.AddTask(zombie, SR.Own(SR.GOAL.FOLLOW, task))
     return walkType
 end
 
@@ -576,6 +576,20 @@ end
 local function headSignature(task)
     if not task then return nil end
     return string.format("%s@%s,%s", tostring(task.action), tostring(task.x), tostring(task.y))
+end
+
+--- The head of the queue, described for a human reading console.txt on another machine.
+---
+--- The OWNER is the part worth having and the part that did not exist before. A census line
+--- saying `head=Move@10701,10272` never told anybody WHY the NPC was walking there -- catching
+--- up, going to a window, or heading for a drawer all print identically. `head=Move/follow`
+--- answers it, and it is the only way to see from the log that an objective actually owns what
+--- it thinks it owns. Bandits' own tasks have no owner, and print as `-` rather than as a
+--- guess.
+local function headDescription(task)
+    if not task then return "idle" end
+    return string.format("%s@%s,%s/%s", tostring(task.action), tostring(task.x),
+        tostring(task.y), tostring(task.srGoal or "-"))
 end
 
 --- Nobody else is already working this exact spot, or we are the one who claimed it.
@@ -869,8 +883,18 @@ local function sweep()
                             -- Somebody is already on this window. Waiting is a real task,
                             -- so they visibly queue rather than crowding the same tile.
                             Bandit.ClearTasks(zombie)
+                            -- The wait INHERITS the goal of the task it replaces. It is not a
+                            -- plan of its own -- it is the same objective, queueing for a spot
+                            -- somebody else holds -- so attributing it anywhere else would make
+                            -- the queue lie about who is trying to do what.
+                            -- Falls back to ARBITRATE rather than to nil. Six of the seven
+                            -- EXCLUSIVE actions only ever come from a Bandits program, so the
+                            -- blocked task usually has no owner -- and a nil here would mark a
+                            -- task WE created as the framework's, which is the one thing the
+                            -- tag exists to keep apart.
                             Bandit.AddTask(zombie,
-                                { action = Autonomy.WAIT_ACTION, anim = Autonomy.WAIT_ANIM, time = 120 })
+                                SR.Own(task and task.srGoal or SR.GOAL.ARBITRATE,
+                                { action = Autonomy.WAIT_ACTION, anim = Autonomy.WAIT_ANIM, time = 120 }))
                             mood.taskSig, mood.taskTicks = nil, 0
                             SR.Log(string.format("AUTO %s | waits, %s is already working %s",
                                 name, tostring(holder), tostring(key)))
@@ -893,7 +917,7 @@ local function sweep()
                             -- and told us nothing. Lua's and/or is not a ternary when the
                             -- middle value can be false.
                             SR.Loot and tostring(SR.Loot.HasBag(brain)) or "?",
-                            tostring(headSignature(headTask(brain)) or "idle")))
+                            headDescription(headTask(brain))))
                     end
                 end
             end

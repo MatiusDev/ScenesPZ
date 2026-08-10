@@ -118,7 +118,11 @@ function Move.GoAndDo(zombie, point, task, opts)
 
     if dist > precision or collide then
         local walkType = run and "Run" or "Walk"
-        tasks[1] = BanditUtils.GetMoveTask(0, ax, ay, az, walkType, dist, false)
+        -- The walk inherits the goal of the action it is a walk TOWARDS. A caller stamps
+        -- the action it wants performed; the journey to it belongs to the same objective, and
+        -- tagging only one of the two would leave half a plan unattributed in the queue.
+        tasks[1] = SR.Own(task and task.srGoal,
+            BanditUtils.GetMoveTask(0, ax, ay, az, walkType, dist, false))
         return tasks, false
     end
 

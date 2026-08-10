@@ -119,9 +119,11 @@ local function seekShelter(zombie, brain)
     -- generic loop force-completes at time <= 0 (BanditUpdate.lua:1759,1804). The timer
     -- is the contract we rely on, not the animation.
     if not alreadyOpen then
-        Bandit.AddTaskFirst(zombie, {action = "OpenWindow", x = wx, y = wy, z = wz, time = 60})
+        Bandit.AddTaskFirst(zombie, SR.Own(SR.GOAL.SHELTER,
+            {action = "OpenWindow", x = wx, y = wy, z = wz, time = 60}))
     end
-    Bandit.AddTaskFirst(zombie, {action = "GoTo", x = wx, y = wy, z = wz, walkType = "Run"})
+    Bandit.AddTaskFirst(zombie, SR.Own(SR.GOAL.SHELTER,
+        {action = "GoTo", x = wx, y = wy, z = wz, walkType = "Run"}))
 
     if SR.DEBUG then
         SR.Log(string.format("THREAT %s -> shelter at %d,%d (%s)",

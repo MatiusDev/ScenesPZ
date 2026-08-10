@@ -193,10 +193,10 @@ end
 --- stops a second call. Returning `arrived` is how the sweep knows the difference between "it
 --- is walking, ask me again" and "the pickup is queued, wait for it."
 local function goGet(zombie, want)
-    local task = {
+    local task = SR.Own(SR.GOAL.ERRAND, {
         action = "PickUp", anim = "LootLow", itemType = want.itemType,
         x = want.x, y = want.y, z = want.z, cnt = 1,
-    }
+    })
     local tasks, arrived = SR.Move.GoAndDo(zombie, want, task, { precision = 0.9 })
     for _, t in ipairs(tasks) do
         Bandit.AddTask(zombie, t)
