@@ -91,6 +91,32 @@ cambios nuevos, adelante. Lo que se confirmó:
 | P17 — resistencia | ✅ ciclo winded→sit→rested confirmado |
 | P18 — telemetría | ✅ `chase over` 30+, `found again` 4, `caught up` 3 |
 
+### P21 — trepa rejas y abre puertas cuando se traba
+
+**El fix nuevo.** Antes el watchdog solo limpiaba la cola y el NPC volvía a trabarse en el
+mismo obstáculo. Ahora, cuando detecta el tipo de obstáculo, intenta superarlo:
+
+| Obstáculo | Acción |
+|---|---|
+| `hop` (reja baja) | `ClimbFence` con anim `ClimbFenceEnd` |
+| `tall` (reja alta) | `ClimbFence` con anim `ClimbFenceTall` |
+| `door` (puerta) | `ToggleDoor` — intenta abrirla |
+| `solid` / `locked` | solo limpia (no hay acción disponible) |
+
+Hay un cooldown de 8 sweeps por obstáculo para no reintentar infinitamente.
+
+1. Buscá una reja o valla donde un NPC se quede trabado.
+2. **Esperado:** en el log deberías ver:
+   ```
+   AUTO <nombre> | stuck on Move@X,Y for 2 sweeps -- blocked by hop -- queued ClimbFence(ClimbFenceEnd)
+   ```
+3. El NPC debería trepar la reja y continuar.
+4. Para puertas, buscá:
+   ```
+   AUTO <nombre> | stuck on Move@X,Y for 2 sweeps -- blocked by door -- toggled it
+   ```
+5. Si ves `ToggleDoor(zombie) threw`, la puerta no se pudo abrir desde Lua — avisame.
+
 ---
 
 ## Qué NO hace falta que reportes
