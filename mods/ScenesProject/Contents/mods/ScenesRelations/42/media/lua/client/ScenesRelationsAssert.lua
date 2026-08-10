@@ -172,6 +172,87 @@ local function run()
         return type(getCell) == "function" and getCell() ~= nil
     end)
 
+    -- DOORS -- the block-6 probes. Everything below is asked because the RESEARCH could not
+    -- settle it, and the difference between the two kinds of answer is the whole point of
+    -- having this harness.
+    --
+    -- `isLocked`, `IsOpen`, `isBarricaded` and `ToggleDoor` are all PROVEN: vanilla Lua calls
+    -- them and `ToggleDoor` takes an IsoGameCharacter rather than an IsoPlayer
+    -- (shared/TimedActions/ISOpenCloseDoor.lua:31), so a Bandits task action can use it.
+    --
+    -- `isExterior` / `isExteriorDoor` are NOT. They exist on the compiled class, and ZERO
+    -- vanilla Lua files call either one. That is the exact shape of
+    -- `getSeeNearbyCharacterDistance`, which was copied out of dead vendored code, has zero
+    -- engine callsites, and cost this project a full session -- the lesson being that a method
+    -- nothing calls has been verified by nobody. The user's whole entry ordering ("the next
+    -- EXTERIOR door, then the nearest window") rests on this one question, so it gets answered
+    -- by the engine in play rather than by a decompiler here.
+    --
+    -- Finding a real door to ask is the awkward part: there is no "give me a door" API, so this
+    -- walks a small square around the player and takes the first one. No player, or no door
+    -- within reach, is reported as a SKIP rather than a pass -- a check that goes green because
+    -- it found nothing to test is worse than no check.
+    local function findDoorNearPlayer()
+        local player = getSpecificPlayer(0)
+        if not player then return nil, "no player yet" end
+        local square = player:getSquare()
+        local cell = square and square:getCell()
+        if not cell then return nil, "no cell" end
+
+        local px, py, pz = player:getX(), player:getY(), player:getZ()
+        for dx = -6, 6 do
+            for dy = -6, 6 do
+                local sq = cell:getGridSquare(px + dx, py + dy, pz)
+                if sq then
+                    local objects = sq:getObjects()
+                    for i = 0, objects:size() - 1 do
+                        local obj = objects:get(i)
+                        if obj and instanceof(obj, "IsoDoor") then return obj end
+                    end
+                end
+            end
+        end
+        return nil, "no IsoDoor within 6 tiles -- stand near a house and reload to test"
+    end
+
+    check("a door answers IsOpen / isLocked / isBarricaded", function()
+        local door, why = findDoorNearPlayer()
+        if not door then return false, "SKIPPED: " .. tostring(why) end
+        local ok = pcall(function()
+            return door:IsOpen(), door:isLocked(), door:isBarricaded()
+        end)
+        return ok, ok and nil or "one of the three threw"
+    end)
+
+    check("PROBE door:isExterior() is callable from Lua", function()
+        local door, why = findDoorNearPlayer()
+        if not door then return false, "SKIPPED: " .. tostring(why) end
+        local ok, value = pcall(function() return door:isExterior() end)
+        SR.Log(string.format("PROBE door | isExterior ok=%s value=%s",
+            tostring(ok), tostring(value)))
+        return ok, ok and nil or "not reachable from Lua -- the entry ordering needs a geometric fallback"
+    end)
+
+    check("PROBE door:isExteriorDoor(character) is callable from Lua", function()
+        local door, why = findDoorNearPlayer()
+        if not door then return false, "SKIPPED: " .. tostring(why) end
+        local player = getSpecificPlayer(0)
+        local ok, value = pcall(function() return door:isExteriorDoor(player) end)
+        SR.Log(string.format("PROBE door | isExteriorDoor ok=%s value=%s",
+            tostring(ok), tostring(value)))
+        return ok, ok and nil or "not reachable from Lua -- try isExterior() or go geometric"
+    end)
+
+    -- The vanilla adjacency finder, and the one we would use instead of GetAccessSquare. Vanilla
+    -- calls it for DOORS as well as windows despite the name
+    -- (client/ISUI/ISWorldObjectContextMenu.lua:2552), and nothing inside it is player-only --
+    -- but "nothing inside it is player-only" is a reading, and this is the machine that can
+    -- actually run it.
+    check("AdjacentFreeTileFinder.FindWindowOrDoor exists", function()
+        return type(AdjacentFreeTileFinder) == "table"
+           and type(AdjacentFreeTileFinder.FindWindowOrDoor) == "function"
+    end)
+
     -- THE PRIMITIVE ITSELF. If this is missing, every one of Loot.Search, Loot.FetchBag, and
     -- ScenesRelationsIdle's goGet silently queues nothing.
     check("SR.Move.GoAndDo exists", function()

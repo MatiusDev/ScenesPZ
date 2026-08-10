@@ -17,7 +17,7 @@ riesgosa tenía defectos severos confirmados por revisión. Se arregló lo peor 
 ### Antes de arrancar
 
 1. `git pull` en la PC de juego.
-2. `ASSERT ---- 24 ok, 0 FAILED ----` (bajó de 25 a propósito, ver P0) en `console.txt`. Si algo dice `FAIL`, pará y mandámelo.
+2. `ASSERT ---- 28 ok, 0 FAILED ----` — subió de 24: cuatro sondas de puerta nuevas (P11) en `console.txt`. Si algo dice `FAIL`, pará y mandámelo.
 
 ### Las pruebas
 
@@ -30,7 +30,20 @@ riesgosa tenía defectos severos confirmados por revisión. Se arregló lo peor 
 | **P4** | Lootea con un NPC y después matalo. | El log lista **qué** ítems tomó: `LOOT ... took 3 from x,y [Base.TinnedBeans, ...]`. El cadáver debería coincidir. |
 | **P5** | Miralos cuando estén cansados. | Se sientan **solo** por cansancio. No debería quedar ninguna línea `the lazy sort`. |
 
-### La importante de esta tanda
+### La que desbloquea el bloque de puertas
+
+| # | Qué hacer | Pasa si |
+|---|---|---|
+| **P11** | **Parate cerca de una casa** (a menos de 6 tiles de una puerta) y arrancá. Buscá `PROBE door` en `console.txt`. | Salen dos líneas: `isExterior ok=... value=...` y `isExteriorDoor ok=... value=...`. **Mandame las dos textuales**, digan lo que digan. Si dicen `ok=false`, eso es la respuesta y cambia el diseño — no es un fallo tuyo. Si alguna dice `SKIPPED`, alejate menos de la puerta y reintentá. |
+
+**Por qué importa tanto una línea de log:** tu orden de entrada dice *"la siguiente puerta
+**exterior**"*. Esos dos métodos existen en la clase compilada del juego, pero **ningún archivo
+Lua de vanilla los llama** — que es exactamente la forma de `getSeeNearbyCharacterDistance`, el
+método que copiamos de código muerto y nos costó una sesión entera. Si no se pueden llamar desde
+Lua, la regla hay que rehacerla en términos geométricos. El motor contesta esto en un arranque; yo
+no lo puedo contestar desde acá.
+
+### La importante de la tanda anterior
 
 | # | Qué hacer | Pasa si |
 |---|---|---|
