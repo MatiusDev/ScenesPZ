@@ -1,0 +1,2030 @@
+LOG  : General      f:0> 10-08-2026 09:44:14
+LOG  : General      f:0> SLF4J(I): Attempting to load provider "zombie.core.logger.Slf4jBridge" specified via "slf4j.provider" system property
+LOG  : General      f:0> ===== System specs =====
+LOG  : General      f:0> CPU: AMD Ryzen 5 5600G with Radeon Graphics         , vendor: AuthenticAMD, cores: 6, threads: 12
+LOG  : General      f:0> RAM: 32561 Mb
+LOG  : General      f:0> Base board: PRIME A520M-A II, vendor: ASUSTeK COMPUTER INC.
+LOG  : General      f:0> GPU: NVIDIA GeForce RTX 4060, vendor: NVIDIA, video memory: 8188 Mb, driver: 32.0.16.1062
+LOG  : General      f:0> GPU: AMD Radeon(TM) Graphics, vendor: Advanced Micro Devices, Inc., video memory: 512 Mb, driver: 31.0.12042.4
+LOG  : General      f:0> Disk info: 952.95 Gb, free space: 110.99 Gb, usable space: 110.99 Gb
+LOG  : General      f:0> OS: Windows 11, version: 10.0, arch: amd64, build: 26100
+LOG  : General      f:0> JVM (free: 388 Mb, max: 3072 Mb, total available: 510 Mb)
+LOG  : General      f:0> ========================
+LOG  : General      f:0> java.specification.version=25
+LOG  : General      f:0> sun.cpu.isalist=amd64
+LOG  : General      f:0> sun.jnu.encoding=Cp1252
+LOG  : General      f:0> java.vm.vendor=Azul Systems, Inc.
+LOG  : General      f:0> sun.arch.data.model=64
+LOG  : General      f:0> java.vendor.url=http://www.azul.com/
+LOG  : General      f:0> zomboid.steam=1
+LOG  : General      f:0> java.vm.specification.version=25
+LOG  : General      f:0> os.name=Windows 11
+LOG  : General      f:0> zomboid.znetlog=1
+LOG  : General      f:0> slf4j.provider=zombie.core.logger.Slf4jBridge
+LOG  : General      f:0> jdk.debug=release
+LOG  : General      f:0> sun.cpu.endian=little
+LOG  : General      f:0> java.specification.vendor=Oracle Corporation
+LOG  : General      f:0> java.version.date=2025-10-21
+LOG  : General      f:0> java.home=C:\Program Files (x86)\Steam\steamapp...
+LOG  : General      f:0> file.separator=\
+LOG  : General      f:0> line.separator=
+
+LOG  : General      f:0> java.vm.specification.vendor=Oracle Corporation
+LOG  : General      f:0> java.specification.name=Java Platform API Specification
+LOG  : General      f:0> java.awt.headless=true
+LOG  : General      f:0> sun.management.compiler=HotSpot 64-Bit Tiered Compilers
+LOG  : General      f:0> java.runtime.version=25.0.1+8-LTS
+LOG  : General      f:0> stdout.encoding=Cp1252
+LOG  : General      f:0> os.version=10.0
+LOG  : General      f:0> jna.nosys=false
+LOG  : General      f:0> java.runtime.name=OpenJDK Runtime Environment
+LOG  : General      f:0> file.encoding=UTF-8
+LOG  : General      f:0> java.vm.name=OpenJDK 64-Bit Server VM
+LOG  : General      f:0> java.vendor.version=Zulu25.30+17-CA
+LOG  : General      f:0> jna.loaded=true
+LOG  : General      f:0> java.vendor.url.bug=http://www.azul.com/support/
+LOG  : General      f:0> java.version=25.0.1
+LOG  : General      f:0> os.arch=amd64
+LOG  : General      f:0> java.vm.specification.name=Java Virtual Machine Specification
+LOG  : General      f:0> sun.os.patch.level=
+LOG  : General      f:0> native.encoding=Cp1252
+LOG  : General      f:0> java.vm.info=mixed mode, sharing
+LOG  : General      f:0> stderr.encoding=Cp1252
+LOG  : General      f:0> java.vendor=Azul Systems, Inc.
+LOG  : General      f:0> java.vm.version=25.0.1+8-LTS
+LOG  : General      f:0> stdin.encoding=Cp1252
+LOG  : General      f:0> sun.io.unicode.encoding=UnicodeLittle
+LOG  : General      f:0> java.class.version=69.0
+LOG  : General      f:0> -----
+LOG  : General      f:0> version=42.20.2 ffe7a8a4b1 demo=false
+LOG  : General      f:0> revision=ffe7a8a4b1 pzbullet=1.0.0.28
+LOG  : General      f:0> Logs configuration:
+LOG  : General      f:0>      General: General
+LOG  : General      f:0>      Network: General
+LOG  : General      f:0>          Lua: General
+LOG  : General      f:0>          Mod: General
+LOG  : General      f:0>  Multiplayer: General
+LOG  : General      f:0>      Default: General
+LOG  : General      f:0> LightingFPS set to 15
+LOG  : General      f:0> closest width=640 freq=59
+LOG  : General      f:0> closest width=640 freq=60
+LOG  : General      f:0> closest width=640 freq=75
+LOG  : General      f:0> closest width=640 freq=100
+LOG  : General      f:0> closest width=720 freq=59
+LOG  : General      f:0> closest width=720 freq=60
+LOG  : General      f:0> closest width=720 freq=100
+LOG  : General      f:0> closest width=800 freq=60
+LOG  : General      f:0> closest width=800 freq=75
+LOG  : General      f:0> closest width=800 freq=100
+LOG  : General      f:0> closest width=1176 freq=50
+LOG  : General      f:0> closest width=1176 freq=59
+LOG  : General      f:0> closest width=1176 freq=60
+LOG  : General      f:0> closest width=1176 freq=100
+LOG  : General      f:0> closest width=1280 freq=50
+LOG  : General      f:0> closest width=1280 freq=59
+LOG  : General      f:0> closest width=1280 freq=60
+LOG  : General      f:0> closest width=1280 freq=100
+LOG  : General      f:0> closest width=1360 freq=60
+LOG  : General      f:0> closest width=1360 freq=100
+LOG  : General      f:0> closest width=1366 freq=60
+LOG  : General      f:0> closest width=1366 freq=100
+LOG  : General      f:0> closest width=1440 freq=60
+LOG  : General      f:0> closest width=1440 freq=100
+LOG  : General      f:0> closest width=1600 freq=59
+LOG  : General      f:0> closest width=1600 freq=60
+LOG  : General      f:0> closest width=1600 freq=100
+LOG  : General      f:0> closest width=1680 freq=59
+LOG  : General      f:0> closest width=1680 freq=60
+LOG  : General      f:0> closest width=1680 freq=100
+LOG  : General      f:0> closest width=1920 freq=50
+LOG  : General      f:0> closest width=1920 freq=59
+LOG  : General      f:0> closest width=1920 freq=60
+LOG  : General      f:0> closest width=1920 freq=75
+LOG  : General      f:0> Display mode changed to 1920x1080 freq=100 fullScreen=true
+LOG  : General      f:0> GraphicsCard: NVIDIA Corporation NVIDIA GeForce RTX 4060/PCIe/SSE2
+LOG  : General      f:0> OpenGL version: 4.6.0 NVIDIA 610.62
+LOG  : General      f:0> Desktop resolution 1920x1080
+LOG  : General      f:0> Initial resolution 1920x1080 fullScreen=true
+LOG  : General      f:0> OpenGL 1.5 buffer objects supported
+LOG  : General      f:0> VSync: OFF
+LOG  : General      f:0> 1786373056709 fmod: Java loging: OK
+LOG  : General      f:0> 1786373056720 fmod: FMOD::Studio::System::create() result: No errors.
+LOG  : General      f:0> 1786373056720 fmod: FMOD::Studio::System::getCoreSystem() result: No errors.
+LOG  : General      f:0> 1786373056721 fmod: FMOD_System_GetVersion() result: No errors.
+LOG  : General      f:0> 1786373056721 fmod: fmodintegration built with version 20309, fmod shared library version 20309
+LOG  : General      f:0> 1786373056721 fmod: System Create: OK
+LOG  : General      f:0> 1786373056722 fmod: FMOD_System_SetSoftwareFormat() result: No errors.
+LOG  : General      f:0> 1786373056785 fmod: FMOD::Studio::System::Initialize() result: No errors.
+LOG  : General      f:0> 1786373056786 fmod: Creating DSP for capture sound
+LOG  : General      f:0> 1786373056786 fmod: FMOD_System_CreateDSP() result: No errors.
+LOG  : General      f:0> 1786373056787 fmod: FMOD_DSP_SetBypass() result: No errors.
+LOG  : General      f:0> 1786373056787 fmod: FMOD_System_GetMasterChannelGroup() result: No errors.
+LOG  : General      f:0> 1786373056787 fmod: FMOD_ChannelGroup_AddDSP() result: No errors.
+LOG  : General      f:0> 1786373056788 fmod: FMOD_System_Set3DSettings() result: No errors.
+LOG  : Mod          f:0> refusing to list examplemod
+LOG  : General      f:0> Loading networking libraries...
+LOG  : General      f:0> Loading steam_api64...
+LOG  : General      f:0> Loading RakNet64...
+LOG  : General      f:0> Loading ZNetJNI64...
+LOG  : General      f:0> SteamUtils initialised successfully
+LOG  : General      f:0> Loading Mods
+LOG  : Mod          f:0> refusing to list examplemod
+LOG  : Mod          f:0> loading scenesDoctor
+LOG  : Mod          f:0> loading Bandits2
+LOG  : Mod          f:0> mod "Bandits2" overrides media/animsets/player/hitreaction/hitreaction.xml
+LOG  : Mod          f:0> mod "Bandits2" overrides media/animsets/player/hitreactionpvp/hitreaction.xml
+LOG  : Mod          f:0> mod "Bandits2" overrides media/animsets/zombie/climbwindow/windowlunge.xml
+LOG  : Mod          f:0> mod "Bandits2" overrides media/animsets/zombie/falldown/default.xml
+LOG  : Mod          f:0> mod "Bandits2" overrides media/animsets/zombie/lunge/defaultlunge.xml
+LOG  : Mod          f:0> mod "Bandits2" overrides media/animsets/zombie/lunge-network/defaultlunge.xml
+LOG  : Mod          f:0> mod "Bandits2" overrides media/animsets/zombie/thump/door.xml
+LOG  : Mod          f:0> mod "Bandits2" overrides media/animsets/zombie/thump/doorbang.xml
+LOG  : Mod          f:0> mod "Bandits2" overrides media/animsets/zombie/thump/doorclaw.xml
+LOG  : Mod          f:0> mod "Bandits2" overrides media/clothing/clothing.xml
+LOG  : Mod          f:0> mod "Bandits2" overrides media/fileguidtable.xml
+LOG  : Mod          f:0> mod "Bandits2" overrides media/lua/shared/translate/en/ig_ui.json
+LOG  : Mod          f:0> mod "Bandits2" overrides media/lua/shared/translate/en/sandbox.json
+LOG  : Mod          f:0> mod "Bandits2" overrides media/lua/shared/translate/en/ui.json
+LOG  : Mod          f:0> loading scenesRelations
+LOG  : Mod          f:0> mod "scenesRelations" overrides 
+LOG  : Mod          f:0> loading Waterpipes
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/de/contextmenu.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/de/ig_ui.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/de/moveables.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/de/sandbox.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/de/tooltip.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/en/contextmenu.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/en/ig_ui.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/en/moveables.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/en/sandbox.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/en/tooltip.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/es/contextmenu.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/es/ig_ui.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/es/moveables.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/es/sandbox.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/es/tooltip.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/it/contextmenu.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/it/ig_ui.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/it/moveables.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/it/sandbox.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/it/tooltip.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/pl/contextmenu.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/pl/ig_ui.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/pl/moveables.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/pl/sandbox.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/pl/tooltip.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/ptbr/contextmenu.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/ptbr/ig_ui.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/ptbr/moveables.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/ptbr/sandbox.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/ptbr/tooltip.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/ru/contextmenu.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/ru/ig_ui.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/ru/moveables.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/ru/sandbox.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/ru/tooltip.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/tr/contextmenu.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/tr/ig_ui.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/tr/moveables.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/tr/sandbox.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/lua/shared/translate/tr/tooltip.json
+LOG  : Mod          f:0> mod "Waterpipes" overrides media/sandbox-options.txt
+LOG  : Mod          f:0> loading tlouFactions
+LOG  : Mod          f:0> mod "tlouFactions" overrides bandits/bandits.txt
+LOG  : Mod          f:0> mod "tlouFactions" overrides bandits/clans.txt
+LOG  : General      f:0> texturepack: loading waterpipes
+LOG  : General      f:0> UI_Loading_Texturepack
+LOG  : General      f:0> Loading Translations
+LOG  : General      f:0> texturepack: loading UI
+LOG  : General      f:0> Cargando pack de texturas UI
+LOG  : General      f:0> texturepack: loading UI2
+LOG  : General      f:0> Cargando pack de texturas UI2
+LOG  : General      f:0> texturepack: loading IconsMoveables
+LOG  : General      f:0> Cargando pack de texturas IconsMoveables
+LOG  : General      f:0> texturepack: loading RadioIcons
+LOG  : General      f:0> Cargando pack de texturas RadioIcons
+LOG  : General      f:0> texturepack: loading ApComUI
+LOG  : General      f:0> Cargando pack de texturas ApComUI
+LOG  : General      f:0> texturepack: loading Mechanics
+LOG  : General      f:0> Cargando pack de texturas Mechanics
+LOG  : General      f:0> texturepack: loading WeatherFx
+LOG  : General      f:0> Cargando pack de texturas WeatherFx
+LOG  : General      f:0> Cargando scripts
+ERROR: General      f:0 at FluidContainerScript.load           > Sanitizing container name 'Large Bucket', name may not contain whitespaces.
+ERROR: General      f:0 at FluidContainerScript.load           > Sanitizing container name 'Fuel Pump', name may not contain whitespaces.
+WARN : General      f:0 at XuiSkin$EntityUiStyle.Load          > Could not find icon: Build_AnvilStone, script = Yunque de piedra
+WARN : General      f:0 at XuiSkin$EntityUiStyle.LoadComponentInfo> Could not find icon: Build_AnvilStone
+WARN : General      f:0 at XuiSkin$EntityUiStyle.Load          > Could not find icon: Build_AnvilStone, script = Yunque de piedra
+WARN : General      f:0 at XuiSkin$EntityUiStyle.LoadComponentInfo> Could not find icon: Build_AnvilStone
+WARN : General      f:0 at XuiSkin$EntityUiStyle.Load          > Could not find icon: Build_AnvilStone, script = Yunque de piedra
+WARN : General      f:0 at XuiSkin$EntityUiStyle.LoadComponentInfo> Could not find icon: Build_AnvilStone
+WARN : General      f:0 at XuiSkin$EntityUiStyle.Load          > Could not find icon: Build_AnvilStone, script = Yunque de piedra
+WARN : General      f:0 at XuiSkin$EntityUiStyle.LoadComponentInfo> Could not find icon: Build_AnvilStone
+WARN : General      f:0 at TaggedObjectManager.createTagBits   > manager-> new tag discovered that was not preprocessed, tag: keyduplicator
+WARN : General      f:0 at TaggedObjectManager.createTagBits   > manager-> new tag discovered that was not preprocessed, tag: choppingblock
+WARN : General      f:0 at SoundManager.debugScriptSound       > no such sound "CorpseDrop" in item Base.CorpseFemale
+WARN : General      f:0 at SoundManager.debugScriptSound       > no such sound "CorpseDrop" in item Base.CorpseMale
+LOG  : General      f:0> Cargando ropa
+LOG  : General      f:0> 
+LOG  : General      f:0> Cargando Lua
+WARN : Lua          f:0 at Lua(Vanilla).corpseStorageCheck     > require("ISUI/ISInventoryPaneContextMenu") failed
+WARN : Lua          f:0 at Lua(Vanilla).corpseStorageCheck     > require("ISUI/ISVehicleMenu") failed
+WARN : Lua          f:0 at Lua(Vanilla).corpseStorageCheck     > require("ISUI/ISContextMenu") failed
+WARN : Lua          f:0 at Lua(Vanilla).ISCampingMenu          > require("Camping/CCampfireSystem") failed
+WARN : Lua          f:0 at Lua(Vanilla).ISInventoryTransferUtil> require("TimedActions/ISInventoryTransferAction") failed
+WARN : Lua          f:0 at Lua(Vanilla).ISInventoryTransferUtil> require("ISUI/PlayerData/ISPlayerData") failed
+WARN : Lua          f:0 at Lua((MOD:Bandits)).ZAStompPlant.lua > require("Farming/CFarmingSystem") failed
+WARN : Lua          f:0 at Lua((MOD:Bandits)).ZAWaterFarm.lua  > require("Farming/CFarmingSystem") failed
+WARN : Lua          f:0 at Lua(Vanilla).ISAnimalContextMenu    > require("BuildingObjects/ISAnimalPickMateCursor") failed
+WARN : Lua          f:0 at Lua(Vanilla).TakeSameType           > require("ISUI/InventoryWindow/ISLootWindowControlHandler") failed
+WARN : Lua          f:0 at Lua(Vanilla).FloorTakeSameType      > require("ISUI/InventoryWindow/ISLootWindowControlHandler") failed
+WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.UnknownFormatConversionException: Conversion = '%' at Formatter.parse(null:-1). Message: ERROR: Formatting "Sandbox_Plumbing.PumpFilterUsage"
+WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.UnknownFormatConversionException: Conversion = '%' at Formatter.parse(null:-1). Message: ERROR: Formatting "Sandbox_Plumbing.PumpEfficiencyLoss"
+WARN : General      f:0> Translator.reportMissingArgumentsFromPastAbuse> Exception thrown java.util.MissingFormatArgumentException: Format specifier '% e' at Formatter.format(null:-1). Message: ERROR: Missing arguments for "Sandbox_Plumbing.PumpMaxWater_tooltip"
+WARN : Lua          f:0 at Lua(Vanilla).testUI                 > require("pzapi/ui/ui") failed
+WARN : Lua          f:0 at Lua((MOD:Bandits)).BanditCharacterScreen.lua> require("ISUI/ISCharacterScreen") failed
+LOG  : Lua          f:0> SREL| PATCH BanditPlayer.CheckFriendlyFire replaced -- upstream isNPC() crash, 42.20
+LOG  : Lua          f:0> OnLoadSoundbanks
+LOG  : General      f:0> texturepack: loading Tiles2x
+LOG  : General      f:0> Cargando pack de texturas Tiles2x
+LOG  : General      f:0> texturepack: loading Overlays2x
+LOG  : General      f:0> Cargando pack de texturas Overlays2x
+LOG  : General      f:0> texturepack: loading JumboTrees2x
+LOG  : General      f:0> Cargando pack de texturas JumboTrees2x
+LOG  : General      f:0> texturepack: loading JumboTreesBigs2x
+LOG  : General      f:0> Cargando pack de texturas JumboTreesBigs2x
+LOG  : General      f:0> texturepack: loading Tiles2x.floor
+LOG  : General      f:0> Cargando pack de texturas Tiles2x.floor
+LOG  : General      f:0> texturepack: loading B42ChunkCaching2x
+LOG  : General      f:0> Cargando pack de texturas B42ChunkCaching2x
+LOG  : General      f:0> texturepack: loading B42ChunkCaching2x.floor
+LOG  : General      f:0> Cargando pack de texturas B42ChunkCaching2x.floor
+LOG  : General      f:0> texturepack: loading Clock2x
+LOG  : General      f:0> Cargando pack de texturas Clock2x
+LOG  : General      f:0> Cargando modelos y animaciones
+LOG  : General      f:0> 1786373084686 fmod: globalSystem = 0x96163268
+LOG  : General      f:0> 1786373084686 fmod: FMOD_System_GetRecordDriverInfo: nativeRate = 48000, nativeChannels = 2
+LOG  : General      f:0> 1786373084686 fmod: System create record sound: OK
+LOG  : General      f:0> 1786373084687 fmod: Create resampler: OK
+LOG  : General      f:0> 1786373084687 fmod: Create acoustic echo canceller: OK
+LOG  : General      f:0> 1786373084772 fmod: GetRecordNumDrivers id = 0, sound = 0xe3e6d468 loop=1
+LOG  : General      f:0> Iniciando el juego
+LOG  : General      f:0> STATE: exit zombie.gameStates.TermsOfServiceState
+LOG  : General      f:0> binkId: 1
+WARN : Lua          f:0 at Lua(Vanilla).namedColorToTable      > env.lua-> namedColorToTable color not found: ProgressYellow
+LOG  : General      f:0> binkId: 2
+LOG  : Mod          f:0> refusing to list examplemod
+ERROR: General      f:0> FileSystemImpl.updateAsyncTransactions> Exception thrown
+	java.util.concurrent.ExecutionException: java.lang.IllegalArgumentException: Invalid prefix found for: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_FrontKick.X at FutureTask.report(null:-1). Message: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_FrontKick.X
+	Stack trace:
+	Caused by: java.lang.IllegalArgumentException: Invalid prefix found for: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_FrontKick.X
+		zombie.ZomboidFileSystem.validatePrefix(ZomboidFileSystem.java:1659)
+		zombie.core.skinnedmodel.model.FileTask_LoadAnimation.loadX(FileTask_LoadAnimation.java:51)
+		zombie.core.skinnedmodel.model.FileTask_AbstractLoadModel.call(FileTask_AbstractLoadModel.java:34)
+		java.base/java.util.concurrent.FutureTask.run(Unknown Source)
+		java.base/java.util.concurrent.Executors$RunnableAdapter.call(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.run(Unknown Source)
+		java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)
+		java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.report(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.get(Unknown Source)
+		zombie.fileSystem.FileSystemImpl.updateAsyncTransactions(FileSystemImpl.java:257)
+		zombie.GameWindow.logic(GameWindow.java:415)
+		zombie.GameWindow.frameStep(GameWindow.java:790)
+		zombie.GameWindow.mainThreadStep(GameWindow.java:567)
+		zombie.MainThread.mainLoop(MainThread.java:69)
+		java.base/java.lang.Thread.run(Unknown Source)
+WARN : General      f:0 at AnimationAssetManager.loadCallback  > Failed to load asset: AssetPath{ "zombie/bob_frontkick" }
+ERROR: General      f:0> FileSystemImpl.updateAsyncTransactions> Exception thrown
+	java.util.concurrent.ExecutionException: java.lang.IllegalArgumentException: Invalid prefix found for: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_HighKick.x at FutureTask.report(null:-1). Message: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_HighKick.x
+	Stack trace:
+	Caused by: java.lang.IllegalArgumentException: Invalid prefix found for: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_HighKick.x
+		zombie.ZomboidFileSystem.validatePrefix(ZomboidFileSystem.java:1659)
+		zombie.core.skinnedmodel.model.FileTask_LoadAnimation.loadX(FileTask_LoadAnimation.java:51)
+		zombie.core.skinnedmodel.model.FileTask_AbstractLoadModel.call(FileTask_AbstractLoadModel.java:34)
+		java.base/java.util.concurrent.FutureTask.run(Unknown Source)
+		java.base/java.util.concurrent.Executors$RunnableAdapter.call(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.run(Unknown Source)
+		java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)
+		java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.report(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.get(Unknown Source)
+		zombie.fileSystem.FileSystemImpl.updateAsyncTransactions(FileSystemImpl.java:257)
+		zombie.GameWindow.logic(GameWindow.java:415)
+		zombie.GameWindow.frameStep(GameWindow.java:790)
+		zombie.GameWindow.mainThreadStep(GameWindow.java:567)
+		zombie.MainThread.mainLoop(MainThread.java:69)
+		java.base/java.lang.Thread.run(Unknown Source)
+WARN : General      f:0 at AnimationAssetManager.loadCallback  > Failed to load asset: AssetPath{ "zombie/bob_highkick" }
+ERROR: General      f:0> FileSystemImpl.updateAsyncTransactions> Exception thrown
+	java.util.concurrent.ExecutionException: java.lang.IllegalArgumentException: Invalid prefix found for: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_PushKick.X at FutureTask.report(null:-1). Message: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_PushKick.X
+	Stack trace:
+	Caused by: java.lang.IllegalArgumentException: Invalid prefix found for: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_PushKick.X
+		zombie.ZomboidFileSystem.validatePrefix(ZomboidFileSystem.java:1659)
+		zombie.core.skinnedmodel.model.FileTask_LoadAnimation.loadX(FileTask_LoadAnimation.java:51)
+		zombie.core.skinnedmodel.model.FileTask_AbstractLoadModel.call(FileTask_AbstractLoadModel.java:34)
+		java.base/java.util.concurrent.FutureTask.run(Unknown Source)
+		java.base/java.util.concurrent.Executors$RunnableAdapter.call(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.run(Unknown Source)
+		java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)
+		java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.report(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.get(Unknown Source)
+		zombie.fileSystem.FileSystemImpl.updateAsyncTransactions(FileSystemImpl.java:257)
+		zombie.GameWindow.logic(GameWindow.java:415)
+		zombie.GameWindow.frameStep(GameWindow.java:790)
+		zombie.GameWindow.mainThreadStep(GameWindow.java:567)
+		zombie.MainThread.mainLoop(MainThread.java:69)
+		java.base/java.lang.Thread.run(Unknown Source)
+WARN : General      f:0 at AnimationAssetManager.loadCallback  > Failed to load asset: AssetPath{ "zombie/bob_pushkick" }
+ERROR: General      f:0> FileSystemImpl.updateAsyncTransactions> Exception thrown
+	java.util.concurrent.ExecutionException: java.lang.IllegalArgumentException: Invalid prefix found for: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_Attack1Hand01_Hit.X at FutureTask.report(null:-1). Message: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_Attack1Hand01_Hit.X
+	Stack trace:
+	Caused by: java.lang.IllegalArgumentException: Invalid prefix found for: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_Attack1Hand01_Hit.X
+		zombie.ZomboidFileSystem.validatePrefix(ZomboidFileSystem.java:1659)
+		zombie.core.skinnedmodel.model.FileTask_LoadAnimation.loadX(FileTask_LoadAnimation.java:51)
+		zombie.core.skinnedmodel.model.FileTask_AbstractLoadModel.call(FileTask_AbstractLoadModel.java:34)
+		java.base/java.util.concurrent.FutureTask.run(Unknown Source)
+		java.base/java.util.concurrent.Executors$RunnableAdapter.call(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.run(Unknown Source)
+		java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)
+		java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.report(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.get(Unknown Source)
+		zombie.fileSystem.FileSystemImpl.updateAsyncTransactions(FileSystemImpl.java:257)
+		zombie.GameWindow.logic(GameWindow.java:415)
+		zombie.GameWindow.frameStep(GameWindow.java:790)
+		zombie.GameWindow.mainThreadStep(GameWindow.java:567)
+		zombie.MainThread.mainLoop(MainThread.java:69)
+		java.base/java.lang.Thread.run(Unknown Source)
+WARN : General      f:0 at AnimationAssetManager.loadCallback  > Failed to load asset: AssetPath{ "zombie/bob_walkbwd_attack1hand01_hit" }
+ERROR: General      f:0> FileSystemImpl.updateAsyncTransactions> Exception thrown
+	java.util.concurrent.ExecutionException: java.lang.IllegalArgumentException: Invalid prefix found for: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_Attack1Hand02_Hit.X at FutureTask.report(null:-1). Message: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_Attack1Hand02_Hit.X
+	Stack trace:
+	Caused by: java.lang.IllegalArgumentException: Invalid prefix found for: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_Attack1Hand02_Hit.X
+		zombie.ZomboidFileSystem.validatePrefix(ZomboidFileSystem.java:1659)
+		zombie.core.skinnedmodel.model.FileTask_LoadAnimation.loadX(FileTask_LoadAnimation.java:51)
+		zombie.core.skinnedmodel.model.FileTask_AbstractLoadModel.call(FileTask_AbstractLoadModel.java:34)
+		java.base/java.util.concurrent.FutureTask.run(Unknown Source)
+		java.base/java.util.concurrent.Executors$RunnableAdapter.call(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.run(Unknown Source)
+		java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)
+		java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.report(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.get(Unknown Source)
+		zombie.fileSystem.FileSystemImpl.updateAsyncTransactions(FileSystemImpl.java:257)
+		zombie.GameWindow.logic(GameWindow.java:415)
+		zombie.GameWindow.frameStep(GameWindow.java:790)
+		zombie.GameWindow.mainThreadStep(GameWindow.java:567)
+		zombie.MainThread.mainLoop(MainThread.java:69)
+		java.base/java.lang.Thread.run(Unknown Source)
+WARN : General      f:0 at AnimationAssetManager.loadCallback  > Failed to load asset: AssetPath{ "zombie/bob_walkbwd_attack1hand02_hit" }
+ERROR: General      f:0> FileSystemImpl.updateAsyncTransactions> Exception thrown
+	java.util.concurrent.ExecutionException: java.lang.IllegalArgumentException: Invalid prefix found for: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_Attack1Hand03_Hit.X at FutureTask.report(null:-1). Message: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_Attack1Hand03_Hit.X
+	Stack trace:
+	Caused by: java.lang.IllegalArgumentException: Invalid prefix found for: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_Attack1Hand03_Hit.X
+		zombie.ZomboidFileSystem.validatePrefix(ZomboidFileSystem.java:1659)
+		zombie.core.skinnedmodel.model.FileTask_LoadAnimation.loadX(FileTask_LoadAnimation.java:51)
+		zombie.core.skinnedmodel.model.FileTask_AbstractLoadModel.call(FileTask_AbstractLoadModel.java:34)
+		java.base/java.util.concurrent.FutureTask.run(Unknown Source)
+		java.base/java.util.concurrent.Executors$RunnableAdapter.call(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.run(Unknown Source)
+		java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)
+		java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.report(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.get(Unknown Source)
+		zombie.fileSystem.FileSystemImpl.updateAsyncTransactions(FileSystemImpl.java:257)
+		zombie.GameWindow.logic(GameWindow.java:415)
+		zombie.GameWindow.frameStep(GameWindow.java:790)
+		zombie.GameWindow.mainThreadStep(GameWindow.java:567)
+		zombie.MainThread.mainLoop(MainThread.java:69)
+		java.base/java.lang.Thread.run(Unknown Source)
+WARN : General      f:0 at AnimationAssetManager.loadCallback  > Failed to load asset: AssetPath{ "zombie/bob_walkbwd_attack1hand03_hit" }
+ERROR: General      f:0> FileSystemImpl.updateAsyncTransactions> Exception thrown
+	java.util.concurrent.ExecutionException: java.lang.IllegalArgumentException: Invalid prefix found for: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_AttackBat01_Hit.X at FutureTask.report(null:-1). Message: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_AttackBat01_Hit.X
+	Stack trace:
+	Caused by: java.lang.IllegalArgumentException: Invalid prefix found for: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_AttackBat01_Hit.X
+		zombie.ZomboidFileSystem.validatePrefix(ZomboidFileSystem.java:1659)
+		zombie.core.skinnedmodel.model.FileTask_LoadAnimation.loadX(FileTask_LoadAnimation.java:51)
+		zombie.core.skinnedmodel.model.FileTask_AbstractLoadModel.call(FileTask_AbstractLoadModel.java:34)
+		java.base/java.util.concurrent.FutureTask.run(Unknown Source)
+		java.base/java.util.concurrent.Executors$RunnableAdapter.call(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.run(Unknown Source)
+		java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)
+		java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.report(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.get(Unknown Source)
+		zombie.fileSystem.FileSystemImpl.updateAsyncTransactions(FileSystemImpl.java:257)
+		zombie.GameWindow.logic(GameWindow.java:415)
+		zombie.GameWindow.frameStep(GameWindow.java:790)
+		zombie.GameWindow.mainThreadStep(GameWindow.java:567)
+		zombie.MainThread.mainLoop(MainThread.java:69)
+		java.base/java.lang.Thread.run(Unknown Source)
+WARN : General      f:0 at AnimationAssetManager.loadCallback  > Failed to load asset: AssetPath{ "zombie/bob_walkbwd_attackbat01_hit" }
+ERROR: General      f:0> FileSystemImpl.updateAsyncTransactions> Exception thrown
+	java.util.concurrent.ExecutionException: java.lang.IllegalArgumentException: Invalid prefix found for: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_AttackBat02_Hit.X at FutureTask.report(null:-1). Message: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_AttackBat02_Hit.X
+	Stack trace:
+	Caused by: java.lang.IllegalArgumentException: Invalid prefix found for: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_AttackBat02_Hit.X
+		zombie.ZomboidFileSystem.validatePrefix(ZomboidFileSystem.java:1659)
+		zombie.core.skinnedmodel.model.FileTask_LoadAnimation.loadX(FileTask_LoadAnimation.java:51)
+		zombie.core.skinnedmodel.model.FileTask_AbstractLoadModel.call(FileTask_AbstractLoadModel.java:34)
+		java.base/java.util.concurrent.FutureTask.run(Unknown Source)
+		java.base/java.util.concurrent.Executors$RunnableAdapter.call(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.run(Unknown Source)
+		java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)
+		java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.report(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.get(Unknown Source)
+		zombie.fileSystem.FileSystemImpl.updateAsyncTransactions(FileSystemImpl.java:257)
+		zombie.GameWindow.logic(GameWindow.java:415)
+		zombie.GameWindow.frameStep(GameWindow.java:790)
+		zombie.GameWindow.mainThreadStep(GameWindow.java:567)
+		zombie.MainThread.mainLoop(MainThread.java:69)
+		java.base/java.lang.Thread.run(Unknown Source)
+WARN : General      f:0 at AnimationAssetManager.loadCallback  > Failed to load asset: AssetPath{ "zombie/bob_walkbwd_attackbat02_hit" }
+ERROR: General      f:0> FileSystemImpl.updateAsyncTransactions> Exception thrown
+	java.util.concurrent.ExecutionException: java.lang.IllegalArgumentException: Invalid prefix found for: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_AttackBat03_Hit.X at FutureTask.report(null:-1). Message: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_AttackBat03_Hit.X
+	Stack trace:
+	Caused by: java.lang.IllegalArgumentException: Invalid prefix found for: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_AttackBat03_Hit.X
+		zombie.ZomboidFileSystem.validatePrefix(ZomboidFileSystem.java:1659)
+		zombie.core.skinnedmodel.model.FileTask_LoadAnimation.loadX(FileTask_LoadAnimation.java:51)
+		zombie.core.skinnedmodel.model.FileTask_AbstractLoadModel.call(FileTask_AbstractLoadModel.java:34)
+		java.base/java.util.concurrent.FutureTask.run(Unknown Source)
+		java.base/java.util.concurrent.Executors$RunnableAdapter.call(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.run(Unknown Source)
+		java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)
+		java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.report(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.get(Unknown Source)
+		zombie.fileSystem.FileSystemImpl.updateAsyncTransactions(FileSystemImpl.java:257)
+		zombie.GameWindow.logic(GameWindow.java:415)
+		zombie.GameWindow.frameStep(GameWindow.java:790)
+		zombie.GameWindow.mainThreadStep(GameWindow.java:567)
+		zombie.MainThread.mainLoop(MainThread.java:69)
+		java.base/java.lang.Thread.run(Unknown Source)
+WARN : General      f:0 at AnimationAssetManager.loadCallback  > Failed to load asset: AssetPath{ "zombie/bob_walkbwd_attackbat03_hit" }
+ERROR: General      f:0> FileSystemImpl.updateAsyncTransactions> Exception thrown
+	java.util.concurrent.ExecutionException: java.lang.IllegalArgumentException: Invalid prefix found for: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_AttackKnife01_Hit.X at FutureTask.report(null:-1). Message: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_AttackKnife01_Hit.X
+	Stack trace:
+	Caused by: java.lang.IllegalArgumentException: Invalid prefix found for: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_AttackKnife01_Hit.X
+		zombie.ZomboidFileSystem.validatePrefix(ZomboidFileSystem.java:1659)
+		zombie.core.skinnedmodel.model.FileTask_LoadAnimation.loadX(FileTask_LoadAnimation.java:51)
+		zombie.core.skinnedmodel.model.FileTask_AbstractLoadModel.call(FileTask_AbstractLoadModel.java:34)
+		java.base/java.util.concurrent.FutureTask.run(Unknown Source)
+		java.base/java.util.concurrent.Executors$RunnableAdapter.call(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.run(Unknown Source)
+		java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)
+		java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.report(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.get(Unknown Source)
+		zombie.fileSystem.FileSystemImpl.updateAsyncTransactions(FileSystemImpl.java:257)
+		zombie.GameWindow.logic(GameWindow.java:415)
+		zombie.GameWindow.frameStep(GameWindow.java:790)
+		zombie.GameWindow.mainThreadStep(GameWindow.java:567)
+		zombie.MainThread.mainLoop(MainThread.java:69)
+		java.base/java.lang.Thread.run(Unknown Source)
+WARN : General      f:0 at AnimationAssetManager.loadCallback  > Failed to load asset: AssetPath{ "zombie/bob_walkbwd_attackknife01_hit" }
+ERROR: General      f:0> FileSystemImpl.updateAsyncTransactions> Exception thrown
+	java.util.concurrent.ExecutionException: java.lang.IllegalArgumentException: Invalid prefix found for: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_AttackPunch01_Hit.X at FutureTask.report(null:-1). Message: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_AttackPunch01_Hit.X
+	Stack trace:
+	Caused by: java.lang.IllegalArgumentException: Invalid prefix found for: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_AttackPunch01_Hit.X
+		zombie.ZomboidFileSystem.validatePrefix(ZomboidFileSystem.java:1659)
+		zombie.core.skinnedmodel.model.FileTask_LoadAnimation.loadX(FileTask_LoadAnimation.java:51)
+		zombie.core.skinnedmodel.model.FileTask_AbstractLoadModel.call(FileTask_AbstractLoadModel.java:34)
+		java.base/java.util.concurrent.FutureTask.run(Unknown Source)
+		java.base/java.util.concurrent.Executors$RunnableAdapter.call(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.run(Unknown Source)
+		java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)
+		java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.report(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.get(Unknown Source)
+		zombie.fileSystem.FileSystemImpl.updateAsyncTransactions(FileSystemImpl.java:257)
+		zombie.GameWindow.logic(GameWindow.java:415)
+		zombie.GameWindow.frameStep(GameWindow.java:790)
+		zombie.GameWindow.mainThreadStep(GameWindow.java:567)
+		zombie.MainThread.mainLoop(MainThread.java:69)
+		java.base/java.lang.Thread.run(Unknown Source)
+WARN : General      f:0 at AnimationAssetManager.loadCallback  > Failed to load asset: AssetPath{ "zombie/bob_walkbwd_attackpunch01_hit" }
+ERROR: General      f:0> FileSystemImpl.updateAsyncTransactions> Exception thrown
+	java.util.concurrent.ExecutionException: java.lang.IllegalArgumentException: Invalid prefix found for: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_AttackPunch02_Hit.X at FutureTask.report(null:-1). Message: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_AttackPunch02_Hit.X
+	Stack trace:
+	Caused by: java.lang.IllegalArgumentException: Invalid prefix found for: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_AttackPunch02_Hit.X
+		zombie.ZomboidFileSystem.validatePrefix(ZomboidFileSystem.java:1659)
+		zombie.core.skinnedmodel.model.FileTask_LoadAnimation.loadX(FileTask_LoadAnimation.java:51)
+		zombie.core.skinnedmodel.model.FileTask_AbstractLoadModel.call(FileTask_AbstractLoadModel.java:34)
+		java.base/java.util.concurrent.FutureTask.run(Unknown Source)
+		java.base/java.util.concurrent.Executors$RunnableAdapter.call(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.run(Unknown Source)
+		java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)
+		java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.report(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.get(Unknown Source)
+		zombie.fileSystem.FileSystemImpl.updateAsyncTransactions(FileSystemImpl.java:257)
+		zombie.GameWindow.logic(GameWindow.java:415)
+		zombie.GameWindow.frameStep(GameWindow.java:790)
+		zombie.GameWindow.mainThreadStep(GameWindow.java:567)
+		zombie.MainThread.mainLoop(MainThread.java:69)
+		java.base/java.lang.Thread.run(Unknown Source)
+WARN : General      f:0 at AnimationAssetManager.loadCallback  > Failed to load asset: AssetPath{ "zombie/bob_walkbwd_attackpunch02_hit" }
+ERROR: General      f:0> FileSystemImpl.updateAsyncTransactions> Exception thrown
+	java.util.concurrent.ExecutionException: java.lang.IllegalArgumentException: Invalid prefix found for: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_AttackSpear01_Hit.X at FutureTask.report(null:-1). Message: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_AttackSpear01_Hit.X
+	Stack trace:
+	Caused by: java.lang.IllegalArgumentException: Invalid prefix found for: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_AttackSpear01_Hit.X
+		zombie.ZomboidFileSystem.validatePrefix(ZomboidFileSystem.java:1659)
+		zombie.core.skinnedmodel.model.FileTask_LoadAnimation.loadX(FileTask_LoadAnimation.java:51)
+		zombie.core.skinnedmodel.model.FileTask_AbstractLoadModel.call(FileTask_AbstractLoadModel.java:34)
+		java.base/java.util.concurrent.FutureTask.run(Unknown Source)
+		java.base/java.util.concurrent.Executors$RunnableAdapter.call(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.run(Unknown Source)
+		java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)
+		java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.report(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.get(Unknown Source)
+		zombie.fileSystem.FileSystemImpl.updateAsyncTransactions(FileSystemImpl.java:257)
+		zombie.GameWindow.logic(GameWindow.java:415)
+		zombie.GameWindow.frameStep(GameWindow.java:790)
+		zombie.GameWindow.mainThreadStep(GameWindow.java:567)
+		zombie.MainThread.mainLoop(MainThread.java:69)
+		java.base/java.lang.Thread.run(Unknown Source)
+WARN : General      f:0 at AnimationAssetManager.loadCallback  > Failed to load asset: AssetPath{ "zombie/bob_walkbwd_attackspear01_hit" }
+ERROR: General      f:0> FileSystemImpl.updateAsyncTransactions> Exception thrown
+	java.util.concurrent.ExecutionException: java.lang.IllegalArgumentException: Invalid prefix found for: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_AttackSpear02_Hit.X at FutureTask.report(null:-1). Message: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_AttackSpear02_Hit.X
+	Stack trace:
+	Caused by: java.lang.IllegalArgumentException: Invalid prefix found for: C:\Program Files (x86)\Steam\steamapps\workshop\content\108600\3268487204\mods\Bandits\common\media\anims_X\Zombie\Bob_WalkBwd_AttackSpear02_Hit.X
+		zombie.ZomboidFileSystem.validatePrefix(ZomboidFileSystem.java:1659)
+		zombie.core.skinnedmodel.model.FileTask_LoadAnimation.loadX(FileTask_LoadAnimation.java:51)
+		zombie.core.skinnedmodel.model.FileTask_AbstractLoadModel.call(FileTask_AbstractLoadModel.java:34)
+		java.base/java.util.concurrent.FutureTask.run(Unknown Source)
+		java.base/java.util.concurrent.Executors$RunnableAdapter.call(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.run(Unknown Source)
+		java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(Unknown Source)
+		java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.report(Unknown Source)
+		java.base/java.util.concurrent.FutureTask.get(Unknown Source)
+		zombie.fileSystem.FileSystemImpl.updateAsyncTransactions(FileSystemImpl.java:257)
+		zombie.GameWindow.logic(GameWindow.java:415)
+		zombie.GameWindow.frameStep(GameWindow.java:790)
+		zombie.GameWindow.mainThreadStep(GameWindow.java:567)
+		zombie.MainThread.mainLoop(MainThread.java:69)
+		java.base/java.lang.Thread.run(Unknown Source)
+WARN : General      f:0 at AnimationAssetManager.loadCallback  > Failed to load asset: AssetPath{ "zombie/bob_walkbwd_attackspear02_hit" }
+LOG  : General      f:0> binkId: 3
+LOG  : General      f:0> MapGroup 1/1
+LOG  : General      f:0>   Brandenburg, KY
+LOG  : General      f:0>   Echo Creek, KY
+LOG  : General      f:0>   Ekron, KY
+LOG  : General      f:0>   Fallas Lake, KY
+LOG  : General      f:0>   Irvington, KY
+LOG  : General      f:0>   March Ridge, KY
+LOG  : General      f:0>   Riverside, KY
+LOG  : General      f:0>   Rosewood, KY
+LOG  : General      f:0>   Valley Station, KY
+LOG  : General      f:0>   West Point, KY
+LOG  : General      f:0>   Muldraugh, KY
+LOG  : General      f:0> -----
+LOG  : General      f:0> MapGroup 1/1
+LOG  : General      f:0>   Brandenburg, KY
+LOG  : General      f:0>   Echo Creek, KY
+LOG  : General      f:0>   Ekron, KY
+LOG  : General      f:0>   Fallas Lake, KY
+LOG  : General      f:0>   Irvington, KY
+LOG  : General      f:0>   March Ridge, KY
+LOG  : General      f:0>   Riverside, KY
+LOG  : General      f:0>   Rosewood, KY
+LOG  : General      f:0>   Valley Station, KY
+LOG  : General      f:0>   West Point, KY
+LOG  : General      f:0>   Muldraugh, KY
+LOG  : General      f:0> -----
+LOG  : General      f:0> binkId: 4
+LOG  : General      f:0> STATE: exit zombie.gameStates.MainScreenState
+LOG  : General      f:0> LOADED UP A TOTAL OF 6350 TEXTURES
+LOG  : General      f:0> STATE: exit zombie.gameStates.LoadingQueueState
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: appliances_01_30
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_32
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_33
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_34
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_35
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_36
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_37
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_38
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_39
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_40
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_41
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_42
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_43
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_44
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_45
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_46
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_47
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_40
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_41
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_42
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_43
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_44
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_45
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_46
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_47
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_40
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_41
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_42
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_43
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_44
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_45
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_46
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_47
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_0
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_1
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_2
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_3
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_4
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_5
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_6
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_7
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_8
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_9
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_10
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_11
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_12
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_13
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_14
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_15
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_16
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_17
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_18
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_19
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_20
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_21
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_22
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_23
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_8
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_9
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_10
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_11
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_12
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_13
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_14
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_15
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_40
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_41
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_42
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_43
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_44
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_45
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_46
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_47
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_48
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_49
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_50
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_51
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_52
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_53
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_54
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_55
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_8
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_9
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_10
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_11
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_12
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_13
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_14
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_15
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_40
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_41
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_42
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_43
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_44
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_45
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_46
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_47
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_24
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_25
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_26
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_27
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_28
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_29
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_30
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_31
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_32
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_33
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_34
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_35
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_36
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_37
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_38
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_39
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_24
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_25
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_26
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_27
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_28
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_29
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_30
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_31
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_32
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_33
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_34
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_35
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_36
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_37
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_38
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_39
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_0
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_1
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_2
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_3
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_4
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_5
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_6
+LOG  : General      f:0> BLANK OVERLAY TEXTURE. Set it to "none".: floors_overlay_wood_01_7
+LOG  : Lua          f:0> Initializing Randomized World Tabletop Clutter Tables
+WARN : Lua          f:0 at Lua(Vanilla).Features               > recursive require(): C:/Program Files (x86)/Steam/steamapps/common/ProjectZomboid/media/lua/server/WorldGen/WorldGen.lua
+WARN : Lua          f:0 at Lua(Vanilla).Biomes                 > recursive require(): C:/Program Files (x86)/Steam/steamapps/common/ProjectZomboid/media/lua/server/WorldGen/WorldGen.lua
+WARN : Lua          f:0 at Lua(Vanilla).Selection              > recursive require(): C:/Program Files (x86)/Steam/steamapps/common/ProjectZomboid/media/lua/server/WorldGen/WorldGen.lua
+WARN : Lua          f:0 at Lua(Vanilla).Veins                  > recursive require(): C:/Program Files (x86)/Steam/steamapps/common/ProjectZomboid/media/lua/server/WorldGen/WorldGen.lua
+WARN : Lua          f:0 at Lua(Vanilla).Roads                  > recursive require(): C:/Program Files (x86)/Steam/steamapps/common/ProjectZomboid/media/lua/server/WorldGen/WorldGen.lua
+WARN : Lua          f:0 at Lua(Vanilla).WorldGen               > recursive require(): C:/Program Files (x86)/Steam/steamapps/common/ProjectZomboid/media/lua/server/WorldGen/attachments/Priorities.lua
+ERROR: General      f:0 at CraftRecipeComponentScript.getIconTexture> CraftRecipeComponentScript: Recipe Piano missing UiConfigScript - falling back to SpriteConfigScript first world object face for recipe icon.
+LOG  : General      f:0> SafeMode is off
+LOG  : General      f:0> Loading worldgen params
+LOG  : General      f:0> IsoMetaGrid.Create: begin scanning directories
+LOG  : General      f:0> Looking in these map folders:
+LOG  : General      f:0> <End of map-folders list>
+LOG  : General      f:0> IsoMetaGrid.Create: X: [ -250 250 ], Y: [ -250 250 ]
+LOG  : General      f:0> World seed: QkUotpWSHBnqvWXD -1411956266
+LOG  : General      f:0> IsoMetaGrid.Create: finished scanning directories in 0.098 seconds
+LOG  : General      f:0> IsoMetaGrid.Create: begin loading
+LOG  : General      f:0> VehiclesDB2.init() start
+LOG  : General      f:0> VehiclesDB2.init() end
+LOG  : General      f:0> triggerEvent OnInitWorld
+LOG  : General      f:0> SandboxOptions.load() start
+LOG  : General      f:0> SandboxOptions.load() end
+LOG  : General      f:0> ItemPickerJava.Parse() start
+LOG  : General      f:0> ItemPickerJava.Parse() end
+LOG  : General      f:0> LoadTileDefinitions start
+LOG  : General      f:0> LoadTileDefinitions end
+LOG  : General      f:0> triggerEvent OnLoadedTileDefinitions
+LOG  : General      f:0> loadAnimalDefinitions start
+LOG  : General      f:0> loadAnimalDefinitions end
+LOG  : General      f:0> GameTime.init() and load() start
+LOG  : General      f:0> GameTime.init() and load() end
+LOG  : General      f:0> ZomboidRadio.Init() start
+LOG  : General      f:0> Attempting to load translation: ES_MX
+LOG  : Lua          f:0> scriptmanager = zombie.radio.scripting.RadioScriptManager@95f8f79, isNewGame = true
+LOG  : Lua          f:0> name = Automated Emergency Broadcast System, freq = 104600, cat = Emergency, uuid = EMRG-711984
+LOG  : Lua          f:0> Found radio channel: Automated Emergency Broadcast System, freq = EMRG-711984, freqcheck = 104600, multi = 1
+LOG  : General      f:0> ZomboidRadio.Init() end
+LOG  : General      f:0> GlobalModData.init() start
+LOG  : Lua          f:0> [GMD] Cluster BanditC0 created.
+LOG  : Lua          f:0> [GMD] Cluster BanditC1 created.
+LOG  : Lua          f:0> [GMD] Cluster BanditC2 created.
+LOG  : Lua          f:0> [GMD] Cluster BanditC3 created.
+LOG  : Lua          f:0> [GMD] Cluster BanditC4 created.
+LOG  : Lua          f:0> [GMD] Cluster BanditC5 created.
+LOG  : Lua          f:0> [GMD] Cluster BanditC6 created.
+LOG  : Lua          f:0> [GMD] Cluster BanditC7 created.
+LOG  : Lua          f:0> [GMD] Cluster BanditC8 created.
+LOG  : Lua          f:0> [GMD] Cluster BanditC9 created.
+LOG  : Lua          f:0> [GMD] Cluster BanditC10 created.
+LOG  : Lua          f:0> [GMD] Cluster BanditC11 created.
+LOG  : Lua          f:0> [GMD] Cluster BanditC12 created.
+LOG  : Lua          f:0> [GMD] Cluster BanditC13 created.
+LOG  : Lua          f:0> [GMD] Cluster BanditC14 created.
+LOG  : Lua          f:0> [GMD] Cluster BanditC15 created.
+LOG  : Lua          f:0> [GMD] Cluster BanditC16 created.
+LOG  : Lua          f:0> [GMD] Cluster BanditC17 created.
+LOG  : Lua          f:0> [GMD] Cluster BanditC18 created.
+LOG  : Lua          f:0> [GMD] Cluster BanditC19 created.
+LOG  : Lua          f:0> [GMD] Cluster BanditC20 created.
+LOG  : Lua          f:0> [GMD] Cluster BanditC21 created.
+LOG  : Lua          f:0> [GMD] Cluster BanditC22 created.
+LOG  : Lua          f:0> [GMD] Cluster BanditC23 created.
+LOG  : Lua          f:0> [GMD] Cluster BanditC24 created.
+LOG  : Lua          f:0> [GMD] Cluster BanditC25 created.
+LOG  : Lua          f:0> [GMD] Cluster BanditC26 created.
+LOG  : Lua          f:0> [GMD] Cluster BanditC27 created.
+LOG  : Lua          f:0> [GMD] Cluster BanditC28 created.
+LOG  : Lua          f:0> [GMD] Cluster BanditC29 created.
+LOG  : Lua          f:0> [GMD] Cluster BanditC30 created.
+LOG  : Lua          f:0> [GMD] Cluster BanditC31 created.
+LOG  : Lua          f:0> SREL| STORE ready | 32 shards | 0 records recovered from this save
+LOG  : General      f:0> GlobalModData.init() end
+LOG  : General      f:0> InstanceTracker.load() start
+LOG  : General      f:0> InstanceTracker.load() end
+LOG  : General      f:0> ErosionGlobals.Boot() start
+LOG  : General      f:0> ErosionGlobals.Boot() end
+LOG  : General      f:0> WorldDictionary.init() start
+LOG  : General      f:0> WorldDictionary: Checking dictionary...
+LOG  : General      f:0> WorldDictionary.init() end
+LOG  : General      f:0> GameEntityManager.Init() start
+LOG  : General      f:0> GameEntityManager.Init() end
+LOG  : General      f:0> PersistentOutfits.init() start
+LOG  : General      f:0> PersistentOutfits.init() end
+LOG  : General      f:0> IsoMetaGrid.Create: finished loading in 3.967 seconds
+ERROR: Lua          f:0 at Lua(Vanilla).handleMannequinZone    > ERROR: Mannequin zone missing properties in media/maps/Muldraugh, KY/objects.lua coords: 13583, 1299, 0
+WARN : Lua          f:0 at Lua(Vanilla).doMapZones             > can't find map objects file: media/maps/West Point, KY/objects.lua
+WARN : Lua          f:0 at Lua(Vanilla).doMapZones             > can't find map objects file: media/maps/Valley Station, KY/objects.lua
+WARN : Lua          f:0 at Lua(Vanilla).doMapZones             > can't find map objects file: media/maps/Rosewood, KY/objects.lua
+WARN : Lua          f:0 at Lua(Vanilla).doMapZones             > can't find map objects file: media/maps/Riverside, KY/objects.lua
+WARN : Lua          f:0 at Lua(Vanilla).doMapZones             > can't find map objects file: media/maps/March Ridge, KY/objects.lua
+WARN : Lua          f:0 at Lua(Vanilla).doMapZones             > can't find map objects file: media/maps/Irvington, KY/objects.lua
+WARN : Lua          f:0 at Lua(Vanilla).doMapZones             > can't find map objects file: media/maps/Fallas Lake, KY/objects.lua
+WARN : Lua          f:0 at Lua(Vanilla).doMapZones             > can't find map objects file: media/maps/Ekron, KY/objects.lua
+WARN : Lua          f:0 at Lua(Vanilla).doMapZones             > can't find map objects file: media/maps/Echo Creek, KY/objects.lua
+WARN : Lua          f:0 at Lua(Vanilla).doMapZones             > can't find map objects file: media/maps/Brandenburg, KY/objects.lua
+ERROR: General      f:0 at Basements.mergeRoomsOntoMetaCell    > duplicate RoomDef.metaID for room at 10707,9484,0
+LOG  : General      f:0> Max #ZONES on one chunk is 27
+LOG  : General      f:0> triggerEvent OnLoadedMapZones
+LOG  : General      f:0> ItemConfigurator.Preprocess() start
+LOG  : General      f:0> ItemConfigurator.Preprocess() end
+LOG  : General      f:0> MapCollisionData.init() start
+LOG  : General      f:0> MapCollisionData.init() end
+LOG  : General      f:0> AnimalPopulationManager.init() start
+LOG  : General      f:0> AnimalPopulationManager.init() end
+LOG  : General      f:0> ZombiePopulationManager.init() start
+LOG  : General      f:0> ZombiePopulationManager.init() end
+LOG  : General      f:0> Pathfind init() start
+LOG  : General      f:0> Pathfind init() end
+LOG  : General      f:0> WorldStreamer.create() start
+LOG  : General      f:0> WorldStreamer.create() end
+LOG  : General      f:0> CellLoader.LoadCellBinaryChunk start
+LOG  : General      f:0> CellLoader.LoadCellBinaryChunk start
+LOG  : General      f:0> MapItem.LoadWorldMap() start
+LOG  : General      f:0> MapItem.LoadWorldMap() start
+LOG  : General      f:0> WorldStreamer.isBusy() loop start
+ERROR: General      f:0 at CellLoader.DoTileObjectCreation     > CellLoader> missing tile vegetation_groundcover_01_23
+ERROR: General      f:0 at CellLoader.DoTileObjectCreation     > CellLoader> missing tile vegetation_groundcover_01_18
+ERROR: General      f:0 at CellLoader.DoTileObjectCreation     > CellLoader> missing tile vegetation_groundcover_01_19
+ERROR: General      f:0 at CellLoader.DoTileObjectCreation     > CellLoader> missing tile vegetation_groundcover_01_21
+ERROR: General      f:0 at CellLoader.DoTileObjectCreation     > CellLoader> missing tile vegetation_groundcover_01_22
+ERROR: General      f:0 at CellLoader.DoTileObjectCreation     > CellLoader> missing tile vegetation_groundcover_01_20
+LOG  : General      f:0> WorldStreamer.isBusy() loop end
+LOG  : General      f:0> Verifying that all Craft Recipes are Learnable
+LOG  : General      f:0> CraftRecipe MakeTarpTankTop only learnable by: Research. Profession(base:tailor;)
+LOG  : General      f:0> CraftRecipe MakeTarpChestRig only learnable by: Research. Profession(base:veteran;base:tailor;)
+LOG  : General      f:0> CraftRecipe SewShellsBandolier only learnable by: Research. Profession(base:tailor;)
+LOG  : General      f:0> CraftRecipe SewHidePants2 only learnable by: Research.
+LOG  : General      f:0> CraftRecipe MakeBodyMagazineArmor only learnable by: Research. Profession(base:burglar;)
+LOG  : General      f:0> CraftRecipe AssembleLargeTarpFramepack only learnable by: Research.
+LOG  : General      f:0> CraftRecipe SewTarpFannyBag only learnable by: Research.
+LOG  : General      f:0> Craft Recipe Learning possible issues detected; this may be a false positive on account of intentional design however.
+LOG  : General      f:0> MetaTracker.load() start
+LOG  : General      f:0> MetaTracker.load() end
+LOG  : General      f:0> triggerEvent OnGameTimeLoaded
+LOG  : General      f:0> GlobalObjects.initSystems() start
+LOG  : General      f:0> SGlobalObjects: newSystem campfire
+LOG  : General      f:0> SGlobalObjects: newSystem farming
+LOG  : General      f:0> SGlobalObjects: newSystem feedingTrough
+LOG  : General      f:0> SGlobalObjects: newSystem trap
+LOG  : General      f:0> SGlobalObjects: newSystem rainbarrel
+LOG  : General      f:0> CGlobalObjects: newSystem campfire
+LOG  : General      f:0> CGlobalObjects: newSystem farming
+LOG  : General      f:0> CGlobalObjects: newSystem feedingTrough
+LOG  : General      f:0> CGlobalObjects: newSystem rainbarrel
+LOG  : General      f:0> CGlobalObjects: newSystem trap
+LOG  : General      f:0> GlobalObjects.initSystems() end
+LOG  : General      f:0> GameWindow.save() start
+LOG  : General      f:0> Saving worldgen params
+LOG  : General      f:0> Saving GlobalModData
+LOG  : General      f:0> GameWindow.save() end
+LOG  : General      f:0> [10-08-26 09:45:31.778][info] Init chat system....
+LOG  : General      f:0> [10-08-26 09:45:31.778][info] Mode: single player.
+LOG  : General      f:0> bWaitForAssetLoadingToFinish2 start
+LOG  : General      f:0> bWaitForAssetLoadingToFinish2 end
+LOG  : General      f:0> FBORenderChunkManager.gameLoaded() start
+LOG  : General      f:0> FBORenderChunkManager.gameLoaded() end
+LOG  : General      f:0> Bullet.initPhysicsMeshes() start
+LOG  : General      f:0> Bullet.initPhysicsMeshes() end
+LOG  : General      f:0> game loading took 23 seconds
+LOG  : General      f:0> STATE: exit zombie.gameStates.GameLoadingState
+LOG  : Lua          f:0> 1 players found
+LOG  : Lua          f:0> player 0 is mouse
+LOG  : Lua          f:0> TLOU| test kit given -- 10 of 10 items, six bags from 1 to 35 capacity, pistol with two clips (TEMPORARY, see comment)
+LOG  : Lua          f:0> TLOU| new character -- one companion queued
+LOG  : General      f:0> Game Mode: Outbreak
+LOG  : General      f:0> Sandbox Options:
+LOG  : General      f:0> Zombies 4
+LOG  : General      f:0> Distribution 1
+LOG  : General      f:0> ZombieVoronoiNoise true
+LOG  : General      f:0> ZombieRespawn 4
+LOG  : General      f:0> ZombieMigrate true
+LOG  : General      f:0> DayLength 4
+LOG  : General      f:0> StartYear 1
+LOG  : General      f:0> StartMonth 7
+LOG  : General      f:0> StartDay 9
+LOG  : General      f:0> StartTime 2
+LOG  : General      f:0> DayNightCycle 1
+LOG  : General      f:0> ClimateCycle 1
+LOG  : General      f:0> FogCycle 1
+LOG  : General      f:0> WaterShut 3
+LOG  : General      f:0> ElecShut 3
+LOG  : General      f:0> AlarmDecay 2
+LOG  : General      f:0> WaterShutModifier 17
+LOG  : General      f:0> ElecShutModifier 21
+LOG  : General      f:0> AlarmDecayModifier 14
+LOG  : General      f:0> FoodLootNew 0.8
+LOG  : General      f:0> LiteratureLootNew 0.8
+LOG  : General      f:0> SkillBookLoot 1.0
+LOG  : General      f:0> RecipeResourceLoot 0.6
+LOG  : General      f:0> MedicalLootNew 0.6
+LOG  : General      f:0> SurvivalGearsLootNew 0.6
+LOG  : General      f:0> CannedFoodLootNew 0.6
+LOG  : General      f:0> WeaponLootNew 0.8
+LOG  : General      f:0> RangedWeaponLootNew 1.2
+LOG  : General      f:0> AmmoLootNew 0.6
+LOG  : General      f:0> MechanicsLootNew 0.6
+LOG  : General      f:0> OtherLootNew 0.8
+LOG  : General      f:0> ClothingLootNew 0.6
+LOG  : General      f:0> ContainerLootNew 0.6
+LOG  : General      f:0> KeyLootNew 0.6
+LOG  : General      f:0> MediaLootNew 1.2
+LOG  : General      f:0> MementoLootNew 0.6
+LOG  : General      f:0> CookwareLootNew 2.0
+LOG  : General      f:0> MaterialLootNew 0.6
+LOG  : General      f:0> FarmingLootNew 0.6
+LOG  : General      f:0> ToolLootNew 1.0
+LOG  : General      f:0> RollsMultiplier 1.0
+LOG  : General      f:0> LootItemRemovalList 
+LOG  : General      f:0> RemoveStoryLoot false
+LOG  : General      f:0> RemoveZombieLoot false
+LOG  : General      f:0> ZombiePopLootEffect 0
+LOG  : General      f:0> InsaneLootFactor 0.05
+LOG  : General      f:0> ExtremeLootFactor 0.2
+LOG  : General      f:0> RareLootFactor 0.6
+LOG  : General      f:0> NormalLootFactor 1.0
+LOG  : General      f:0> CommonLootFactor 2.0
+LOG  : General      f:0> AbundantLootFactor 3.0
+LOG  : General      f:0> Temperature 3
+LOG  : General      f:0> Rain 3
+LOG  : General      f:0> ErosionSpeed 4
+LOG  : General      f:0> ErosionDays 0
+LOG  : General      f:0> Farming 3
+LOG  : General      f:0> CompostTime 1
+LOG  : General      f:0> StatsDecrease 3
+LOG  : General      f:0> NatureAbundance 3
+LOG  : General      f:0> Alarm 4
+LOG  : General      f:0> LockedHouses 6
+LOG  : General      f:0> StarterKit false
+LOG  : General      f:0> Nutrition true
+LOG  : General      f:0> FoodRotSpeed 3
+LOG  : General      f:0> FridgeFactor 4
+LOG  : General      f:0> SeenHoursPreventLootRespawn 0
+LOG  : General      f:0> HoursForLootRespawn 0
+LOG  : General      f:0> MaxItemsForLootRespawn 5
+LOG  : General      f:0> ConstructionPreventsLootRespawn true
+LOG  : General      f:0> WorldItemRemovalList Base.Hat, Base.Glasses, Base.Maggots, Base.Slug, Base.Slug2, Base.Snail, Base.Worm, Base.Dung_Mouse, Base.Dung_Rat
+LOG  : General      f:0> HoursForWorldItemRemoval 24.0
+LOG  : General      f:0> ItemRemovalListBlacklistToggle false
+LOG  : General      f:0> TimeSinceApo 1
+LOG  : General      f:0> PlantResilience 2
+LOG  : General      f:0> PlantAbundance 3
+LOG  : General      f:0> EndRegen 2
+LOG  : General      f:0> Helicopter 2
+LOG  : General      f:0> MetaEvent 2
+LOG  : General      f:0> SleepingEvent 1
+LOG  : General      f:0> GeneratorFuelConsumption 0.1
+LOG  : General      f:0> GeneratorSpawning 5
+LOG  : General      f:0> AnnotatedMapChance 5
+LOG  : General      f:0> CharacterFreePoints 0
+LOG  : General      f:0> ConstructionBonusPoints 4
+LOG  : General      f:0> NightDarkness 3
+LOG  : General      f:0> NightLength 3
+LOG  : General      f:0> BoneFracture true
+LOG  : General      f:0> InjurySeverity 1
+LOG  : General      f:0> HoursForCorpseRemoval 216.0
+LOG  : General      f:0> DecayingCorpseHealthImpact 3
+LOG  : General      f:0> ZombieHealthImpact false
+LOG  : General      f:0> BloodLevel 3
+LOG  : General      f:0> ClothingDegradation 3
+LOG  : General      f:0> FireSpread true
+LOG  : General      f:0> DaysForRottenFoodRemoval -1
+LOG  : General      f:0> AllowExteriorGenerator true
+LOG  : General      f:0> MaxFogIntensity 1
+LOG  : General      f:0> MaxRainFxIntensity 1
+LOG  : General      f:0> EnableSnowOnGround true
+LOG  : General      f:0> AttackBlockMovements true
+LOG  : General      f:0> SurvivorHouseChance 4
+LOG  : General      f:0> VehicleStoryChance 3
+LOG  : General      f:0> ZoneStoryChance 3
+LOG  : General      f:0> AllClothesUnlocked false
+LOG  : General      f:0> EnableTaintedWaterText true
+LOG  : General      f:0> EnableVehicles true
+LOG  : General      f:0> CarSpawnRate 4
+LOG  : General      f:0> ZombieAttractionMultiplier 1.0
+LOG  : General      f:0> VehicleEasyUse false
+LOG  : General      f:0> InitialGas 3
+LOG  : General      f:0> FuelStationGasInfinite false
+LOG  : General      f:0> FuelStationGasMin 0.5
+LOG  : General      f:0> FuelStationGasMax 0.9
+LOG  : General      f:0> FuelStationGasEmptyChance 20
+LOG  : General      f:0> LockedCar 3
+LOG  : General      f:0> CarGasConsumption 1.0
+LOG  : General      f:0> CarGeneralCondition 3
+LOG  : General      f:0> CarDamageOnImpact 3
+LOG  : General      f:0> DamageToPlayerFromHitByACar 1
+LOG  : General      f:0> TrafficJam true
+LOG  : General      f:0> CarAlarm 3
+LOG  : General      f:0> PlayerDamageFromCrash true
+LOG  : General      f:0> SirenShutoffHours 0.0
+LOG  : General      f:0> ChanceHasGas 2
+LOG  : General      f:0> RecentlySurvivorVehicles 3
+LOG  : General      f:0> MultiHitZombies true
+LOG  : General      f:0> RearVulnerability 3
+LOG  : General      f:0> SirenEffectsZombies true
+LOG  : General      f:0> AnimalStatsModifier 4
+LOG  : General      f:0> AnimalMetaStatsModifier 4
+LOG  : General      f:0> AnimalPregnancyTime 3
+LOG  : General      f:0> AnimalAgeModifier 3
+LOG  : General      f:0> AnimalMilkIncModifier 3
+LOG  : General      f:0> AnimalWoolIncModifier 3
+LOG  : General      f:0> AnimalRanchChance 6
+LOG  : General      f:0> AnimalGrassRegrowTime 240
+LOG  : General      f:0> AnimalMetaPredator false
+LOG  : General      f:0> AnimalMatingSeason false
+LOG  : General      f:0> AnimalEggHatch 3
+LOG  : General      f:0> AnimalSoundAttractZombies true
+LOG  : General      f:0> AnimalTrackChance 5
+LOG  : General      f:0> AnimalPathChance 4
+LOG  : General      f:0> MaximumRatIndex 25
+LOG  : General      f:0> DaysUntilMaximumRatIndex 90
+LOG  : General      f:0> MetaKnowledge 3
+LOG  : General      f:0> SeeNotLearntRecipe true
+LOG  : General      f:0> MaximumLootedBuildingRooms 50
+LOG  : General      f:0> EnablePoisoning 1
+LOG  : General      f:0> MaggotSpawn 1
+LOG  : General      f:0> LightBulbLifespan 2.0
+LOG  : General      f:0> FishAbundance 3
+LOG  : General      f:0> LevelForMediaXPCutoff 3
+LOG  : General      f:0> LevelForDismantleXPCutoff 0
+LOG  : General      f:0> BloodSplatLifespanDays 0
+LOG  : General      f:0> LiteratureCooldown 30
+LOG  : General      f:0> NegativeTraitsPenalty 1
+LOG  : General      f:0> MinutesPerPage 2.0
+LOG  : General      f:0> KillInsideCrops true
+LOG  : General      f:0> PlantGrowingSeasons false
+LOG  : General      f:0> PlaceDirtAboveground false
+LOG  : General      f:0> FarmingSpeedNew 1.5
+LOG  : General      f:0> FarmingAmountNew 1.5
+LOG  : General      f:0> MaximumLooted 25
+LOG  : General      f:0> DaysUntilMaximumLooted 90
+LOG  : General      f:0> RuralLooted 0.5
+LOG  : General      f:0> MaximumDiminishedLoot 20
+LOG  : General      f:0> DaysUntilMaximumDiminishedLoot 3650
+LOG  : General      f:0> MuscleStrainFactor 0.6
+LOG  : General      f:0> DiscomfortFactor 0.7
+LOG  : General      f:0> WoundInfectionFactor 1.0
+LOG  : General      f:0> NoBlackClothes true
+LOG  : General      f:0> EasyClimbing false
+LOG  : General      f:0> MaximumFireFuelHours 12
+LOG  : General      f:0> FirearmUseDamageChance 2
+LOG  : General      f:0> FirearmNoiseMultiplier 1.0
+LOG  : General      f:0> FirearmJamMultiplier 1.0
+LOG  : General      f:0> FirearmMoodleMultiplier 1.0
+LOG  : General      f:0> FirearmWeatherMultiplier 1.0
+LOG  : General      f:0> FirearmHeadGearEffect true
+LOG  : General      f:0> ClayLakeChance 0.05
+LOG  : General      f:0> ClayRiverChance 0.05
+LOG  : General      f:0> GeneratorTileRange 20
+LOG  : General      f:0> GeneratorVerticalPowerRange 3
+LOG  : General      f:0> SpawnFrequency 4
+LOG  : General      f:0> AllowMiniMap true
+LOG  : General      f:0> AllowWorldMap true
+LOG  : General      f:0> MapAllKnown false
+LOG  : General      f:0> MapNeedsLight true
+LOG  : General      f:0> Speed 4
+LOG  : General      f:0> SprinterPercentage 0
+LOG  : General      f:0> Strength 2
+LOG  : General      f:0> Toughness 4
+LOG  : General      f:0> Transmission 1
+LOG  : General      f:0> Mortality 5
+LOG  : General      f:0> Reanimate 3
+LOG  : General      f:0> Cognition 3
+LOG  : General      f:0> DoorOpeningPercentage 0
+LOG  : General      f:0> CrawlUnderVehicle 5
+LOG  : General      f:0> Memory 2
+LOG  : General      f:0> Sight 5
+LOG  : General      f:0> Hearing 5
+LOG  : General      f:0> SpottedLogic true
+LOG  : General      f:0> ThumpNoChasing false
+LOG  : General      f:0> ThumpOnConstruction true
+LOG  : General      f:0> ActiveOnly 1
+LOG  : General      f:0> TriggerHouseAlarm true
+LOG  : General      f:0> ZombiesDragDown true
+LOG  : General      f:0> ZombiesCrawlersDragDown false
+LOG  : General      f:0> ZombiesFenceLunge true
+LOG  : General      f:0> ZombiesArmorFactor 2.0
+LOG  : General      f:0> ZombiesMaxDefense 85
+LOG  : General      f:0> ChanceOfAttachedWeapon 6
+LOG  : General      f:0> ZombiesFallDamage 1.0
+LOG  : General      f:0> DisableFakeDead 1
+LOG  : General      f:0> PlayerSpawnZombieRemoval 1
+LOG  : General      f:0> FenceThumpersRequired 25
+LOG  : General      f:0> FenceDamageMultiplier 1.0
+LOG  : General      f:0> PopulationMultiplier 0.65
+LOG  : General      f:0> PopulationStartMultiplier 1.0
+LOG  : General      f:0> PopulationPeakMultiplier 1.5
+LOG  : General      f:0> PopulationPeakDay 20
+LOG  : General      f:0> RespawnHours 0.0
+LOG  : General      f:0> RespawnUnseenHours 0.0
+LOG  : General      f:0> RespawnMultiplier 0.0
+LOG  : General      f:0> RedistributeHours 12.0
+LOG  : General      f:0> FollowSoundDistance 100
+LOG  : General      f:0> RallyGroupSize 20
+LOG  : General      f:0> RallyGroupSizeVariance 50
+LOG  : General      f:0> RallyTravelDistance 20
+LOG  : General      f:0> RallyGroupSeparation 15
+LOG  : General      f:0> RallyGroupRadius 3
+LOG  : General      f:0> ZombiesCountBeforeDelete 300
+LOG  : General      f:0> Global 1.0
+LOG  : General      f:0> GlobalToggle false
+LOG  : General      f:0> Fitness 1.2
+LOG  : General      f:0> Strength 1.2
+LOG  : General      f:0> Sprinting 1.2
+LOG  : General      f:0> Lightfoot 1.2
+LOG  : General      f:0> Nimble 1.0
+LOG  : General      f:0> Sneak 1.0
+LOG  : General      f:0> Axe 1.0
+LOG  : General      f:0> Blunt 1.0
+LOG  : General      f:0> SmallBlunt 1.0
+LOG  : General      f:0> LongBlade 1.0
+LOG  : General      f:0> SmallBlade 1.0
+LOG  : General      f:0> Spear 1.0
+LOG  : General      f:0> Maintenance 1.2
+LOG  : General      f:0> Woodwork 1.2
+LOG  : General      f:0> Cooking 1.2
+LOG  : General      f:0> Farming 1.2
+LOG  : General      f:0> Doctor 1.5
+LOG  : General      f:0> Electricity 1.2
+LOG  : General      f:0> MetalWelding 1.4
+LOG  : General      f:0> Mechanics 1.4
+LOG  : General      f:0> Tailoring 1.4
+LOG  : General      f:0> Aiming 1.0
+LOG  : General      f:0> Reloading 1.0
+LOG  : General      f:0> Fishing 1.2
+LOG  : General      f:0> Trapping 1.2
+LOG  : General      f:0> PlantScavenging 1.2
+LOG  : General      f:0> FlintKnapping 1.2
+LOG  : General      f:0> Masonry 1.2
+LOG  : General      f:0> Pottery 1.2
+LOG  : General      f:0> Carving 1.2
+LOG  : General      f:0> Husbandry 1.2
+LOG  : General      f:0> Tracking 1.2
+LOG  : General      f:0> Blacksmith 1.2
+LOG  : General      f:0> Butchering 1.2
+LOG  : General      f:0> Glassmaking 1.2
+LOG  : General      f:0> General_KillCounter true
+LOG  : General      f:0> General_SpawnMultiplier 1.0
+LOG  : General      f:0> General_SizeMultiplier 1.0
+LOG  : General      f:0> General_DensityScore true
+LOG  : General      f:0> General_OriginalBandits true
+LOG  : General      f:0> General_Surrender true
+LOG  : General      f:0> General_BleedOut true
+LOG  : General      f:0> General_Infection true
+LOG  : General      f:0> General_LimitedEndurance true
+LOG  : General      f:0> General_RunAway true
+LOG  : General      f:0> General_DestroyDoor true
+LOG  : General      f:0> General_SmashWindow true
+LOG  : General      f:0> General_RemoveBarricade true
+LOG  : General      f:0> General_DestroyThumpable true
+LOG  : General      f:0> General_SabotageVehicles true
+LOG  : General      f:0> General_Theft true
+LOG  : General      f:0> General_SabotageCrops true
+LOG  : General      f:0> General_EnterVehicles false
+LOG  : General      f:0> General_GeneratorCutoff true
+LOG  : General      f:0> General_BuildBridge false
+LOG  : General      f:0> General_BuildRoadblock true
+LOG  : General      f:0> General_Speak true
+LOG  : General      f:0> General_Captions true
+LOG  : General      f:0> General_SneakAtNight true
+LOG  : General      f:0> General_CarryTorches true
+LOG  : General      f:0> General_ArrivalIcon true
+LOG  : General      f:0> General_OverallAccuracy 3
+LOG  : General      f:0> General_DefenderLootAmount 5
+LOG  : General      f:0> General_CorpseSwapper true
+LOG  : General      f:0> PumpFilterUsage 0.007
+LOG  : General      f:0> PumpEfficiencyLoss 0.0012
+LOG  : General      f:0> PumpMaxWater 12
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10712,10251,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10713,10251,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10714,10248,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10714,10249,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10714,10250,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10712,10240,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10712,10242,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10713,10245,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10714,10245,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10714,10246,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10709,10249,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10709,10250,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10709,10251,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10710,10251,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10711,10248,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10711,10249,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10711,10250,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10711,10251,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10704,10240,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10704,10241,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10704,10242,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10704,10243,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10704,10244,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10704,10245,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10704,10246,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10704,10247,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10705,10240,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10705,10247,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10706,10240,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10706,10247,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10707,10247,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10708,10247,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10709,10247,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10710,10240,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10711,10240,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10711,10242,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10711,10243,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10711,10244,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10711,10245,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10711,10247,0
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10681,10270,1
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10683,10270,1
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10685,10270,1
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10677,10270,1
+LOG  : Lua          f:0> MOWoodenWalFrame.lua: replacing isoObject at 10679,10270,1
+LOG  : General      f:0> Reseeding weather period, new seed: 583860
+LOG  : General      f:0> binkId: 5
+LOG  : Lua          f:0> SDOC|BOOT|1786373145958|ScenesPZ Doctor active
+LOG  : Lua          f:0> SDOC|WRAP|1786373145965|Bandit.ForceSyncPart
+LOG  : Lua          f:0> SDOC|WRAP|1786373145965|Bandit.ApplyVisuals
+LOG  : Lua          f:0> SDOC|WRAP|1786373145966|Bandit.AddTask
+LOG  : Lua          f:0> SDOC|WRAP|1786373145966|Bandit.AddTaskFirst
+LOG  : Lua          f:0> SDOC|WRAP|1786373145966|Bandit.GetTask
+LOG  : Lua          f:0> SDOC|WRAP|1786373145966|Bandit.HasTask
+LOG  : Lua          f:0> SDOC|WRAP|1786373145966|Bandit.HasTaskType
+LOG  : Lua          f:0> SDOC|WRAP|1786373145967|Bandit.HasMoveTask
+LOG  : Lua          f:0> SDOC|WRAP|1786373145967|Bandit.HasActionTask
+LOG  : Lua          f:0> SDOC|WRAP|1786373145967|Bandit.UpdateTask
+LOG  : Lua          f:0> SDOC|WRAP|1786373145967|Bandit.RemoveTask
+LOG  : Lua          f:0> SDOC|WRAP|1786373145968|Bandit.ClearTasks
+LOG  : Lua          f:0> SDOC|WRAP|1786373145968|Bandit.ClearMoveTasks
+LOG  : Lua          f:0> SDOC|WRAP|1786373145968|Bandit.ClearOtherTasks
+LOG  : Lua          f:0> SDOC|WRAP|1786373145968|Bandit.UpdateEndurance
+LOG  : Lua          f:0> SDOC|WRAP|1786373145968|Bandit.GetInfection
+LOG  : Lua          f:0> SDOC|WRAP|1786373145969|Bandit.UpdateInfection
+LOG  : Lua          f:0> SDOC|WRAP|1786373145969|Bandit.ForceStationary
+LOG  : Lua          f:0> SDOC|WRAP|1786373145969|Bandit.IsForceStationary
+LOG  : Lua          f:0> SDOC|WRAP|1786373145969|Bandit.SetNearFire
+LOG  : Lua          f:0> SDOC|WRAP|1786373145969|Bandit.IsNearFire
+LOG  : Lua          f:0> SDOC|WRAP|1786373145969|Bandit.SetSleeping
+LOG  : Lua          f:0> SDOC|WRAP|1786373145969|Bandit.IsSleeping
+LOG  : Lua          f:0> SDOC|WRAP|1786373145971|Bandit.SetAim
+LOG  : Lua          f:0> SDOC|WRAP|1786373145971|Bandit.IsAim
+LOG  : Lua          f:0> SDOC|WRAP|1786373145971|Bandit.SetMoving
+LOG  : Lua          f:0> SDOC|WRAP|1786373145971|Bandit.IsMoving
+LOG  : Lua          f:0> SDOC|WRAP|1786373145972|Bandit.HasExpertise
+LOG  : Lua          f:0> SDOC|WRAP|1786373145972|Bandit.GetMaster
+LOG  : Lua          f:0> SDOC|WRAP|1786373145972|Bandit.SetMaster
+LOG  : Lua          f:0> SDOC|WRAP|1786373145972|Bandit.GetProgram
+LOG  : Lua          f:0> SDOC|WRAP|1786373145973|Bandit.SetProgram
+LOG  : Lua          f:0> SDOC|WRAP|1786373145973|Bandit.SetProgramStage
+LOG  : Lua          f:0> SDOC|WRAP|1786373145973|Bandit.SetHostile
+LOG  : Lua          f:0> SDOC|WRAP|1786373145973|Bandit.SetHostileP
+LOG  : Lua          f:0> SDOC|WRAP|1786373145973|Bandit.IsHostile
+LOG  : Lua          f:0> SDOC|WRAP|1786373145974|Bandit.GetWeapons
+LOG  : Lua          f:0> SDOC|WRAP|1786373145974|Bandit.GetBestWeapon
+LOG  : Lua          f:0> SDOC|WRAP|1786373145974|Bandit.IsOutOfAmmo
+LOG  : Lua          f:0> SDOC|WRAP|1786373145974|Bandit.IsBareHands
+LOG  : Lua          f:0> SDOC|WRAP|1786373145975|Bandit.SetHands
+LOG  : Lua          f:0> SDOC|WRAP|1786373145975|Bandit.NeedResupplySlot
+LOG  : Lua          f:0> SDOC|WRAP|1786373145975|Bandit.SetWeapons
+LOG  : Lua          f:0> SDOC|WRAP|1786373145975|Bandit.UpdateItemsToSpawnAtDeath
+LOG  : Lua          f:0> SDOC|WRAP|1786373145975|Bandit.SurpressZombieSounds
+LOG  : Lua          f:0> SDOC|WRAP|1786373145975|Bandit.PickVoice
+LOG  : Lua          f:0> SDOC|WRAP|1786373145975|Bandit.Say
+LOG  : Lua          f:0> SDOC|WRAP|1786373145976|Bandit.SayLocation
+LOG  : Lua          f:0> SDOC|WRAP|1786373145976|Bandit.AddVisualDamage
+LOG  : Lua          f:0> SDOC|WRAP|1786373145977|Bandit.GetCombatWalktype
+LOG  : Lua          f:0> SDOC|WRAP|1786373145977|Bandit.GetSkinTexture
+LOG  : Lua          f:0> SDOC|WRAP|1786373145977|Bandit.GetHairColor
+LOG  : Lua          f:0> SDOC|WRAP|1786373145977|Bandit.GetHairStyle
+LOG  : Lua          f:0> SDOC|WRAP|1786373145977|Bandit.GetBeardStyle
+LOG  : Lua          f:0> SDOC|SCAN|1786373145978|Bandit -> 54 functions instrumented
+LOG  : Lua          f:0> SDOC|WRAP|1786373145978|BanditActionInterceptor.Main
+LOG  : Lua          f:0> SDOC|SCAN|1786373145978|BanditActionInterceptor -> 1 functions instrumented
+LOG  : Lua          f:0> SDOC|WRAP|1786373145978|BanditBaseGroupPlacements.CheckSpace
+LOG  : Lua          f:0> SDOC|WRAP|1786373145979|BanditBaseGroupPlacements.ClearSpace
+LOG  : Lua          f:0> SDOC|WRAP|1786373145979|BanditBaseGroupPlacements.Junk
+LOG  : Lua          f:0> SDOC|WRAP|1786373145979|BanditBaseGroupPlacements.Papers
+LOG  : Lua          f:0> SDOC|WRAP|1786373145979|BanditBaseGroupPlacements.Item
+LOG  : Lua          f:0> SDOC|WRAP|1786373145980|BanditBaseGroupPlacements.Blood
+LOG  : Lua          f:0> SDOC|SCAN|1786373145980|BanditBaseGroupPlacements -> 6 functions instrumented
+LOG  : Lua          f:0> SDOC|WRAP|1786373145980|BanditBasePlacements.Matress
+LOG  : Lua          f:0> SDOC|WRAP|1786373145980|BanditBasePlacements.IsoObject
+LOG  : Lua          f:0> SDOC|WRAP|1786373145980|BanditBasePlacements.IsoThumpable
+LOG  : Lua          f:0> SDOC|WRAP|1786373145981|BanditBasePlacements.IsoDoor
+LOG  : Lua          f:0> SDOC|WRAP|1786373145981|BanditBasePlacements.IsoWindow
+LOG  : Lua          f:0> SDOC|WRAP|1786373145981|BanditBasePlacements.IsoCurtain
+LOG  : Lua          f:0> SDOC|WRAP|1786373145981|BanditBasePlacements.IsoLightSwitch
+LOG  : Lua          f:0> SDOC|WRAP|1786373145981|BanditBasePlacements.IsoGenerator
+LOG  : Lua          f:0> SDOC|WRAP|1786373145981|BanditBasePlacements.Container
+LOG  : Lua          f:0> SDOC|WRAP|1786373145982|BanditBasePlacements.WaterContainer
+LOG  : Lua          f:0> SDOC|WRAP|1786373145982|BanditBasePlacements.Fireplace
+LOG  : Lua          f:0> SDOC|WRAP|1786373145982|BanditBasePlacements.Fridge
+LOG  : Lua          f:0> SDOC|WRAP|1786373145982|BanditBasePlacements.Journal
+LOG  : Lua          f:0> SDOC|WRAP|1786373145983|BanditBasePlacements.Item
+LOG  : Lua          f:0> SDOC|WRAP|1786373145983|BanditBasePlacements.Blood
+LOG  : Lua          f:0> SDOC|WRAP|1786373145983|BanditBasePlacements.Body
+LOG  : Lua          f:0> SDOC|SCAN|1786373145983|BanditBasePlacements -> 16 functions instrumented
+LOG  : Lua          f:0> SDOC|WRAP|1786373145983|BanditBrain.Get
+LOG  : Lua          f:0> SDOC|WRAP|1786373145984|BanditBrain.Update
+LOG  : Lua          f:0> SDOC|WRAP|1786373145984|BanditBrain.Remove
+LOG  : Lua          f:0> SDOC|WRAP|1786373145984|BanditBrain.IsOutOfAmmo
+LOG  : Lua          f:0> SDOC|WRAP|1786373145984|BanditBrain.NeedResupplySlot
+LOG  : Lua          f:0> SDOC|WRAP|1786373145985|BanditBrain.IsBareHands
+LOG  : Lua          f:0> SDOC|WRAP|1786373145985|BanditBrain.HasTask
+LOG  : Lua          f:0> SDOC|WRAP|1786373145985|BanditBrain.HasActionTask
+LOG  : Lua          f:0> SDOC|WRAP|1786373145985|BanditBrain.HasMoveTask
+LOG  : Lua          f:0> SDOC|WRAP|1786373145986|BanditBrain.HasTaskType
+LOG  : Lua          f:0> SDOC|WRAP|1786373145986|BanditBrain.HasTaskTypes
+LOG  : Lua          f:0> SDOC|SCAN|1786373145986|BanditBrain -> 11 functions instrumented
+LOG  : Lua          f:0> SDOC|SCAN|1786373145986|BanditClusters -> 0 functions instrumented
+LOG  : Lua          f:0> SDOC|WRAP|1786373145987|BanditCompatibility.GetGameVersion
+LOG  : Lua          f:0> SDOC|WRAP|1786373145987|BanditCompatibility.GetConfigPath
+LOG  : Lua          f:0> SDOC|WRAP|1786373145987|BanditCompatibility.GetModPrefix
+LOG  : Lua          f:0> SDOC|WRAP|1786373145987|BanditCompatibility.GetLegacyItem
+LOG  : Lua          f:0> SDOC|WRAP|1786373145988|BanditCompatibility.SetRandomCondition
+LOG  : Lua          f:0> SDOC|WRAP|1786373145988|BanditCompatibility.GetClickedSquare
+LOG  : Lua          f:0> SDOC|WRAP|1786373145988|BanditCompatibility.GetGuardpostKey
+LOG  : Lua          f:0> SDOC|WRAP|1786373145988|BanditCompatibility.InstanceItem
+LOG  : Lua          f:0> SDOC|WRAP|1786373145989|BanditCompatibility.Splash
+LOG  : Lua          f:0> SDOC|WRAP|1786373145989|BanditCompatibility.PlayerVoiceSound
+LOG  : Lua          f:0> SDOC|WRAP|1786373145989|BanditCompatibility.StartMuzzleFlash
+LOG  : Lua          f:0> SDOC|WRAP|1786373145989|BanditCompatibility.IsReanimatedForGrappleOnly
+LOG  : Lua          f:0> SDOC|WRAP|1786373145989|BanditCompatibility.IsRagdoll
+LOG  : Lua          f:0> SDOC|WRAP|1786373145991|BanditCompatibility.AddZombiesInOutfit
+LOG  : Lua          f:0> SDOC|WRAP|1786373145991|BanditCompatibility.AddId
+LOG  : Lua          f:0> SDOC|WRAP|1786373145991|BanditCompatibility.SurpressZombieSounds
+LOG  : Lua          f:0> SDOC|WRAP|1786373145991|BanditCompatibility.HaveRoofFull
+LOG  : Lua          f:0> SDOC|WRAP|1786373145992|BanditCompatibility.GetMovementSpeed
+LOG  : Lua          f:0> SDOC|WRAP|1786373145992|BanditCompatibility.GetScopeRange
+LOG  : Lua          f:0> SDOC|WRAP|1786373145992|BanditCompatibility.GetMaxRange
+LOG  : Lua          f:0> SDOC|WRAP|1786373145992|BanditCompatibility.UsesExternalMagazine
+LOG  : Lua          f:0> SDOC|WRAP|1786373145993|BanditCompatibility.setParameterValueByName
+LOG  : Lua          f:0> SDOC|WRAP|1786373145993|BanditCompatibility.GetBodyLocations
+LOG  : Lua          f:0> SDOC|WRAP|1786373145993|BanditCompatibility.GetBodyLocationsOrdered
+LOG  : Lua          f:0> SDOC|SCAN|1786373145993|BanditCompatibility -> 24 functions instrumented
+LOG  : Lua          f:0> SDOC|WRAP|1786373145993|BanditCustom.GetMods
+LOG  : Lua          f:0> SDOC|WRAP|1786373145993|BanditCustom.Load
+LOG  : Lua          f:0> SDOC|WRAP|1786373145994|BanditCustom.Save
+LOG  : Lua          f:0> SDOC|WRAP|1786373145994|BanditCustom.ClanCreate
+LOG  : Lua          f:0> SDOC|WRAP|1786373145994|BanditCustom.Delete
+LOG  : Lua          f:0> SDOC|WRAP|1786373145994|BanditCustom.ClanGetAll
+LOG  : Lua          f:0> SDOC|WRAP|1786373145995|BanditCustom.ClanGetAllSorted
+LOG  : Lua          f:0> SDOC|WRAP|1786373145996|BanditCustom.ClanGet
+LOG  : Lua          f:0> SDOC|WRAP|1786373145996|BanditCustom.Create
+LOG  : Lua          f:0> SDOC|WRAP|1786373145997|BanditCustom.GetNextId
+LOG  : Lua          f:0> SDOC|WRAP|1786373145997|BanditCustom.GetAll
+LOG  : Lua          f:0> SDOC|WRAP|1786373145997|BanditCustom.GetFromClan
+LOG  : Lua          f:0> SDOC|WRAP|1786373145997|BanditCustom.GetById
+LOG  : Lua          f:0> SDOC|WRAP|1786373145997|BanditCustom.GetFromClanSorted
+LOG  : Lua          f:0> SDOC|WRAP|1786373145997|BanditCustom.Get
+LOG  : Lua          f:0> SDOC|SCAN|1786373145998|BanditCustom -> 15 functions instrumented
+LOG  : Lua          f:0> SDOC|WRAP|1786373145998|BanditEventMarker.initialise
+LOG  : Lua          f:0> SDOC|WRAP|1786373145998|BanditEventMarker.onMouseDoubleClick
+LOG  : Lua          f:0> SDOC|WRAP|1786373145999|BanditEventMarker.onMouseUp
+LOG  : Lua          f:0> SDOC|WRAP|1786373145999|BanditEventMarker.onMouseUpOutside
+LOG  : Lua          f:0> SDOC|WRAP|1786373145999|BanditEventMarker.onMouseDown
+LOG  : Lua          f:0> SDOC|WRAP|1786373145999|BanditEventMarker.onMouseMoveOutside
+LOG  : Lua          f:0> SDOC|WRAP|1786373146000|BanditEventMarker.onMouseMove
+LOG  : Lua          f:0> SDOC|WRAP|1786373146000|BanditEventMarker.setDistance
+LOG  : Lua          f:0> SDOC|WRAP|1786373146000|BanditEventMarker.setAngleFromPoint
+LOG  : Lua          f:0> SDOC|WRAP|1786373146000|BanditEventMarker.setAngle
+LOG  : Lua          f:0> SDOC|WRAP|1786373146001|BanditEventMarker.setDuration
+LOG  : Lua          f:0> SDOC|WRAP|1786373146001|BanditEventMarker.getDuration
+LOG  : Lua          f:0> SDOC|WRAP|1786373146001|BanditEventMarker.render
+LOG  : Lua          f:0> SDOC|WRAP|1786373146001|BanditEventMarker.setEnabled
+LOG  : Lua          f:0> SDOC|WRAP|1786373146002|BanditEventMarker.getEnabled
+LOG  : Lua          f:0> SDOC|WRAP|1786373146002|BanditEventMarker.prerender
+LOG  : Lua          f:0> SDOC|WRAP|1786373146002|BanditEventMarker.refresh
+LOG  : Lua          f:0> SDOC|WRAP|1786373146002|BanditEventMarker.getPlayer
+LOG  : Lua          f:0> SDOC|WRAP|1786373146002|BanditEventMarker.new
+LOG  : Lua          f:0> SDOC|WRAP|1786373146002|BanditEventMarker.update
+LOG  : Lua          f:0> SDOC|SCAN|1786373146002|BanditEventMarker -> 20 functions instrumented
+LOG  : Lua          f:0> SDOC|WRAP|1786373146004|BanditEventMarkerHandler.set
+LOG  : Lua          f:0> SDOC|WRAP|1786373146004|BanditEventMarkerHandler.RemoveOldMarkers
+LOG  : Lua          f:0> SDOC|SCAN|1786373146004|BanditEventMarkerHandler -> 2 functions instrumented
+LOG  : Lua          f:0> SDOC|WRAP|1786373146005|BanditFS.Write
+LOG  : Lua          f:0> SDOC|WRAP|1786373146005|BanditFS.Read
+LOG  : Lua          f:0> SDOC|SCAN|1786373146005|BanditFS -> 2 functions instrumented
+LOG  : Lua          f:0> SDOC|SCAN|1786373146005|BanditGlobalData -> 0 functions instrumented
+LOG  : Lua          f:0> SDOC|SCAN|1786373146006|BanditGlobalDataPlayers -> 0 functions instrumented
+LOG  : Lua          f:0> SDOC|WRAP|1786373146006|BanditLoot.MakeItem
+LOG  : Lua          f:0> SDOC|WRAP|1786373146006|BanditLoot.FillContainer
+LOG  : Lua          f:0> SDOC|SCAN|1786373146006|BanditLoot -> 2 functions instrumented
+LOG  : Lua          f:0> SDOC|WRAP|1786373146007|BanditMenu.BanditTest
+LOG  : Lua          f:0> SDOC|WRAP|1786373146007|BanditMenu.TestAction
+LOG  : Lua          f:0> SDOC|WRAP|1786373146007|BanditMenu.MakeProcedure
+LOG  : Lua          f:0> SDOC|WRAP|1786373146007|BanditMenu.ShowBrain
+LOG  : Lua          f:0> SDOC|WRAP|1786373146007|BanditMenu.SwitchProgram
+LOG  : Lua          f:0> SDOC|WRAP|1786373146008|BanditMenu.BanditFlush
+LOG  : Lua          f:0> SDOC|WRAP|1786373146008|BanditMenu.SpawnClan
+LOG  : Lua          f:0> SDOC|WRAP|1786373146008|BanditMenu.WorldContextMenuPre
+LOG  : Lua          f:0> SDOC|SCAN|1786373146008|BanditMenu -> 8 functions instrumented
+LOG  : Lua          f:0> SDOC|WRAP|1786373146009|BanditNames.GenerateName
+LOG  : Lua          f:0> SDOC|SCAN|1786373146009|BanditNames -> 1 functions instrumented
+LOG  : Lua          f:0> SDOC|WRAP|1786373146009|BanditNotifications.DoorToggled
+LOG  : Lua          f:0> SDOC|SCAN|1786373146009|BanditNotifications -> 1 functions instrumented
+LOG  : Lua          f:0> SDOC|WRAP|1786373146009|BanditPatches.DynamicTraits
+LOG  : Lua          f:0> SDOC|WRAP|1786373146009|BanditPatches.ImprovedProjectile
+LOG  : Lua          f:0> SDOC|WRAP|1786373146010|BanditPatches.TchernoLib
+LOG  : Lua          f:0> SDOC|WRAP|1786373146010|BanditPatches.TheStar
+LOG  : Lua          f:0> SDOC|SCAN|1786373146010|BanditPatches -> 4 functions instrumented
+LOG  : Lua          f:0> SDOC|WRAP|1786373146010|BanditPermanent.Check
+LOG  : Lua          f:0> SDOC|SCAN|1786373146011|BanditPermanent -> 1 functions instrumented
+LOG  : Lua          f:0> SDOC|WRAP|1786373146011|BanditPlayer.IsGhost
+LOG  : Lua          f:0> SDOC|WRAP|1786373146011|BanditPlayer.GetPlayers
+LOG  : Lua          f:0> SDOC|WRAP|1786373146012|BanditPlayer.GetPlayerById
+LOG  : Lua          f:0> SDOC|WRAP|1786373146012|BanditPlayer.GetMasterPlayer
+LOG  : Lua          f:0> SDOC|WRAP|1786373146012|BanditPlayer.WakeEveryone
+LOG  : Lua          f:0> SDOC|WRAP|1786373146013|BanditPlayer.CheckFriendlyFire
+LOG  : Lua          f:0> SDOC|SCAN|1786373146013|BanditPlayer -> 6 functions instrumented
+LOG  : Lua          f:0> SDOC|WRAP|1786373146013|BanditPlayerBase.Debug
+LOG  : Lua          f:0> SDOC|WRAP|1786373146013|BanditPlayerBase.GetBase
+LOG  : Lua          f:0> SDOC|WRAP|1786373146015|BanditPlayerBase.GetBaseClosest
+LOG  : Lua          f:0> SDOC|WRAP|1786373146015|BanditPlayerBase.GetContainerClosest
+LOG  : Lua          f:0> SDOC|WRAP|1786373146015|BanditPlayerBase.Update
+LOG  : Lua          f:0> SDOC|WRAP|1786373146016|BanditPlayerBase.Regenerate
+LOG  : Lua          f:0> SDOC|WRAP|1786373146016|BanditPlayerBase.RegisterBase
+LOG  : Lua          f:0> SDOC|WRAP|1786373146016|BanditPlayerBase.ReindexItems
+LOG  : Lua          f:0> SDOC|WRAP|1786373146016|BanditPlayerBase.GetContainerWithItem
+LOG  : Lua          f:0> SDOC|WRAP|1786373146017|BanditPlayerBase.GetContainerOfType
+LOG  : Lua          f:0> SDOC|WRAP|1786373146017|BanditPlayerBase.GetFarm
+LOG  : Lua          f:0> SDOC|WRAP|1786373146017|BanditPlayerBase.GetWaterSource
+LOG  : Lua          f:0> SDOC|WRAP|1786373146017|BanditPlayerBase.GetGenerator
+LOG  : Lua          f:0> SDOC|WRAP|1786373146018|BanditPlayerBase.GetBlood
+LOG  : Lua          f:0> SDOC|WRAP|1786373146018|BanditPlayerBase.GetTrashcan
+LOG  : Lua          f:0> SDOC|WRAP|1786373146018|BanditPlayerBase.GetGrave
+LOG  : Lua          f:0> SDOC|WRAP|1786373146018|BanditPlayerBase.GetDeadbody
+LOG  : Lua          f:0> SDOC|SCAN|1786373146019|BanditPlayerBase -> 17 functions instrumented
+LOG  : Lua          f:0> SDOC|WRAP|1786373146019|BanditPost.GuardToggle
+LOG  : Lua          f:0> SDOC|WRAP|1786373146019|BanditPost.Update
+LOG  : Lua          f:0> SDOC|WRAP|1786373146019|BanditPost.At
+LOG  : Lua          f:0> SDOC|WRAP|1786373146020|BanditPost.GetAll
+LOG  : Lua          f:0> SDOC|WRAP|1786373146020|BanditPost.GetInRadius
+LOG  : Lua          f:0> SDOC|WRAP|1786373146020|BanditPost.GetClosestFree
+LOG  : Lua          f:0> SDOC|WRAP|1786373146021|BanditPost.Get
+LOG  : Lua          f:0> SDOC|WRAP|1786373146021|BanditPost.Render
+LOG  : Lua          f:0> SDOC|WRAP|1786373146021|BanditPost.OnKeyPressed
+LOG  : Lua          f:0> SDOC|SCAN|1786373146021|BanditPost -> 9 functions instrumented
+LOG  : Lua          f:0> SDOC|WRAP|1786373146021|BanditProc.Cabin
+LOG  : Lua          f:0> SDOC|WRAP|1786373146021|BanditProc.CampTentSmall
+LOG  : Lua          f:0> SDOC|WRAP|1786373146022|BanditProc.Cementary
+LOG  : Lua          f:0> SDOC|WRAP|1786373146022|BanditProc.Dungeon
+LOG  : Lua          f:0> SDOC|WRAP|1786373146022|BanditProc.HouseBigLuxury
+LOG  : Lua          f:0> SDOC|WRAP|1786373146023|BanditProc.HouseBigUnfinished
+LOG  : Lua          f:0> SDOC|WRAP|1786373146023|BanditProc.HouseMedium
+LOG  : Lua          f:0> SDOC|WRAP|1786373146023|BanditProc.HouseSmall
+LOG  : Lua          f:0> SDOC|WRAP|1786373146023|BanditProc.MedicalTent
+LOG  : Lua          f:0> SDOC|WRAP|1786373146023|BanditProc.MilitaryField
+LOG  : Lua          f:0> SDOC|WRAP|1786373146023|BanditProc.MilitaryTent
+LOG  : Lua          f:0> SDOC|WRAP|1786373146025|BanditProc.Toilet
+LOG  : Lua          f:0> SDOC|SCAN|1786373146025|BanditProc -> 12 functions instrumented
+LOG  : Lua          f:0> SDOC|WRAP|1786373146025|BanditPrograms.Idle
+LOG  : Lua          f:0> SDOC|SCAN|1786373146025|BanditPrograms -> 1 functions instrumented
+LOG  : Lua          f:0> SDOC|WRAP|1786373146025|BanditProjectile.Add
+LOG  : Lua          f:0> SDOC|WRAP|1786373146026|BanditProjectile.Stop
+LOG  : Lua          f:0> SDOC|SCAN|1786373146026|BanditProjectile -> 2 functions instrumented
+LOG  : Lua          f:0> SDOC|WRAP|1786373146026|BanditRandom.Get
+LOG  : Lua          f:0> SDOC|WRAP|1786373146026|BanditRandom.IteratorChangeReveiver
+LOG  : Lua          f:0> SDOC|SCAN|1786373146026|BanditRandom -> 2 functions instrumented
+LOG  : Lua          f:0> SDOC|WRAP|1786373146026|BanditScenes.Alcoholic
+LOG  : Lua          f:0> SDOC|WRAP|1786373146027|BanditScenes.Cannibal
+LOG  : Lua          f:0> SDOC|WRAP|1786373146027|BanditScenes.Carpenter
+LOG  : Lua          f:0> SDOC|WRAP|1786373146027|BanditScenes.Cementary
+LOG  : Lua          f:0> SDOC|WRAP|1786373146028|BanditScenes.GoodDoctor1
+LOG  : Lua          f:0> SDOC|WRAP|1786373146028|BanditScenes.Hikers
+LOG  : Lua          f:0> SDOC|WRAP|1786373146028|BanditScenes.Hunter
+LOG  : Lua          f:0> SDOC|WRAP|1786373146028|BanditScenes.MilitaryDeserters
+LOG  : Lua          f:0> SDOC|WRAP|1786373146029|BanditScenes.Pervert
+LOG  : Lua          f:0> SDOC|WRAP|1786373146029|BanditScenes.Richman
+LOG  : Lua          f:0> SDOC|SCAN|1786373146029|BanditScenes -> 10 functions instrumented
+LOG  : Lua          f:0> SDOC|SCAN|1786373146029|BanditServer -> 0 functions instrumented
+LOG  : Lua          f:0> SDOC|SCAN|1786373146029|BanditServerZombie -> 0 functions instrumented
+LOG  : Lua          f:0> SDOC|WRAP|1786373146029|BanditTest.Check
+LOG  : Lua          f:0> SDOC|SCAN|1786373146031|BanditTest -> 1 functions instrumented
+LOG  : Lua          f:0> SDOC|WRAP|1786373146031|BanditTestResults.initialise
+LOG  : Lua          f:0> SDOC|WRAP|1786373146031|BanditTestResults.onClick
+LOG  : Lua          f:0> SDOC|WRAP|1786373146031|BanditTestResults.onRightClick
+LOG  : Lua          f:0> SDOC|WRAP|1786373146032|BanditTestResults.update
+LOG  : Lua          f:0> SDOC|WRAP|1786373146032|BanditTestResults.prerender
+LOG  : Lua          f:0> SDOC|WRAP|1786373146032|BanditTestResults.new
+LOG  : Lua          f:0> SDOC|SCAN|1786373146032|BanditTestResults -> 6 functions instrumented
+LOG  : Lua          f:0> SDOC|WRAP|1786373146032|BanditTickBox.initialise
+LOG  : Lua          f:0> SDOC|WRAP|1786373146032|BanditTickBox.prerender
+LOG  : Lua          f:0> SDOC|WRAP|1786373146033|BanditTickBox.setJoypadFocused
+LOG  : Lua          f:0> SDOC|WRAP|1786373146033|BanditTickBox.onJoypadDirUp
+LOG  : Lua          f:0> SDOC|WRAP|1786373146033|BanditTickBox.onJoypadDirDown
+LOG  : Lua          f:0> SDOC|WRAP|1786373146033|BanditTickBox.forceClick
+LOG  : Lua          f:0> SDOC|WRAP|1786373146033|BanditTickBox.setSelected
+LOG  : Lua          f:0> SDOC|WRAP|1786373146033|BanditTickBox.isSelected
+LOG  : Lua          f:0> SDOC|WRAP|1786373146035|BanditTickBox.render
+LOG  : Lua          f:0> SDOC|WRAP|1786373146035|BanditTickBox.getTextColor
+LOG  : Lua          f:0> SDOC|WRAP|1786373146035|BanditTickBox.onMouseUp
+LOG  : Lua          f:0> SDOC|WRAP|1786373146035|BanditTickBox.onMouseUpOutside
+LOG  : Lua          f:0> SDOC|WRAP|1786373146035|BanditTickBox.onMouseDown
+LOG  : Lua          f:0> SDOC|WRAP|1786373146035|BanditTickBox.onMouseMove
+LOG  : Lua          f:0> SDOC|WRAP|1786373146036|BanditTickBox.onMouseMoveOutside
+LOG  : Lua          f:0> SDOC|WRAP|1786373146036|BanditTickBox.disableOption
+LOG  : Lua          f:0> SDOC|WRAP|1786373146036|BanditTickBox.clearOptions
+LOG  : Lua          f:0> SDOC|WRAP|1786373146036|BanditTickBox.addOption
+LOG  : Lua          f:0> SDOC|WRAP|1786373146037|BanditTickBox.getOptionCount
+LOG  : Lua          f:0> SDOC|WRAP|1786373146037|BanditTickBox.getOptionData
+LOG  : Lua          f:0> SDOC|WRAP|1786373146037|BanditTickBox.setFont
+LOG  : Lua          f:0> SDOC|WRAP|1786373146037|BanditTickBox.setWidthToFit
+LOG  : Lua          f:0> SDOC|WRAP|1786373146037|BanditTickBox.new
+LOG  : Lua          f:0> SDOC|SCAN|1786373146037|BanditTickBox -> 23 functions instrumented
+LOG  : Lua          f:0> SDOC|WRAP|1786373146039|BanditUtils.AddHole
+LOG  : Lua          f:0> SDOC|WRAP|1786373146039|BanditUtils.AddHolePlayer
+LOG  : Lua          f:0> SDOC|WRAP|1786373146039|BanditUtils.Thump
+LOG  : Lua          f:0> SDOC|WRAP|1786373146039|BanditUtils.Hit
+LOG  : Lua          f:0> SDOC|WRAP|1786373146040|BanditUtils.ManageLineOfFire
+LOG  : Lua          f:0> SDOC|WRAP|1786373146040|BanditUtils.SanitizeString
+LOG  : Lua          f:0> SDOC|WRAP|1786373146040|BanditUtils.GetZombieID
+LOG  : Lua          f:0> SDOC|WRAP|1786373146040|BanditUtils.GetCharacterID
+LOG  : Lua          f:0> SDOC|WRAP|1786373146041|BanditUtils.IsController
+LOG  : Lua          f:0> SDOC|WRAP|1786373146041|BanditUtils.IsFacing
+LOG  : Lua          f:0> SDOC|WRAP|1786373146041|BanditUtils.IsInAngle
+LOG  : Lua          f:0> SDOC|WRAP|1786373146041|BanditUtils.CalcAngle
+LOG  : Lua          f:0> SDOC|WRAP|1786373146042|BanditUtils.DominantAngle
+LOG  : Lua          f:0> SDOC|WRAP|1786373146042|BanditUtils.AreEnemies
+LOG  : Lua          f:0> SDOC|WRAP|1786373146042|BanditUtils.ModifyWeapon
+LOG  : Lua          f:0> SDOC|WRAP|1786373146042|BanditUtils.GetClosestPlayerLocation
+LOG  : Lua          f:0> SDOC|WRAP|1786373146042|BanditUtils.GetClosestZombieLocation
+LOG  : Lua          f:0> SDOC|WRAP|1786373146043|BanditUtils.GetClosestBanditLocation
+LOG  : Lua          f:0> SDOC|WRAP|1786373146043|BanditUtils.GetClosestEnemyBanditLocation
+LOG  : Lua          f:0> SDOC|WRAP|1786373146043|BanditUtils.GetTarget
+LOG  : Lua          f:0> SDOC|WRAP|1786373146043|BanditUtils.GetMoveTask
+LOG  : Lua          f:0> SDOC|WRAP|1786373146043|BanditUtils.GetMoveTaskTarget
+LOG  : Lua          f:0> SDOC|WRAP|1786373146045|BanditUtils.HasAccessSquare
+LOG  : Lua          f:0> SDOC|WRAP|1786373146045|BanditUtils.GetAccessSquare
+LOG  : Lua          f:0> SDOC|WRAP|1786373146045|BanditUtils.GetNumNearbyBuildings
+LOG  : Lua          f:0> SDOC|WRAP|1786373146045|BanditUtils.GetBuildingID
+LOG  : Lua          f:0> SDOC|WRAP|1786373146045|BanditUtils.findPoint
+LOG  : Lua          f:0> SDOC|WRAP|1786373146046|BanditUtils.Bresenham
+LOG  : Lua          f:0> SDOC|WRAP|1786373146046|BanditUtils.IsWater
+LOG  : Lua          f:0> SDOC|WRAP|1786373146046|BanditUtils.GetGroundType
+LOG  : Lua          f:0> SDOC|WRAP|1786373146046|BanditUtils.ReplaceDrainable
+LOG  : Lua          f:0> SDOC|WRAP|1786373146047|BanditUtils.DistTo
+LOG  : Lua          f:0> SDOC|WRAP|1786373146047|BanditUtils.LineClear
+LOG  : Lua          f:0> SDOC|WRAP|1786373146047|BanditUtils.GetProjectileCount
+LOG  : Lua          f:0> SDOC|WRAP|1786373146047|BanditUtils.DistToManhattan
+LOG  : Lua          f:0> SDOC|WRAP|1786373146048|BanditUtils.Choice
+LOG  : Lua          f:0> SDOC|WRAP|1786373146048|BanditUtils.CoinFlip
+LOG  : Lua          f:0> SDOC|WRAP|1786373146048|BanditUtils.Lerp
+LOG  : Lua          f:0> SDOC|WRAP|1786373146048|BanditUtils.BanditRand
+LOG  : Lua          f:0> SDOC|WRAP|1786373146049|BanditUtils.rgb2dec
+LOG  : Lua          f:0> SDOC|WRAP|1786373146049|BanditUtils.dec2rgb
+LOG  : Lua          f:0> SDOC|WRAP|1786373146050|BanditUtils.GetCity
+LOG  : Lua          f:0> SDOC|WRAP|1786373146050|BanditUtils.GetCityMap
+LOG  : Lua          f:0> SDOC|WRAP|1786373146050|BanditUtils.GetStashMap
+LOG  : Lua          f:0> SDOC|WRAP|1786373146051|BanditUtils.FixVolume
+LOG  : Lua          f:0> SDOC|SCAN|1786373146051|BanditUtils -> 45 functions instrumented
+LOG  : Lua          f:0> SDOC|WRAP|1786373146051|BanditWeapons.MakeHandgun
+LOG  : Lua          f:0> SDOC|WRAP|1786373146051|BanditWeapons.Make
+LOG  : Lua          f:0> SDOC|WRAP|1786373146052|BanditWeapons.GetPrimary
+LOG  : Lua          f:0> SDOC|WRAP|1786373146052|BanditWeapons.GetSecondary
+LOG  : Lua          f:0> SDOC|SCAN|1786373146052|BanditWeapons -> 4 functions instrumented
+LOG  : Lua          f:0> SDOC|WRAP|1786373146052|BanditZombie.GetInstanceById
+LOG  : Lua          f:0> SDOC|WRAP|1786373146053|BanditZombie.GetAll
+LOG  : Lua          f:0> SDOC|WRAP|1786373146053|BanditZombie.GetAllZ
+LOG  : Lua          f:0> SDOC|WRAP|1786373146053|BanditZombie.GetAllB
+LOG  : Lua          f:0> SDOC|WRAP|1786373146053|BanditZombie.GetAllCnt
+LOG  : Lua          f:0> SDOC|SCAN|1786373146053|BanditZombie -> 5 functions instrumented
+LOG  : Lua          f:0> SDOC|WRAP|1786373146054|ScenesRelations.IdOf
+LOG  : Lua          f:0> SDOC|WRAP|1786373146054|ScenesRelations.KeyOf
+LOG  : Lua          f:0> SDOC|WRAP|1786373146054|ScenesRelations.Today
+LOG  : Lua          f:0> SDOC|WRAP|1786373146055|ScenesRelations.LifeId
+LOG  : Lua          f:0> SDOC|WRAP|1786373146055|ScenesRelations.RecordIsOurs
+LOG  : Lua          f:0> SDOC|WRAP|1786373146055|ScenesRelations.Peek
+LOG  : Lua          f:0> SDOC|WRAP|1786373146055|ScenesRelations.MarkDead
+LOG  : Lua          f:0> SDOC|WRAP|1786373146056|ScenesRelations.Get
+LOG  : Lua          f:0> SDOC|WRAP|1786373146056|ScenesRelations.Mood
+LOG  : Lua          f:0> SDOC|WRAP|1786373146056|ScenesRelations.TierOf
+LOG  : Lua          f:0> SDOC|WRAP|1786373146056|ScenesRelations.Tier
+LOG  : Lua          f:0> SDOC|WRAP|1786373146057|ScenesRelations.Adjust
+LOG  : Lua          f:0> SDOC|WRAP|1786373146057|ScenesRelations.Apply
+LOG  : Lua          f:0> SDOC|WRAP|1786373146057|ScenesRelations.Log
+LOG  : Lua          f:0> SDOC|WRAP|1786373146058|ScenesRelations.IsStillOurs
+LOG  : Lua          f:0> SDOC|WRAP|1786373146058|ScenesRelations.MemTest
+LOG  : Lua          f:0> SDOC|SCAN|1786373146058|ScenesRelations -> 16 functions instrumented
+LOG  : Lua          f:0> SDOC|WRAP|1786373146058|ScenesRelationsHealthPanel.bar
+LOG  : Lua          f:0> SDOC|WRAP|1786373146059|ScenesRelationsHealthPanel.prerender
+LOG  : Lua          f:0> SDOC|WRAP|1786373146059|ScenesRelationsHealthPanel.onBandage
+LOG  : Lua          f:0> SDOC|WRAP|1786373146059|ScenesRelationsHealthPanel.createChildren
+LOG  : Lua          f:0> SDOC|WRAP|1786373146060|ScenesRelationsHealthPanel.new
+LOG  : Lua          f:0> SDOC|SCAN|1786373146060|ScenesRelationsHealthPanel -> 5 functions instrumented
+LOG  : Lua          f:0> SDOC|WRAP|1786373146061|ScenesRelationsPanel.createChildren
+LOG  : Lua          f:0> SDOC|WRAP|1786373146061|ScenesRelationsPanel.drawRow
+LOG  : Lua          f:0> SDOC|WRAP|1786373146061|ScenesRelationsPanel.refresh
+LOG  : Lua          f:0> SDOC|WRAP|1786373146062|ScenesRelationsPanel.new
+LOG  : Lua          f:0> SDOC|SCAN|1786373146062|ScenesRelationsPanel -> 4 functions instrumented
+LOG  : Lua          f:0> SDOC|BOOT|1786373146062|38 modules, 336 functions instrumented
+LOG  : Lua          f:0> SDOC|MEM|1786373146063|2277376|+0
+LOG  : Lua          f:0> SREL| AUTO ready -- survive > fight > obey > errand > idle; following is checked every second, not every sweep
+LOG  : Lua          f:0> SREL| PATCH NPC turning disabled -- their infection model is a stopwatch, not an illness
+LOG  : Lua          f:0> SREL| MOVE ready -- one walk-then-act primitive, GoAndDo, shared across the mod
+LOG  : Lua          f:0> SREL| LOOT ready -- bounded searching; upstream Container.Loot is dead code and unused
+LOG  : Lua          f:0> SREL| COMP ready -- wraps ZPCompanion.Main and ZPLooter.Main: search, bags, quiet indoors, real rest
+LOG  : Lua          f:0> SREL| GUARD ready -- allies near you cannot be damaged at all. Toggle on SAFE
+LOG  : Lua          f:0> SREL| HEALTH ready -- Health on the wheel; bandaging costs an item and moves trust
+LOG  : Lua          f:0> SREL| IDLE ready -- about a third of survivors care about what they wear
+LOG  : Lua          f:0> SREL| MEMTEST ready -- press K beside a survivor you have a relationship with
+LOG  : Lua          f:0> SREL| PANEL ready -- open it from the left-hand button column
+LOG  : Lua          f:0> SREL| PANIC ready -- your own people no longer read as a horde
+LOG  : Lua          f:0> SREL| ScenesPZ Relations active -- PROBE BUILD, debug on, no time decay
+LOG  : Lua          f:0> SREL| PROBE start | world day 0 | store holds 0 records
+LOG  : Lua          f:0> SREL| PROBE sandbox | DayLength=4
+LOG  : Lua          f:0> SREL| SIDEBAR ready -- SAFE and WHO, own panel on the left. Drag it anywhere.
+LOG  : Lua          f:0> SREL| WHEEL ready -- hold V near somebody (3 tiles) to open the interaction wheel
+LOG  : Lua          f:0> SREL| WOUND ready -- healing costs a dressing; broken glass costs blood
+LOG  : Lua          f:1> [GMD] Cluster 0 is 0 long.
+LOG  : Lua          f:1> [GMD] Cluster 1 is 0 long.
+LOG  : Lua          f:1> [GMD] Cluster 2 is 0 long.
+LOG  : Lua          f:1> [GMD] Cluster 3 is 0 long.
+LOG  : Lua          f:1> [GMD] Cluster 4 is 0 long.
+LOG  : Lua          f:1> [GMD] Cluster 5 is 0 long.
+LOG  : Lua          f:1> [GMD] Cluster 6 is 0 long.
+LOG  : Lua          f:1> [GMD] Cluster 7 is 0 long.
+LOG  : Lua          f:1> [GMD] Cluster 8 is 0 long.
+LOG  : Lua          f:1> [GMD] Cluster 9 is 0 long.
+LOG  : Lua          f:1> [GMD] Cluster 10 is 0 long.
+LOG  : Lua          f:1> [GMD] Cluster 11 is 0 long.
+LOG  : Lua          f:1> [GMD] Cluster 12 is 0 long.
+LOG  : Lua          f:1> [GMD] Cluster 13 is 0 long.
+LOG  : Lua          f:1> [GMD] Cluster 14 is 0 long.
+LOG  : Lua          f:1> [GMD] Cluster 15 is 0 long.
+LOG  : Lua          f:1> [GMD] Cluster 16 is 0 long.
+LOG  : Lua          f:1> [GMD] Cluster 17 is 0 long.
+LOG  : Lua          f:1> [GMD] Cluster 18 is 0 long.
+LOG  : Lua          f:1> [GMD] Cluster 19 is 0 long.
+LOG  : Lua          f:1> [GMD] Cluster 20 is 0 long.
+LOG  : Lua          f:1> [GMD] Cluster 21 is 0 long.
+LOG  : Lua          f:1> [GMD] Cluster 22 is 0 long.
+LOG  : Lua          f:1> [GMD] Cluster 23 is 0 long.
+LOG  : Lua          f:1> [GMD] Cluster 24 is 0 long.
+LOG  : Lua          f:1> [GMD] Cluster 25 is 0 long.
+LOG  : Lua          f:1> [GMD] Cluster 26 is 0 long.
+LOG  : Lua          f:1> [GMD] Cluster 27 is 0 long.
+LOG  : Lua          f:1> [GMD] Cluster 28 is 0 long.
+LOG  : Lua          f:1> [GMD] Cluster 29 is 0 long.
+LOG  : Lua          f:1> [GMD] Cluster 30 is 0 long.
+LOG  : Lua          f:1> [GMD] Cluster 31 is 0 long.
+LOG  : Lua          f:1> SDOC|MEM|1786373149132|2367488|+90112
+LOG  : Lua          f:1> SDOC|CALL|1786373149133|59|BanditBrain.Get
+LOG  : Lua          f:1> SDOC|CALL|1786373149133|59|BanditCompatibility.IsReanimatedForGrappleOnly
+LOG  : Lua          f:1> SDOC|CALL|1786373149133|59|BanditCompatibility.IsRagdoll
+LOG  : Lua          f:1> SDOC|CALL|1786373149133|59|BanditUtils.GetZombieID
+LOG  : Lua          f:1> SDOC|CALL|1786373149134|51|BanditBrain.Remove
+LOG  : Lua          f:1> SDOC|CALL|1786373149134|17|ScenesRelations.Log
+LOG  : Lua          f:1> SDOC|CALL|1786373149134|1|BanditUtils.GetBuildingID
+LOG  : Lua          f:1> SDOC|CALL|1786373149134|1|BanditZombie.GetAllB
+LOG  : Lua          f:1> SDOC|CALL|1786373149135|1|ScenesRelations.Today
+LOG  : Lua          f:1> SDOC|CALL|1786373149136|1|BanditCustom.ClanGetAll
+LOG  : Lua          f:1> Tiered zombie updates enabled, bandit count: 0 / 50, zombie count: 59 / 50
+WARN : General      f:1 at Lua((MOD:Bandits)).AddZombiesInOutfit> Spawning new Male Zed, Dressed in Naked62, isFallOnFront:false, isFakeDead:false, isKnockedDown:false, isSitting:false, isAnimRecording:false, heightOffset:0.000000, isRagdolling:false, onFire:false
+LOG  : Lua          f:1> TLOU| companion requested at 10720,10196,0 after 1 ticks
+LOG  : Lua          f:1> SREL| ASSERT ok   a schoolbag can be instantiated
+LOG  : Lua          f:1> SREL| ASSERT ok   a schoolbag is an InventoryContainer
+LOG  : Lua          f:1> SREL| ASSERT ok   a schoolbag reports canBeEquipped()
+LOG  : Lua          f:1> SREL| ASSERT ok   a schoolbag has NO getBodyLocation (why the old isBag failed)
+LOG  : Lua          f:1> SREL| ASSERT ok   a T-shirt DOES have getBodyLocation
+LOG  : Lua          f:1> SREL| ASSERT ok   SR.Loot.IsBag says yes to a schoolbag
+LOG  : Lua          f:1> SREL| ASSERT ok   SR.Loot.IsBag says no to a T-shirt
+LOG  : Lua          f:1> SREL| ASSERT ok   SR.Loot.IsFood says yes to tinned beans
+LOG  : Lua          f:1> SREL| ASSERT ok   Bandit.UpdateItemsToSpawnAtDeath exists
+LOG  : Lua          f:1> SREL| ASSERT ok   BanditUtils.GetAccessSquare exists
+LOG  : Lua          f:1> SREL| ASSERT ok   LosUtil.lineClearCollide exists
+LOG  : Lua          f:1> SREL| ASSERT ok   a live grid square responds to isNotBlocked(false)
+LOG  : Lua          f:1> SREL| ASSERT ok   getCell() returns the loaded cell
+LOG  : Lua          f:1> SREL| ASSERT ok   SR.Move.GoAndDo exists
+LOG  : Lua          f:1> SREL| ASSERT ok   SR.Loot.IsWorthTaking says yes to tinned beans
+LOG  : Lua          f:1> SREL| ASSERT ok   SR.Loot.IsWorthTaking says yes to a schoolbag
+LOG  : Lua          f:1> SREL| ASSERT ok   SR.Loot.IsWorthTaking says no to a T-shirt
+LOG  : Lua          f:1> SREL| ASSERT ok   getActualWeight returns a number
+LOG  : Lua          f:1> SREL| ASSERT ok   Bandit.ApplyVisuals exists
+LOG  : Lua          f:1> SREL| ASSERT ok   a schoolbag exposes getItemContainer():getMaxWeight()
+LOG  : Lua          f:1> SREL| ASSERT ok   CharacterStat.PANIC exists
+LOG  : Lua          f:1> SREL| ASSERT ok   getBodyDamage():getPanicIncreaseValue() returns a number
+LOG  : Lua          f:1> SREL| ASSERT ok   BanditUtils.DistToManhattan exists
+LOG  : Lua          f:1> SREL| ASSERT ok   BanditZombie.CacheLight is a table
+LOG  : Lua          f:1> SREL| ASSERT ---- 24 ok, 0 FAILED ----
+LOG  : Lua          f:173> SDOC|MEM|1786373152896|1800192|-567296
+LOG  : Lua          f:173> SDOC|CALL|1786373152898|8445|BanditBrain.Get
+LOG  : Lua          f:173> SDOC|CALL|1786373152899|7418|BanditUtils.GetZombieID
+LOG  : Lua          f:173> SDOC|CALL|1786373152899|7418|BanditCompatibility.IsReanimatedForGrappleOnly
+LOG  : Lua          f:173> SDOC|CALL|1786373152900|7359|BanditCompatibility.IsRagdoll
+LOG  : Lua          f:173> SDOC|CALL|1786373152900|6164|BanditBrain.Remove
+LOG  : Lua          f:173> SDOC|CALL|1786373152900|2479|BanditUtils.AreEnemies
+LOG  : Lua          f:173> SDOC|CALL|1786373152901|348|BanditBrain.NeedResupplySlot
+LOG  : Lua          f:173> SDOC|CALL|1786373152901|345|BanditCompatibility.GetGameVersion
+LOG  : Lua          f:173> SDOC|CALL|1786373152902|342|BanditBrain.HasActionTask
+LOG  : Lua          f:173> SDOC|CALL|1786373152902|183|Bandit.GetTask
+LOG  : Lua          f:173> SDOC|CALL|1786373152902|177|BanditBrain.HasTask
+LOG  : Lua          f:173> SDOC|CALL|1786373152902|174|BanditBrain.IsOutOfAmmo
+LOG  : Lua          f:173> SDOC|CALL|1786373152904|174|BanditBrain.IsBareHands
+LOG  : Lua          f:173> SDOC|CALL|1786373152904|172|Bandit.ApplyVisuals
+LOG  : Lua          f:173> SDOC|CALL|1786373152904|171|Bandit.SurpressZombieSounds
+LOG  : Lua          f:173> Tiered zombie updates enabled, bandit count: 1 / 50, zombie count: 59 / 50
+LOG  : Lua          f:173> SREL| AUTO Jack Johnson | idle -> obey | fear=0/83 z=0@inf friends=1 hp=1.00 | queue cleared
+LOG  : Lua          f:174> SREL| COMP Jack Johnson wants a bag -- Base.Bag_CraftedFramepack_Large3 at 10720,10195 | reaching for it
+LOG  : Lua          f:340> SREL| LOOT Jack Johnson now has a Base.Bag_CraftedFramepack_Large3 on the brain (renders on next rebuild)
+LOG  : Lua          f:340> SREL| LOOT Jack Johnson now carries a Base.Bag_CraftedFramepack_Large3
+LOG  : Lua          f:341> SREL| COMP Jack Johnson searches 10720,10196 for food | in=0 out=0
+LOG  : Lua          f:344> SREL| COMP Jack Johnson searches 10720,10196 for food | in=0 out=0
+LOG  : Lua          f:437> SDOC|MEM|1786373156636|1810432|+10240
+LOG  : Lua          f:437> SDOC|CALL|1786373156637|17187|BanditBrain.Get
+LOG  : Lua          f:437> SDOC|CALL|1786373156637|15588|BanditCompatibility.IsReanimatedForGrappleOnly
+LOG  : Lua          f:437> SDOC|CALL|1786373156637|15588|BanditUtils.GetZombieID
+LOG  : Lua          f:437> SDOC|CALL|1786373156638|15528|BanditCompatibility.IsRagdoll
+LOG  : Lua          f:437> SDOC|CALL|1786373156638|12703|BanditBrain.Remove
+LOG  : Lua          f:437> SDOC|CALL|1786373156638|3838|BanditUtils.AreEnemies
+LOG  : Lua          f:437> SDOC|CALL|1786373156638|536|BanditBrain.NeedResupplySlot
+LOG  : Lua          f:437> SDOC|CALL|1786373156638|529|BanditCompatibility.GetGameVersion
+LOG  : Lua          f:437> SDOC|CALL|1786373156639|528|BanditBrain.HasActionTask
+LOG  : Lua          f:437> SDOC|CALL|1786373156639|271|BanditBrain.HasTask
+LOG  : Lua          f:437> SDOC|CALL|1786373156639|268|BanditBrain.IsBareHands
+LOG  : Lua          f:437> SDOC|CALL|1786373156640|266|Bandit.ApplyVisuals
+LOG  : Lua          f:437> SDOC|CALL|1786373156641|264|Bandit.SurpressZombieSounds
+LOG  : Lua          f:437> SDOC|CALL|1786373156641|264|Bandit.GetTask
+LOG  : Lua          f:437> SDOC|CALL|1786373156641|264|BanditBrain.IsOutOfAmmo
+LOG  : Lua          f:437> Tiered zombie updates enabled, bandit count: 1 / 50, zombie count: 59 / 50
+LOG  : Lua          f:641> SREL| LOOT too far -- zombie 10720.1,10195.8 vs stand 10720.5,10196.5 | 0.74 > 0.7 tiles
+LOG  : Lua          f:641> SREL| LOOT refused (too far) at 10720,10196 -- will try again
+LOG  : Lua          f:642> SREL| COMP Jack Johnson searches 10720,10196 for food | in=0 out=0
+LOG  : Lua          f:796> SDOC|MEM|1786373160390|1863680|+53248
+LOG  : Lua          f:796> SDOC|CALL|1786373160391|23710|BanditBrain.Get
+LOG  : Lua          f:796> SDOC|CALL|1786373160391|21600|BanditCompatibility.IsReanimatedForGrappleOnly
+LOG  : Lua          f:796> SDOC|CALL|1786373160392|21600|BanditUtils.GetZombieID
+LOG  : Lua          f:796> SDOC|CALL|1786373160392|21540|BanditCompatibility.IsRagdoll
+LOG  : Lua          f:796> SDOC|CALL|1786373160392|17920|BanditBrain.Remove
+LOG  : Lua          f:796> SDOC|CALL|1786373160393|5385|BanditUtils.AreEnemies
+LOG  : Lua          f:796> SDOC|CALL|1786373160393|720|BanditBrain.NeedResupplySlot
+LOG  : Lua          f:796> SDOC|CALL|1786373160393|718|BanditCompatibility.GetGameVersion
+LOG  : Lua          f:796> SDOC|CALL|1786373160393|718|BanditBrain.HasActionTask
+LOG  : Lua          f:796> SDOC|CALL|1786373160394|361|BanditBrain.HasTask
+LOG  : Lua          f:796> SDOC|CALL|1786373160394|360|Bandit.ApplyVisuals
+LOG  : Lua          f:796> SDOC|CALL|1786373160394|360|BanditBrain.IsBareHands
+LOG  : Lua          f:796> SDOC|CALL|1786373160394|359|Bandit.SurpressZombieSounds
+LOG  : Lua          f:796> SDOC|CALL|1786373160395|359|BanditBrain.IsOutOfAmmo
+LOG  : Lua          f:796> SDOC|CALL|1786373160395|359|Bandit.HasTask
+LOG  : Lua          f:796> Tiered zombie updates enabled, bandit count: 1 / 50, zombie count: 59 / 50
+LOG  : Lua          f:993> SREL| LOOT Jack Johnson took 1 from 10720,10196 [Base.Pen] | carrying 0.1 / 8.0
+LOG  : Lua          f:994> SREL| COMP Jack Johnson searches 10719,10196 for food | in=0 out=0
+LOG  : Lua          f:1191> SDOC|MEM|1786373164143|1923072|+59392
+LOG  : Lua          f:1191> SDOC|CALL|1786373164144|26104|BanditBrain.Get
+LOG  : Lua          f:1191> SDOC|CALL|1786373164144|23760|BanditCompatibility.IsReanimatedForGrappleOnly
+LOG  : Lua          f:1191> SDOC|CALL|1786373164145|23760|BanditUtils.GetZombieID
+LOG  : Lua          f:1191> SDOC|CALL|1786373164145|23700|BanditCompatibility.IsRagdoll
+LOG  : Lua          f:1191> SDOC|CALL|1786373164145|19845|BanditBrain.Remove
+LOG  : Lua          f:1191> SDOC|CALL|1786373164145|5925|BanditUtils.AreEnemies
+LOG  : Lua          f:1191> SDOC|CALL|1786373164145|792|BanditBrain.NeedResupplySlot
+LOG  : Lua          f:1191> SDOC|CALL|1786373164147|790|BanditCompatibility.GetGameVersion
+LOG  : Lua          f:1191> SDOC|CALL|1786373164147|790|BanditBrain.HasActionTask
+LOG  : Lua          f:1191> SDOC|CALL|1786373164147|397|BanditBrain.HasTask
+LOG  : Lua          f:1191> SDOC|CALL|1786373164147|396|Bandit.ApplyVisuals
+LOG  : Lua          f:1191> SDOC|CALL|1786373164148|396|BanditBrain.IsBareHands
+LOG  : Lua          f:1191> SDOC|CALL|1786373164148|395|Bandit.SurpressZombieSounds
+LOG  : Lua          f:1191> SDOC|CALL|1786373164148|395|BanditBrain.IsOutOfAmmo
+LOG  : Lua          f:1191> SDOC|CALL|1786373164149|395|Bandit.HasTask
+LOG  : Lua          f:1191> Tiered zombie updates enabled, bandit count: 1 / 50, zombie count: 59 / 50
+LOG  : Lua          f:1191> SREL| AUTO census | Jack Johnson | rung=obey fear=0/83 hp=1.00 z=0@inf in=0 out=0 indoors friends=1 master=1.0 bag=true head=ScenesLoot@10719,10196
+LOG  : Lua          f:1384> SREL| LOOT Jack Johnson took 1 from 10719,10196 [Base.Pen] | carrying 0.2 / 8.0
+LOG  : Lua          f:1385> SREL| COMP Jack Johnson searches 10718,10196 for food | in=0 out=0
+LOG  : Lua          f:1435> SREL| COMP Jack Johnson searches 10718,10196 for food | in=0 out=0
+LOG  : Lua          f:1475> SREL| COMP Jack Johnson searches 10718,10196 for food | in=0 out=0
+LOG  : Lua          f:1523> SREL| COMP Jack Johnson searches 10718,10196 for food | in=0 out=0
+LOG  : Lua          f:1523> SREL| LOOT gives up on 10718,10196 -- could not get there in 3 tries
+LOG  : Lua          f:1524> SREL| COMP Jack Johnson searches 10722,10196 for food | in=0 out=0
+LOG  : Lua          f:1527> SREL| COMP Jack Johnson searches 10722,10196 for food | in=0 out=0
+LOG  : Lua          f:1561> SREL| COMP Jack Johnson searches 10722,10196 for food | in=0 out=0
+LOG  : Lua          f:1595> SREL| COMP Jack Johnson searches 10722,10196 for food | in=0 out=0
+LOG  : Lua          f:1595> SREL| LOOT gives up on 10722,10196 -- could not get there in 3 tries
+LOG  : Lua          f:1596> SREL| COMP Jack Johnson searches 10718,10192 for food | in=0 out=0
+LOG  : Lua          f:1622> SDOC|MEM|1786373167885|1988608|+65536
+LOG  : Lua          f:1622> SDOC|CALL|1786373167886|28551|BanditBrain.Get
+LOG  : Lua          f:1622> SDOC|CALL|1786373167886|25920|BanditCompatibility.IsReanimatedForGrappleOnly
+LOG  : Lua          f:1622> SDOC|CALL|1786373167886|25920|BanditUtils.GetZombieID
+LOG  : Lua          f:1622> SDOC|CALL|1786373167887|25860|BanditCompatibility.IsRagdoll
+LOG  : Lua          f:1622> SDOC|CALL|1786373167887|21724|BanditBrain.Remove
+LOG  : Lua          f:1622> SDOC|CALL|1786373167887|6465|BanditUtils.AreEnemies
+LOG  : Lua          f:1622> SDOC|CALL|1786373167888|1085|BanditCompatibility.GetGameVersion
+LOG  : Lua          f:1622> SDOC|CALL|1786373167888|880|BanditBrain.NeedResupplySlot
+LOG  : Lua          f:1622> SDOC|CALL|1786373167888|862|BanditBrain.HasActionTask
+LOG  : Lua          f:1622> SDOC|CALL|1786373167888|670|BanditBrain.HasTask
+LOG  : Lua          f:1622> SDOC|CALL|1786373167889|440|BanditBrain.IsBareHands
+LOG  : Lua          f:1622> SDOC|CALL|1786373167889|432|Bandit.ApplyVisuals
+LOG  : Lua          f:1622> SDOC|CALL|1786373167889|431|Bandit.SurpressZombieSounds
+LOG  : Lua          f:1622> SDOC|CALL|1786373167890|431|Bandit.GetTask
+LOG  : Lua          f:1622> SDOC|CALL|1786373167890|431|BanditBrain.IsOutOfAmmo
+LOG  : Lua          f:1622> Tiered zombie updates enabled, bandit count: 1 / 50, zombie count: 59 / 50
+LOG  : Lua          f:1640> SREL| COMP Jack Johnson searches 10718,10192 for food | in=0 out=0
+LOG  : Lua          f:1686> SREL| COMP Jack Johnson searches 10718,10192 for food | in=0 out=0
+LOG  : Lua          f:1732> SREL| COMP Jack Johnson searches 10718,10192 for food | in=0 out=0
+LOG  : Lua          f:1732> SREL| LOOT gives up on 10718,10192 -- could not get there in 3 tries
+LOG  : Lua          f:1733> SREL| COMP Jack Johnson searches 10720,10191 for food | in=0 out=0
+LOG  : Lua          f:1785> SREL| COMP Jack Johnson searches 10720,10191 for food | in=0 out=0
+LOG  : Lua          f:1832> SREL| COMP Jack Johnson searches 10720,10191 for food | in=0 out=0
+LOG  : Lua          f:1876> SREL| COMP Jack Johnson searches 10720,10191 for food | in=0 out=0
+LOG  : Lua          f:1876> SREL| LOOT gives up on 10720,10191 -- could not get there in 3 tries
+LOG  : Lua          f:1877> SREL| COMP Jack Johnson searches 10725,10196 for food | in=0 out=0
+LOG  : Lua          f:1908> SREL| COMP Jack Johnson searches 10725,10196 for food | in=0 out=0
+LOG  : Lua          f:1956> SREL| COMP Jack Johnson searches 10725,10196 for food | in=0 out=0
+LOG  : Lua          f:1995> SREL| COMP Jack Johnson searches 10725,10196 for food | in=0 out=0
+LOG  : Lua          f:1995> SREL| LOOT gives up on 10725,10196 -- could not get there in 3 tries
+LOG  : Lua          f:1996> SREL| COMP Jack Johnson searches 10725,10193 for food | in=0 out=0
+LOG  : Lua          f:2038> SREL| COMP Jack Johnson searches 10725,10193 for food | in=0 out=0
+LOG  : Lua          f:2054> SDOC|MEM|1786373171634|2056192|+67584
+LOG  : Lua          f:2054> SDOC|CALL|1786373171635|28637|BanditBrain.Get
+LOG  : Lua          f:2054> SDOC|CALL|1786373171636|25980|BanditCompatibility.IsReanimatedForGrappleOnly
+LOG  : Lua          f:2054> SDOC|CALL|1786373171636|25980|BanditUtils.GetZombieID
+LOG  : Lua          f:2054> SDOC|CALL|1786373171636|25920|BanditCompatibility.IsRagdoll
+LOG  : Lua          f:2054> SDOC|CALL|1786373171637|21528|BanditBrain.Remove
+LOG  : Lua          f:2054> SDOC|CALL|1786373171637|7422|BanditUtils.AreEnemies
+LOG  : Lua          f:2054> SDOC|CALL|1786373171637|1273|BanditCompatibility.GetGameVersion
+LOG  : Lua          f:2054> SDOC|CALL|1786373171638|890|BanditBrain.NeedResupplySlot
+LOG  : Lua          f:2054> SDOC|CALL|1786373171638|865|BanditBrain.HasTask
+LOG  : Lua          f:2054> SDOC|CALL|1786373171638|864|BanditBrain.HasActionTask
+LOG  : Lua          f:2054> SDOC|CALL|1786373171639|445|BanditBrain.IsBareHands
+LOG  : Lua          f:2054> SDOC|CALL|1786373171639|433|Bandit.ApplyVisuals
+LOG  : Lua          f:2054> SDOC|CALL|1786373171639|433|Bandit.GetTask
+LOG  : Lua          f:2054> SDOC|CALL|1786373171640|432|Bandit.SurpressZombieSounds
+LOG  : Lua          f:2054> SDOC|CALL|1786373171640|432|BanditBrain.IsOutOfAmmo
+LOG  : Lua          f:2054> Tiered zombie updates enabled, bandit count: 1 / 50, zombie count: 59 / 50
+LOG  : Lua          f:2077> SREL| COMP Jack Johnson searches 10725,10193 for food | in=0 out=0
+LOG  : Lua          f:2460> SREL| LOOT Jack Johnson took 2 from 10725,10193 [Base.RollingPin, Base.Spoon] | carrying 2.0 / 8.0
+LOG  : Lua          f:2461> SREL| COMP Jack Johnson searches 10725,10192 for food | in=0 out=0
+LOG  : Lua          f:2471> SDOC|MEM|1786373175391|2119680|+63488
+LOG  : Lua          f:2471> SDOC|CALL|1786373175392|27566|BanditBrain.Get
+LOG  : Lua          f:2471> SDOC|CALL|1786373175392|25080|BanditCompatibility.IsReanimatedForGrappleOnly
+LOG  : Lua          f:2471> SDOC|CALL|1786373175392|25080|BanditUtils.GetZombieID
+LOG  : Lua          f:2471> SDOC|CALL|1786373175393|25020|BanditCompatibility.IsRagdoll
+LOG  : Lua          f:2471> SDOC|CALL|1786373175393|20751|BanditBrain.Remove
+LOG  : Lua          f:2471> SDOC|CALL|1786373175393|8340|BanditUtils.AreEnemies
+LOG  : Lua          f:2471> SDOC|CALL|1786373175394|865|BanditCompatibility.GetGameVersion
+LOG  : Lua          f:2471> SDOC|CALL|1786373175394|838|BanditBrain.NeedResupplySlot
+LOG  : Lua          f:2471> SDOC|CALL|1786373175394|834|BanditBrain.HasActionTask
+LOG  : Lua          f:2471> SDOC|CALL|1786373175394|452|BanditBrain.HasTask
+LOG  : Lua          f:2471> SDOC|CALL|1786373175395|419|BanditBrain.IsBareHands
+LOG  : Lua          f:2471> SDOC|CALL|1786373175395|418|Bandit.ApplyVisuals
+LOG  : Lua          f:2471> SDOC|CALL|1786373175395|417|Bandit.SurpressZombieSounds
+LOG  : Lua          f:2471> SDOC|CALL|1786373175396|417|Bandit.GetTask
+LOG  : Lua          f:2471> SDOC|CALL|1786373175396|417|BanditBrain.IsOutOfAmmo
+LOG  : Lua          f:2471> Tiered zombie updates enabled, bandit count: 1 / 50, zombie count: 59 / 50
+LOG  : Lua          f:2497> SREL| COMP Jack Johnson searches 10725,10192 for food | in=0 out=0
+LOG  : Lua          f:2548> SREL| COMP Jack Johnson searches 10725,10192 for food | in=0 out=0
+LOG  : Lua          f:2584> SREL| COMP Jack Johnson searches 10725,10192 for food | in=0 out=0
+LOG  : Lua          f:2584> SREL| LOOT gives up on 10725,10192 -- could not get there in 3 tries
+LOG  : Lua          f:2585> SREL| COMP Jack Johnson searches 10723,10191 for food | in=0 out=0
+LOG  : Lua          f:2627> SREL| COMP Jack Johnson searches 10723,10191 for food | in=0 out=0
+LOG  : Lua          f:2672> SREL| COMP Jack Johnson searches 10723,10191 for food | in=0 out=0
+LOG  : Lua          f:2705> SREL| COMP Jack Johnson searches 10723,10191 for food | in=0 out=0
+LOG  : Lua          f:2705> SREL| LOOT gives up on 10723,10191 -- could not get there in 3 tries
+LOG  : Lua          f:2706> SREL| COMP Jack Johnson searches 10725,10191 for food | in=0 out=0
+LOG  : Lua          f:2755> SREL| COMP Jack Johnson searches 10725,10191 for food | in=0 out=0
+LOG  : Lua          f:2794> SREL| COMP Jack Johnson searches 10725,10191 for food | in=0 out=0
+LOG  : Lua          f:2843> SREL| COMP Jack Johnson searches 10725,10191 for food | in=0 out=0
+LOG  : Lua          f:2843> SREL| LOOT gives up on 10725,10191 -- could not get there in 3 tries
+LOG  : Lua          f:2844> SREL| COMP Jack Johnson searches 10724,10190 for food | in=0 out=0
+LOG  : Lua          f:2874> SREL| COMP Jack Johnson searches 10724,10190 for food | in=0 out=0
+LOG  : Lua          f:2899> SDOC|MEM|1786373179133|2185216|+65536
+LOG  : Lua          f:2899> SDOC|CALL|1786373179134|28372|BanditBrain.Get
+LOG  : Lua          f:2899> SDOC|CALL|1786373179135|25740|BanditCompatibility.IsReanimatedForGrappleOnly
+LOG  : Lua          f:2899> SDOC|CALL|1786373179135|25740|BanditUtils.GetZombieID
+LOG  : Lua          f:2899> SDOC|CALL|1786373179135|25680|BanditCompatibility.IsRagdoll
+LOG  : Lua          f:2899> SDOC|CALL|1786373179135|20957|BanditBrain.Remove
+LOG  : Lua          f:2899> SDOC|CALL|1786373179136|8560|BanditUtils.AreEnemies
+LOG  : Lua          f:2899> SDOC|CALL|1786373179136|1261|BanditCompatibility.GetGameVersion
+LOG  : Lua          f:2899> SDOC|CALL|1786373179136|882|BanditBrain.NeedResupplySlot
+LOG  : Lua          f:2899> SDOC|CALL|1786373179136|857|BanditBrain.HasTask
+LOG  : Lua          f:2899> SDOC|CALL|1786373179137|856|BanditBrain.HasActionTask
+LOG  : Lua          f:2899> SDOC|CALL|1786373179137|441|BanditBrain.IsBareHands
+LOG  : Lua          f:2899> SDOC|CALL|1786373179137|429|Bandit.ApplyVisuals
+LOG  : Lua          f:2899> SDOC|CALL|1786373179138|428|Bandit.SurpressZombieSounds
+LOG  : Lua          f:2899> SDOC|CALL|1786373179138|428|Bandit.GetTask
+LOG  : Lua          f:2899> SDOC|CALL|1786373179138|428|BanditBrain.IsOutOfAmmo
+LOG  : Lua          f:2899> Tiered zombie updates enabled, bandit count: 1 / 50, zombie count: 59 / 50
+LOG  : Lua          f:2914> SREL| COMP Jack Johnson searches 10724,10190 for food | in=0 out=0
+LOG  : Lua          f:2958> SREL| COMP Jack Johnson searches 10724,10190 for food | in=0 out=0
+LOG  : Lua          f:2958> SREL| LOOT gives up on 10724,10190 -- could not get there in 3 tries
+LOG  : Lua          f:2959> SREL| COMP Jack Johnson searches 10725,10190 for food | in=0 out=0
+LOG  : Lua          f:3008> SREL| COMP Jack Johnson searches 10725,10190 for food | in=0 out=0
+LOG  : Lua          f:3050> SREL| COMP Jack Johnson searches 10725,10190 for food | in=0 out=0
+LOG  : Lua          f:3081> SREL| COMP Jack Johnson searches 10725,10190 for food | in=0 out=0
+LOG  : Lua          f:3081> SREL| LOOT gives up on 10725,10190 -- could not get there in 3 tries
+LOG  : Lua          f:3082> SREL| COMP Jack Johnson searches 10723,10187 for food | in=0 out=0
+LOG  : Lua          f:3116> SREL| COMP Jack Johnson searches 10723,10187 for food | in=0 out=0
+LOG  : Lua          f:3161> SREL| COMP Jack Johnson searches 10723,10187 for food | in=0 out=0
+LOG  : Lua          f:3255> SREL| COMP Jack Johnson searches 10723,10187 for food | in=0 out=0
+LOG  : Lua          f:3255> SREL| LOOT gives up on 10723,10187 -- could not get there in 3 tries
+LOG  : Lua          f:3256> SREL| COMP Jack Johnson searches 10719,10187 for food | in=0 out=0
+LOG  : Lua          f:3293> SREL| COMP Jack Johnson searches 10719,10187 for food | in=0 out=0
+LOG  : Lua          f:3326> SDOC|MEM|1786373182891|2252800|+67584
+LOG  : Lua          f:3326> SDOC|CALL|1786373182892|28328|BanditBrain.Get
+LOG  : Lua          f:3326> SDOC|CALL|1786373182892|25680|BanditUtils.GetZombieID
+LOG  : Lua          f:3326> SDOC|CALL|1786373182893|25680|BanditCompatibility.IsReanimatedForGrappleOnly
+LOG  : Lua          f:3326> SDOC|CALL|1786373182894|25620|BanditCompatibility.IsRagdoll
+LOG  : Lua          f:3326> SDOC|CALL|1786373182894|21399|BanditBrain.Remove
+LOG  : Lua          f:3326> SDOC|CALL|1786373182894|8468|BanditUtils.AreEnemies
+LOG  : Lua          f:3326> SDOC|CALL|1786373182895|1200|BanditCompatibility.GetGameVersion
+LOG  : Lua          f:3326> SDOC|CALL|1786373182895|878|BanditBrain.NeedResupplySlot
+LOG  : Lua          f:3326> SDOC|CALL|1786373182895|854|BanditBrain.HasActionTask
+LOG  : Lua          f:3326> SDOC|CALL|1786373182895|790|BanditBrain.HasTask
+LOG  : Lua          f:3326> SDOC|CALL|1786373182895|447|Bandit.GetTask
+LOG  : Lua          f:3326> SDOC|CALL|1786373182896|439|BanditBrain.IsBareHands
+LOG  : Lua          f:3326> SDOC|CALL|1786373182896|428|Bandit.ApplyVisuals
+LOG  : Lua          f:3326> SDOC|CALL|1786373182896|427|Bandit.SurpressZombieSounds
+LOG  : Lua          f:3326> SDOC|CALL|1786373182897|427|BanditBrain.IsOutOfAmmo
+LOG  : Lua          f:3326> Tiered zombie updates enabled, bandit count: 1 / 50, zombie count: 59 / 50
+LOG  : Lua          f:3326> SREL| AUTO census | Jack Johnson | rung=obey fear=0/83 hp=1.00 z=0@inf in=0 out=0 indoors friends=1 master=3.6 bag=true head=Move@10719,10188
+LOG  : Lua          f:3338> SREL| COMP Jack Johnson searches 10719,10187 for food | in=0 out=0
+LOG  : Lua          f:3372> SREL| COMP Jack Johnson searches 10719,10187 for food | in=0 out=0
+LOG  : Lua          f:3372> SREL| LOOT gives up on 10719,10187 -- could not get there in 3 tries
+LOG  : Lua          f:3373> SREL| COMP Jack Johnson stops searching -- nothing left within reach | carrying 2.0 / 8.0
+LOG  : Lua          f:3460> SREL| COMP Jack Johnson searches 10718,10187 for food | in=0 out=0
+LOG  : Lua          f:3498> SREL| COMP Jack Johnson searches 10718,10187 for food | in=0 out=0
+LOG  : Lua          f:3534> SREL| COMP Jack Johnson stops searching -- nothing left within reach | carrying 2.0 / 8.0
+LOG  : Lua          f:3774> [GMD] Cluster 0 is 0 long.
+LOG  : Lua          f:3774> [GMD] Cluster 1 is 0 long.
+LOG  : Lua          f:3774> [GMD] Cluster 2 is 0 long.
+LOG  : Lua          f:3774> [GMD] Cluster 3 is 0 long.
+LOG  : Lua          f:3774> [GMD] Cluster 4 is 0 long.
+LOG  : Lua          f:3774> [GMD] Cluster 5 is 0 long.
+LOG  : Lua          f:3774> [GMD] Cluster 6 is 0 long.
+LOG  : Lua          f:3774> [GMD] Cluster 7 is 0 long.
+LOG  : Lua          f:3774> [GMD] Cluster 8 is 0 long.
+LOG  : Lua          f:3774> [GMD] Cluster 9 is 0 long.
+LOG  : Lua          f:3774> [GMD] Cluster 10 is 0 long.
+LOG  : Lua          f:3774> [GMD] Cluster 11 is 0 long.
+LOG  : Lua          f:3774> [GMD] Cluster 12 is 0 long.
+LOG  : Lua          f:3774> [GMD] Cluster 13 is 0 long.
+LOG  : Lua          f:3774> [GMD] Cluster 14 is 0 long.
+LOG  : Lua          f:3774> [GMD] Cluster 15 is 0 long.
+LOG  : Lua          f:3774> [GMD] Cluster 16 is 0 long.
+LOG  : Lua          f:3774> [GMD] Cluster 17 is 0 long.
+LOG  : Lua          f:3774> [GMD] Cluster 18 is 0 long.
+LOG  : Lua          f:3774> [GMD] Cluster 19 is 0 long.
+LOG  : Lua          f:3774> [GMD] Cluster 20 is 0 long.
+LOG  : Lua          f:3774> [GMD] Cluster 21 is 0 long.
+LOG  : Lua          f:3774> [GMD] Cluster 22 is 0 long.
+LOG  : Lua          f:3774> [GMD] Cluster 23 is 0 long.
+LOG  : Lua          f:3774> [GMD] Cluster 24 is 0 long.
+LOG  : Lua          f:3774> [GMD] Cluster 25 is 0 long.
+LOG  : Lua          f:3774> [GMD] Cluster 26 is 0 long.
+LOG  : Lua          f:3774> [GMD] Cluster 27 is 0 long.
+LOG  : Lua          f:3774> [GMD] Cluster 28 is 0 long.
+LOG  : Lua          f:3774> [GMD] Cluster 29 is 0 long.
+LOG  : Lua          f:3774> [GMD] Cluster 30 is 0 long.
+LOG  : Lua          f:3774> [GMD] Cluster 31 is 1 long.
+LOG  : Lua          f:3774> SREL| PROBE Jack Johnson | id=10092959 | prog=Companion/Main clan=a742fcf6-29eb-5107-8396-d6c760d54dc0 hostile=false/false | known=false trust=0 neutral | joinMe=false | d=1
+LOG  : Lua          f:3774> SREL| PROBE tick | Jack Johnson | panic=0.000 stress=0.000 thirst=0.000 hunger=0.000 endurance=1.000
+LOG  : Lua          f:3774> SREL| PROBE shape | personality=none set
+LOG  : Lua          f:3774> SREL| PROBE shape | rnd=1,8,71,862,9886
+LOG  : Lua          f:3774> SREL| PROBE shape | loyal=true permanent=false master=1
+LOG  : Lua          f:3774> SREL| PROBE needs | getStats ok=true value=Stats{
+}
+LOG  : Lua          f:3774> SREL| PROBE needs | getBodyDamage ok=true value=-
+LOG  : Lua          f:3774> SREL| PROBE needs | getMoodles ok=true value=-
+LOG  : Lua          f:3774> SREL| PROBE stat | PANIC ok=true value=0
+LOG  : Lua          f:3774> SREL| PROBE stat | STRESS ok=true value=0
+LOG  : Lua          f:3774> SREL| PROBE stat | FATIGUE ok=true value=0
+LOG  : Lua          f:3774> SREL| PROBE stat | THIRST ok=true value=0
+LOG  : Lua          f:3774> SREL| PROBE stat | HUNGER ok=true value=0
+LOG  : Lua          f:3774> SREL| PROBE stat | ENDURANCE ok=true value=1
+LOG  : Lua          f:3774> SREL| PROBE stat | PAIN ok=true value=0
+LOG  : Lua          f:3774> SREL| PROBE stat | ANGER ok=true value=0
+LOG  : Lua          f:3774> SREL| PROBE stat | MORALE ok=true value=1
+LOG  : Lua          f:3774> SREL| PROBE stat | SANITY ok=true value=1
+LOG  : Lua          f:3774> SREL| PROBE stat | UNHAPPINESS ok=true value=0
+LOG  : Lua          f:3774> SREL| PROBE stat | BOREDOM ok=true value=0
+LOG  : Lua          f:3774> SREL| PROBE sweep: day 0 | 1 bandits within 30 tiles, 0 would offer Join Me! | store holds 0 records
+LOG  : Lua          f:3774> SDOC|MEM|1786373186664|2328576|+75776
+LOG  : Lua          f:3774> SDOC|CALL|1786373186665|29691|BanditBrain.Get
+LOG  : Lua          f:3774> SDOC|CALL|1786373186665|26940|BanditCompatibility.IsReanimatedForGrappleOnly
+LOG  : Lua          f:3774> SDOC|CALL|1786373186666|26940|BanditUtils.GetZombieID
+LOG  : Lua          f:3774> SDOC|CALL|1786373186666|26880|BanditCompatibility.IsRagdoll
+LOG  : Lua          f:3774> SDOC|CALL|1786373186666|22729|BanditBrain.Remove
+LOG  : Lua          f:3774> SDOC|CALL|1786373186667|8797|BanditUtils.AreEnemies
+LOG  : Lua          f:3774> SDOC|CALL|1786373186667|1221|BanditCompatibility.GetGameVersion
+LOG  : Lua          f:3774> SDOC|CALL|1786373186667|916|BanditBrain.NeedResupplySlot
+LOG  : Lua          f:3774> SDOC|CALL|1786373186668|896|BanditBrain.HasActionTask
+LOG  : Lua          f:3774> SDOC|CALL|1786373186668|793|BanditBrain.HasTask
+LOG  : Lua          f:3774> SDOC|CALL|1786373186668|458|BanditBrain.IsBareHands
+LOG  : Lua          f:3774> SDOC|CALL|1786373186670|455|BanditBrain.IsOutOfAmmo
+LOG  : Lua          f:3774> SDOC|CALL|1786373186670|449|Bandit.ApplyVisuals
+LOG  : Lua          f:3774> SDOC|CALL|1786373186670|448|BanditCompatibility.SurpressZombieSounds
+LOG  : Lua          f:3774> SDOC|CALL|1786373186671|448|Bandit.SurpressZombieSounds
+LOG  : Lua          f:3774> Tiered zombie updates enabled, bandit count: 1 / 50, zombie count: 59 / 50
+LOG  : General      f:4216> Saving worldgen params
+LOG  : General      f:4216> Saving GlobalModData
+LOG  : Lua          f:4216> removing all player data
+LOG  : Lua          f:4216> - player: 0
+LOG  : Lua          f:4216> removing all player data
+LOG  : Lua          f:4216> - player: 0
+LOG  : General      f:4216> GameThread exited.
