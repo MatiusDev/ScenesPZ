@@ -73,6 +73,123 @@ local Move = SR.Move
 --- Callers pass `tasks` straight to `Bandit.AddTask`, or return it upward the way
 --- `Loot.Search` and `Loot.FetchBag` already do -- both patterns exist in this mod today and
 --- neither needs to change to use this.
+-- WHERE THE PLAYER ACTUALLY WENT ---------------------------------------------------------
+--
+-- REPORTED, and it is the observation that produced this whole approach: "yo trepé un muro alto
+-- para pasar al otro lado, el NPC de una tomó la opción de rodearlo... debería ver por cuál
+-- camino fue el jugador."
+--
+-- WHY THIS IS CHEAP AND COMPARING ROUTES IS NOT. The obvious way to decide between climbing and
+-- walking around is to compute both routes and take the shorter. That is not affordable:
+-- `pathToLocation` is not a query, it COMMITS the character
+-- (pzserver/media/lua/client/TimedActions/WalkToTimedAction.lua:42), and resolution takes several
+-- ticks of `update()` returning Working. Evaluating two candidates means visibly starting and
+-- stopping the NPC once per candidate -- which is the "se queda quieto, no sabe qué hacer"
+-- symptom this project has spent a week removing, reintroduced deliberately.
+--
+-- The player's route needs none of that. It ALREADY HAPPENED. Somebody walked it, the engine
+-- already solved it, and it is known to be passable because a body went through it. Remembering
+-- it costs one table.
+--
+-- WHAT THIS DOES NOT DO. It does not prove the trail is SHORTER than going around -- that
+-- comparison still needs a real pathfind. It uses a cheaper rule instead: prefer the trail when
+-- the straight line to the player is blocked. That is a heuristic, and it is written down as one.
+--
+-- 44% OF JAMS ARE NOT ON THE STRAIGHT LINE. From the 10-08 log, the watchdog's own numbers:
+-- 12 `solid`, 11 `clear`, 1 `locked`, 1 `hop`. `clear` means the NPC was stuck for two sweeps
+-- without moving while the straight line to its target was open -- so whatever stopped it was
+-- never on that line, and `WhatBlocks` cannot see it by construction. A trail of squares the
+-- player really walked is the one thing that routes around an obstacle nobody can name.
+
+-- Tiles between crumbs. Too fine and the trail is a memory of jitter; too coarse and it cuts the
+-- corner the player took deliberately -- which is the whole point when that corner was a wall.
+local CRUMB_SPACING = 2.0
+
+-- How much trail to keep. Twelve crumbs at two tiles is roughly a street: far enough to cover
+-- being left behind, short enough that following it never looks like archaeology.
+local CRUMB_MAX = 12
+
+-- How many of the newest crumbs `TrailTarget` will test. Each test walks a line of squares and
+-- the caller runs every 800 ms, so this is the knob that keeps the trail cheap.
+local TRAIL_SCAN = 4
+
+local trail = {}
+
+--- Remember where the player is, if they have moved far enough to be worth a crumb.
+---
+--- Called from the fast tick, which already runs and already holds the player. Cheap on purpose:
+--- one distance test, and an append that happens only every couple of tiles.
+function Move.DropCrumb(player)
+    if not player then return end
+    local x, y, z = player:getX(), player:getY(), player:getZ()
+
+    local last = trail[#trail]
+    if last then
+        local dx, dy = x - last.x, y - last.y
+        local movedFar = (dx * dx + dy * dy) >= (CRUMB_SPACING * CRUMB_SPACING)
+        -- A floor change always earns a crumb whatever the horizontal distance. Stairs are
+        -- exactly the case where two points are close in x and y and not reachable from each
+        -- other, and a trail that skips them would aim an NPC at the ceiling.
+        local changedFloor = math.floor(z) ~= math.floor(last.z)
+        if not movedFar and not changedFloor then return end
+    end
+
+    trail[#trail + 1] = { x = x, y = y, z = z }
+    while #trail > CRUMB_MAX do table.remove(trail, 1) end
+end
+
+--- The best crumb for this NPC to head for, or nil to just go straight at the player.
+---
+--- Returns the NEWEST crumb the NPC can see in a straight line -- newest because it is the
+--- furthest along the player's route, and straight-line-visible because there is no point aiming
+--- at a waypoint we already know is walled off. Walking to it puts the NPC where the player
+--- stood, and from there the next leg is the one the player themselves walked.
+---
+--- nil when the trail is empty, or when no crumb is reachable, or when the NPC is already at the
+--- newest one -- in all three cases the caller should do what it did before.
+function Move.TrailTarget(zombie)
+    if #trail == 0 then return nil end
+
+    local zx, zy = zombie:getX(), zombie:getY()
+
+    -- Only the freshest few. Each candidate costs a `WhatBlocks`, which walks a line of squares,
+    -- and this runs from the 800 ms tick -- twelve candidates per companion is a real per-second
+    -- cost for crumbs that are increasingly stale anyway. The newest reachable one is what we
+    -- want; if none of the last four is reachable, the trail is not the answer to this jam.
+    local oldest = math.max(1, #trail - TRAIL_SCAN + 1)
+
+    for i = #trail, oldest, -1 do
+        local crumb = trail[i]
+        local dx, dy = crumb.x - zx, crumb.y - zy
+        -- Already standing on it: this crumb and every older one are behind us.
+        if (dx * dx + dy * dy) > (CRUMB_SPACING * CRUMB_SPACING) then
+            if Move.WhatBlocks(zombie, crumb.x, crumb.y, crumb.z) == nil then
+                return crumb.x, crumb.y, crumb.z, i
+            end
+        end
+    end
+
+    return nil
+end
+
+--- How many crumbs are held. Diagnostics only.
+function Move.TrailSize()
+    return #trail
+end
+
+--- Forget the route.
+---
+--- Nothing did this, and a trail is not the kind of state that ages gracefully. It survives a
+--- save and a reload, so a companion could be sent to a square remembered from a previous
+--- session, in a building that may since have burned down. It also survives the player dying and
+--- a new character starting somewhere else entirely, which would aim every companion at a corpse
+--- across the map.
+function Move.ForgetTrail()
+    trail = {}
+end
+
+Events.OnGameStart.Add(Move.ForgetTrail)
+
 -- WHAT IS IN THE WAY ---------------------------------------------------------------------
 --
 -- REPORTED, and the reason this exists: "los NPC se siguen trabando mucho entre los objetos...
@@ -124,6 +241,10 @@ Move.BLOCK_LOCKED = "locked"    -- shut and locked: this way is closed
 Move.BLOCK_HOP    = "hop"       -- a low fence: climbable
 Move.BLOCK_TALL   = "tall"      -- a tall fence: climbable, slower
 Move.BLOCK_SOLID  = "solid"     -- something we cannot act on, including a plain wall
+-- NOT an obstacle: "we did not look". Kept distinct from nil, and that distinction is
+-- load-bearing -- a caller that treats "clear" and "unknown" the same will do the wrong thing
+-- on stairs, which is exactly where it matters most.
+Move.BLOCK_UNKNOWN = "unknown"
 
 --- Classify one object. Returns a Move.BLOCK_* constant, or nil if it is not an obstacle.
 local function classify(obj)
@@ -160,11 +281,16 @@ function Move.WhatBlocks(zombie, tx, ty, tz)
 
     local bx, by, bz = zombie:getX(), zombie:getY(), zombie:getZ()
 
-    -- A DIFFERENT FLOOR IS NOT A WALL. This used to answer BLOCK_SOLID, which reads as "nothing
-    -- can be done here" and poisons the telemetry this exists to collect -- `getZ()` is a float
-    -- that dips mid-staircase, so an NPC on a stair could report a wall where there were stairs.
-    -- Unknown is the honest answer: we did not look.
-    if math.floor(bz) ~= math.floor(tz) then return nil end
+    -- A DIFFERENT FLOOR IS NOT A WALL, AND IT IS NOT A CLEAR LINE EITHER. This first answered
+    -- BLOCK_SOLID, which reads as "nothing can be done here"; the second version answered nil,
+    -- which reads as "the way is clear" -- and that one is worse, because callers act on it.
+    --
+    -- Concretely, it defeated a rule three lines of this file exist to serve: `DropCrumb` always
+    -- drops a crumb on a floor change, precisely so a companion can follow somebody upstairs.
+    -- With nil here, `assertFollow` reads the line to a master one floor up as CLEAR, never asks
+    -- for the trail, and walks at a point through the ceiling. The stair crumb could never be
+    -- reached by the only thing that wanted it.
+    if math.floor(bz) ~= math.floor(tz) then return Move.BLOCK_UNKNOWN end
 
     local okClear, blocked = pcall(function()
         return LosUtil.lineClearCollide(
