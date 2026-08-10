@@ -253,6 +253,51 @@ número elegido tiene sentido.
 Lo que sí va en un hook de `pre-push` es `lint.sh` + `audit.py`: si fallan, no sale. La revisión
 sigue siendo un paso delegado, pero con un brief mucho más chico.
 
+## 4c. El paso 3 se descartó, y la razón vale más que el paso
+
+Se escribió, se revisó y **no se commiteó**. La revisión encontró que la premisa era falsa, y lo
+verifiqué yo mismo contra el motor.
+
+**Lo que creíamos:** "un programa de Bandits solo corre con la cola vacía, así que un NPC tres
+tareas adentro nunca se entera del zombi". Es la frase que abre `ScenesRelationsAutonomy.lua` y
+es cierta **para casi todo, menos para combate**.
+
+**Lo que hace Bandits en realidad:**
+
+```lua
+elseif combat then
+    if not BanditBrain.HasTaskTypes(brain, {"Smack", "Push", "Equip", "Unequip"}) then
+        Bandit.ClearTasks(bandit)      -- se limpia la cola A SÍ MISMO
+```
+`vendor/Bandits/mods/Bandits/42.20/media/lua/client/BanditUpdate.lua:1210-1212`
+
+`ManageCombat` corre **cada tick de Bandits**, no cada 800 ms ni cada 6 segundos, y **vacía la
+cola por su cuenta** para meter el ataque. "Está looteando y lo muerden, tiene que soltar el
+cajón" nunca estuvo bloqueado por la cola. Ya funcionaba.
+
+**Y nuestro interruptor era activamente dañino.** Cancelábamos a `ENGAGE_RANGE = 4`, pero Bandits
+solo pelea a `meleeDist = isOutside and 2.6 or 1.2` (`BanditUpdate.lua:961`). Entre 1.2 y 4
+—adentro de una casa, que es donde se lootea— cancelábamos una tarea que el framework **no** iba a
+reemplazar por nada: sin combate, sin loot, sin movimiento, hasta el próximo barrido de un minuto.
+Cada 800 ms, con una línea de log cada vez. **Hasta 60 segundos de parálisis total** donde antes
+había "termina el cajón en 3 segundos y vuelve a decidir".
+
+### Qué se aprende, y qué queda
+
+1. **La latencia de 6 segundos no es un problema de combate.** Lo es de todo lo demás —decidir
+   huir, decidir seguir— pero el combate ya lo resuelve upstream a velocidad de tick.
+2. **Antes de acelerar una decisión, hay que verificar que la decisión lenta sea la que manda.**
+   Acá la lenta no mandaba: mandaba una rápida que ya existía y que no habíamos leído.
+3. **Un rango de interrupción tiene que ser MENOR o igual al rango en que algo lo reemplaza.**
+   Cancelar más lejos de lo que el reemplazo alcanza crea una banda muerta. Si alguna vez vuelve
+   a hacer falta interrumpir, ese es el invariante.
+
+**Hueco de upstream, anotado y no arreglado:** `ManageEndurance` encola cinco tareas
+`{action="Time", anim="Exhausted", time=200, lock=true}` (`BanditUpdate.lua:439-444`) — unos 16
+segundos de indefensión que ni `Bandit.ClearTasks` puede quitar por el `lock`, y que corren
+**antes** de `ManageCombat`. Un NPC exhausto no se defiende. No es nuestro y no se toca, pero
+explica muertes que parecían inexplicables.
+
 ## 5. El orden
 
 Cada paso deja algo probable en juego. No se encadenan a ciegas.
@@ -266,7 +311,7 @@ subagente salga de acá y no haya que redactarlo cada vez.
 | **0** | `tools/audit.py` + `luacheck` (sección 4b) | ⬜ | `pz-lua` (es tooling, no mod) | los 5 chequeos corren y el brief de review los cita |
 | **1** | Revertir el vestir la mochila | ✅ `f4839cf` | — | el cadáver trae UNA mochila |
 | **2** | Etiquetar **todos** los productores de tarea con `srGoal` | ⬜ | 1 escritor, mecánico | `grep -c srGoal` cubre loot, refugio, descanso, idle y follow |
-| **3** | Corte de interrupción rápida | ⬜ | `pz-research` → 1 escritor | un zombi en rango preempta en < 1 s, no en 6 |
+| **3** | ~~Corte de interrupción rápida~~ | ❌ **descartado** | — | la premisa era falsa, ver 4c |
 | **4** | Re-aterrizar la cola que sobrevive | ⬜ | 1 escritor + review | Threat sabe que una cabeza ajena no es ruta perdida; Loot distingue "interrumpido" de "no llegué" |
 | **5** | Modelo de objetivos ppal/secundarios | ⬜ | 1 escritor + review | ningún `mood.*Goal` guardado; todo derivado |
 | **6** | Acción de puerta + orden entrar/salir | ⬜ | `pz-research` → 1 escritor | entra por la puerta antes que por la ventana |
