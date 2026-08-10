@@ -40,6 +40,20 @@ local originalIncrease = nil
 -- compiles it without a word.
 local reported = false
 
+-- THE JUMPS CARE. Our suppression sets the increase rate to zero and clamps the stat to
+-- zero on every tick via applyCached. But the engine's zombie-proximity mechanic runs
+-- Java-side between ticks and may add panic directly -- not through the rate, through a
+-- straight stat bump the Lua side never sees as an intermediate value. If it does, the stat
+-- will be non-zero when the sweep next reads it, even though friendlyCache is true and
+-- applyCached has been running every tick.
+--
+-- This monitor records the highest PANIC stat ever seen while suppression was active, and
+-- logs spikes above the moodle threshold. One log line per spike per session -- "hay un
+-- efecto donde si sucede por un microsegundo y luego desaparece" is the exact report, and a
+-- per-spike line would be hundreds of copies of the same line.
+local maxSuppressedPanic = 0
+local spikesLogged = 0
+
 -- THE FLICKER, AND WHY THE FIX SPLITS IN TWO. Reported: "hay un efecto donde si sucede por un
 -- microsegundo y luego desaparece casi de inmediato... pasa muy de vez en cuando al mirar de
 -- repente a un NPC." `sweep` below only zeroed the PANIC stat once per pass -- once every
@@ -119,6 +133,30 @@ local function sweep()
         end
 
         friendlyCache = onlyFriendsNear(player)
+
+        -- SPIKE DETECTOR. If we are suppressing panic (only friends nearby) and the stat is
+        -- somehow above zero, the engine bypassed us -- this is the "jumpscare" mechanic the
+        -- user reported as "cuando uno mira a un NPC le causa pánico." The stat we read here
+        -- is the player's ACTUAL panic, not the increase rate we control.
+        if friendlyCache then
+            local panicStat = player:getStats():get(CharacterStat.PANIC)
+            if type(panicStat) == "number" and panicStat > 0 then
+                if panicStat > maxSuppressedPanic then
+                    maxSuppressedPanic = panicStat
+                end
+                -- Any positive value while suppression is active means the engine bypassed
+                -- us. Log at most 3 per session so the log stays readable. The raw stat
+                -- scale is unknown -- vanilla divides by 100 in one place (forageSystem.lua)
+                -- and adds 50 in another (ISStitch.lua), so the number itself is what tells
+                -- us the magnitude.
+                if spikesLogged < 3 then
+                    spikesLogged = spikesLogged + 1
+                    SR.Log(string.format(
+                        "PANIC spike #%d detected | stat=%d despite suppression active | max seen this session=%d",
+                        spikesLogged, panicStat, maxSuppressedPanic))
+                end
+            end
+        end
     end)
 
     -- Once, not once a minute. The throw that killed the first version was worth exactly one
@@ -245,5 +283,5 @@ end
 Events.OnPlayerUpdate.Add(applyCached)
 
 Events.OnGameStart.Add(function()
-    SR.Log("PANIC ready -- your own people no longer read as a horde")
+    SR.Log("PANIC ready -- your own people no longer read as a horde; spike detector active (logs jumpscares)")
 end)

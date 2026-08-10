@@ -291,18 +291,35 @@ local function glassOnSquare(square)
     return smashed and not removed
 end
 
+--- Cut an NPC and log it. Shared by both the sweep checker and the OpenWindow hook so the
+--- two paths produce the same line and the same cooldown.
+local function applyGlassCut(zombie, brain, mood, square, why)
+    local max = tonumber(brain.health) or 2
+    local ok, now = pcall(function() return zombie:getHealth() end)
+    if not ok or type(now) ~= "number" then return end
+
+    local hurt = math.max(0.05, now - GLASS_DAMAGE)
+    pcall(function() zombie:setHealth(hurt) end)
+
+    Wounds.Of(brain).dressing = nil
+    mood.cutAt = CUT_COOLDOWN
+
+    pcall(function() Bandit.Say(zombie, "HIT") end)
+
+    SR.Log(string.format("WOUND %s cut on broken glass at %d,%d | %.2f -> %.2f / %.2f | %s",
+        tostring(brain.fullname), square:getX(), square:getY(), now, hurt, max, why))
+end
+
 --- Cut them if they are standing in a broken frame.
 ---
 --- Called from the autonomy sweep, which already holds the brain, the mood and the square,
 --- so this costs one getWindow per NPC per sweep and no second pass over anything.
 ---
---- KNOWN LIMIT, STATED RATHER THAN HIDDEN: the sweep runs about every six seconds, so an
---- NPC that crosses a window entirely between two sweeps is not caught. Bandits queues
---- OpenWindow with time=60 and lingers, so most crossings should be seen -- but this
---- SAMPLES, it does not intercept. There is no climb-through event to hook: Bandits has no
---- ClimbThroughWindow action at all, the engine's pathing carries them over. If the log
---- shows crossings going unpunished, the fix is a faster dedicated tick, not a cleverer
---- test here.
+--- WHAT THE 10-08 SESSION CHANGED. The sweep runs about every six seconds, so an NPC that
+--- crosses a window entirely between two sweeps is not caught. The OpenWindow hook below
+--- catches the moment they open the window, which is the single most likely crossing; the
+--- sweep catches the rest -- an NPC that loiters on a smashed frame, or that pathfinds
+--- through one the engine already knows about.
 function Wounds.CheckGlass(zombie, brain, mood, square)
     if not glassOnSquare(square) then
         mood.cutAt = nil
@@ -315,45 +332,80 @@ function Wounds.CheckGlass(zombie, brain, mood, square)
         return false
     end
 
-    local max = tonumber(brain.health) or 2
-    local ok, now = pcall(function() return zombie:getHealth() end)
-    if not ok or type(now) ~= "number" then return false end
-
-    local hurt = math.max(0.05, now - GLASS_DAMAGE)
-    pcall(function() zombie:setHealth(hurt) end)
-
-    -- A dressing does not survive being dragged across broken glass.
-    Wounds.Of(brain).dressing = nil
-
-    mood.cutAt = CUT_COOLDOWN
-    -- "HIT", not "PAIN". The full set of phrase keys Bandits actually calls Say with is
-    -- BREACH BURN CAR DEAD DEATH DRAGDOWN HIT INSIDE OUTSIDE RELOADING SPOTTED UPSTAIRS.
-    -- PAIN reads better and does not exist -- the same trap that cost this project a
-    -- session over isNPC() and getPanic().
-    pcall(function() Bandit.Say(zombie, "HIT") end)
-
-    SR.Log(string.format("WOUND %s cut on broken glass at %d,%d | %.2f -> %.2f / %.2f",
-        tostring(brain.fullname), square:getX(), square:getY(), now, hurt, max))
+    applyGlassCut(zombie, brain, mood, square, "sweep")
     return true
+end
+
+-- OPEN-WINDOW HOOK ----------------------------------------------------------------------
+--
+-- THE GAP THE SWEEP CANNOT CLOSE. CheckGlass samples every ~6 s and catches an NPC who
+-- LINGERS on a smashed frame. But the common case is: NPC reaches a window, Bandits queues
+-- OpenWindow (time=60, ~1 s), they open it, and the engine pathfinds them through in under
+-- a second. If that whole sequence happens between two sweeps, the cut is never applied.
+--
+-- Wrapping OpenWindow.onComplete catches it at the one moment every window crossing shares:
+-- the completion of the OpenWindow task. At that point the window HAS been toggled, so we
+-- check the square they are about to cross -- BEFORE the engine carries them through.
+--
+-- WHY NOT ZASmashWindow. SmashWindow is a deliberate act that already implies the glass is
+-- gone; OpenWindow is the one where an unaware NPC walks into a frame that still has teeth.
+local vanillaOpenWindowComplete
+
+local function scenesOpenWindowComplete(zombie, task)
+    -- Run the original first -- the window must actually open.
+    local result = vanillaOpenWindowComplete(zombie, task)
+
+    -- Now check: was there glass on this square that we should have cut them for?
+    -- We read the square and the window AFTER the original toggles it, so a window
+    -- that was intact before opening will now be IsOpen() and never was smashed.
+    -- But a window that was ALREADY smashed when they arrived will still read smashed,
+    -- and if the glass was never removed, they should have been cut.
+    --
+    -- The sweep checker and this hook share one cooldown (mood.cutAt), so a crossing
+    -- caught by both paths only bleeds once.
+    local brain = BanditBrain.Get(zombie)
+    if brain then
+        local mood = SR.Mood(zombie)
+        local square = zombie:getSquare()
+        if glassOnSquare(square) and not (mood.cutAt and mood.cutAt > 0) then
+            applyGlassCut(zombie, brain, mood, square, "window-open")
+        end
+    end
+
+    return result
 end
 
 -- INSTALL ------------------------------------------------------------------------------
 
 function Wounds.Install()
     if vanillaBandageComplete then return true end
+
+    local ok = true
+
     if not ZombieActions or not ZombieActions.Bandage
        or type(ZombieActions.Bandage.onComplete) ~= "function" then
         SR.Log("WOUND could not install -- ZombieActions.Bandage.onComplete is not there")
-        return false
+        ok = false
+    else
+        vanillaBandageComplete = ZombieActions.Bandage.onComplete
+        ZombieActions.Bandage.onComplete = scenesBandageComplete
     end
 
-    vanillaBandageComplete = ZombieActions.Bandage.onComplete
-    ZombieActions.Bandage.onComplete = scenesBandageComplete
-    return true
+    -- The OpenWindow hook catches window crossings the sweep-based CheckGlass misses.
+    -- Bandits' ZAOpenWindow exists (verified in 42.20 media/lua/shared/ZombieActions/),
+    -- and if it ever doesn't, glass still works through the sweep alone.
+    if ZombieActions and ZombieActions.OpenWindow
+       and type(ZombieActions.OpenWindow.onComplete) == "function"
+       and not vanillaOpenWindowComplete then
+        vanillaOpenWindowComplete = ZombieActions.OpenWindow.onComplete
+        ZombieActions.OpenWindow.onComplete = scenesOpenWindowComplete
+    end
+
+    return ok
 end
 
 Events.OnGameStart.Add(function()
     if Wounds.Install() then
-        SR.Log("WOUND ready -- healing costs a dressing; broken glass costs blood")
+        SR.Log("WOUND ready -- healing costs a dressing; broken glass costs blood; window-open hook catches crossings the sweep misses")
     end
 end)
