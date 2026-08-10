@@ -396,3 +396,38 @@ no de diagnóstico:
 WARNING por constante muerta, sin crashes ni regresiones).
 
 **Pruebas:** P14–P18 en `TESTING-NOW.md`.
+
+### Resultados de la corrida 10-08 (console.txt, ~18K líneas)
+
+| Prueba | Veredicto | Evidencia |
+|---|---|---|
+| P12 (trabas) | ✅ Datos recolectados | `hop` ×2, `clear` ×1, `solid` ×1, `tall` ×1 |
+| P13 (sonda puertas) | ✅ RESUELTO | `isExterior ok=true`, `isExteriorDoor ok=true` — ambos llamables |
+| P14 (follow al trotar) | ✅ Funciona | `master running` en follows, locks activos (`lock=true`) |
+| P15 (no se queda pegado) | ✅ Lock funciona | Cero `combat took the last follow`. `caught up ... released N follow lock(s)` ×3 |
+| P16 (te sigue lejos) | ⚠️ Recuperación OK, pathfinding no | `found again at X tiles` ×4. Pero se traba en obstáculos (bloque B) |
+| P17 (resistencia) | ✅ Funciona | Ciclo winded→sit→rested completo. `WALK_RECOVERY=0.02`, `WINDED=0.35` |
+| P18 (telemetría) | ✅ Funciona | `chase over` 30+, `fast follow` 10+, `following master` 20+ |
+
+**Valores reales en código (no los del mensaje de commit):** `WALK_RECOVERY = 0.02`,
+`WINDED = 0.35`. El agente los ajustó durante la sesión de edición.
+
+---
+
+## Corrida abierta 10-08b: vidrios rotos y pánico (jumpscare)
+
+**Inicio:** 2026-08-10. Dos fixes, ambos con logs nuevos para validar:
+
+1. **Glass hook** — `ScenesRelationsWounds.lua`: wrappea `ZAOpenWindow.onComplete` para
+   aplicar daño de vidrios en el momento de abrir la ventana. El checker por sweep sigue
+   funcionando; el hook atrapa los cruces que ocurren entre sweeps. Log: `window-open` vs
+   `sweep`.
+
+2. **Panic spike detector** — `ScenesRelationsPanic.lua`: monitor en el sweep que lee el
+   stat real de pánico del jugador. Si es >0 mientras la supresión está activa (solo amigos
+   cerca), el motor metió un bump directo — el "jumpscare" del IsoZombie. Log: `PANIC spike
+   #N detected | stat=X`.
+
+**Review:** PASS, 1 SUGGESTION (umbral del detector bajado a >0).
+
+**Pruebas:** P19–P20 en `TESTING-NOW.md`. P14–P18 también listadas como referencia.
