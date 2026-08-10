@@ -348,6 +348,40 @@ def check_luacheck(files):
     return findings, False
 
 
+# --- 7. LUA 5.2+ SYNTAX -----------------------------------------------------------------
+#
+# The engine runs Kahlua, which is Lua 5.1. The `luac` on this machine is 5.5, and it happily
+# compiles syntax 5.1 never had -- so `tools/lint.sh` reports "ok" for code that throws in game,
+# on another machine, where the only symptom is a stack trace in console.txt.
+#
+# Found the hard way: a `goto continue` passed lint and would have failed in play.
+#
+# Only forms that are unambiguous in Lua source are checked. Bitwise operators are deliberately
+# absent -- `~` is also 5.1's "not equals" when written `~=`, and `&`/`|` appear inside string
+# patterns often enough that flagging them would be noise.
+
+FIVETWO = [
+    (re.compile(r"\bgoto\s+[A-Za-z_]\w*"), "goto -- 5.2+, Kahlua is 5.1"),
+    (re.compile(r"::[A-Za-z_]\w*::"), "goto label -- 5.2+, Kahlua is 5.1"),
+    (re.compile(r"[^/]//[^/]"), "integer division // -- 5.3+, Kahlua is 5.1"),
+    (re.compile(r"\btable\.(pack|unpack)\b"), "table.pack/unpack -- 5.2+; 5.1 has bare unpack()"),
+    (re.compile(r"\bmath\.type\b"), "math.type -- 5.3+, Kahlua is 5.1"),
+]
+
+
+def check_five_one(files):
+    findings = []
+    for path in files:
+        for n, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+            code = line.split("--", 1)[0]
+            if not code.strip():
+                continue
+            for rx, msg in FIVETWO:
+                if rx.search(code):
+                    findings.append((rel(path), n, color(msg, RED)))
+    return findings, True
+
+
 CHECKS = {
     "latches": ("flags set but never cleared", check_latches),
     "tasktime": ("real lifetime of every queued task", check_task_times),
@@ -355,6 +389,7 @@ CHECKS = {
     "vendor": ("vendor citations missing a version folder", check_vendor_citations),
     "pcall": ("pcall results that are discarded", check_swallowed_pcalls),
     "luacheck": ("undefined globals and lexical-scope traps", check_luacheck),
+    "lua51": ("syntax the engine's Lua 5.1 does not have", check_five_one),
 }
 
 
