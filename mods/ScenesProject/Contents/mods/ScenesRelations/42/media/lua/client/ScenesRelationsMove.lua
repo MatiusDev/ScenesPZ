@@ -12,7 +12,7 @@
 -- together -- the fix, and the exact symptom it produced ("lotea desde el mismo punto"), are
 -- documented at length right above Loot.Search in ScenesRelationsLoot.lua. ScenesRelationsIdle
 -- .lua's goGet() had the same shape: it queued a move AND an unconditional PickUp, and
--- `ZombieActions.PickUp.onComplete` (vendor/Bandits/.../ZombieActions/ZAPickUp.lua:14) has no
+-- `ZombieActions.PickUp.onComplete` (vendor/Bandits/mods/Bandits/42.20/media/lua/shared/ZombieActions/ZAPickUp.lua:14) has no
 -- distance check of its own -- it reads the item off `task.x, task.y, task.z` regardless of
 -- where the zombie actually ended up, so a move cut short let it grab the item from wherever
 -- it lies, silently, from however far the walk got interrupted.

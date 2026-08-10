@@ -9,7 +9,7 @@
 --   The TARGET is the first argument and the ATTACKER is the second. Confirmed at two
 --   independent callsites:
 --     pzserver/media/lua/shared/Definitions/DamageModelDefinitions.lua:24  (vanilla)
---     vendor/Bandits/.../client/BanditUpdate.lua:2136                      (Bandits)
+--     vendor/Bandits/mods/Bandits/42.20/media/lua/client/BanditUpdate.lua:2136                      (Bandits)
 --   Reading that order backwards would move trust on the wrong entity, and nothing would
 --   error -- it would just be quietly wrong for the whole session.
 

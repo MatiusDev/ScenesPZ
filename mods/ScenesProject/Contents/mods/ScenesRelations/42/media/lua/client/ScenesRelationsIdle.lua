@@ -177,7 +177,7 @@ end
 ---
 --- This used to add the move task and then unconditionally add the pickup task right behind
 --- it, regardless of whether the walk actually arrived. `ZombieActions.PickUp.onComplete`
---- (vendor/Bandits/.../ZombieActions/ZAPickUp.lua:14) has no distance check of its own -- it
+--- (vendor/Bandits/mods/Bandits/42.20/media/lua/shared/ZombieActions/ZAPickUp.lua:14) has no distance check of its own -- it
 --- grabs whatever matches `itemType` off `task.x, task.y, task.z` no matter where the NPC is
 --- standing when the task runs -- so a move cut short by a shove, a blocked path, or the
 --- autonomy ladder clearing the queue let this pick something up from across the room,
