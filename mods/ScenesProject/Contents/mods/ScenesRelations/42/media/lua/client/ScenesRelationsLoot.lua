@@ -65,6 +65,22 @@ local SEARCH = 8
 -- beans because it changes what every future search is worth.
 local BAG_SEARCH = 12
 
+-- Tiles. How close the NPC's REAL position has to be, at the moment of taking, to the square
+-- it would stand at to reach this container -- not to the container's own square, and not to
+-- wherever the walk was PLANNED to end.
+--
+-- The value is not invented: it is the same tolerance `SR.Move.GoAndDo` uses to decide a walk
+-- has arrived (`precision`, ScenesRelationsMove.lua:80). Using anything looser here would make
+-- the check written specifically to catch drift after that decision (R13,
+-- docs/CODE-REVIEW-RULES.md) MORE forgiving than the walk that produced the drift in the first
+-- place -- which defeats the point of re-checking at all.
+local REACH = 0.7
+
+-- How many times a container may be refused at the moment of taking before it is written off for
+-- good. Small on purpose: a refusal usually means the NPC drifted or is on the wrong side of a
+-- wall, and one or two more approaches either fix that or prove it cannot be fixed.
+local MAX_REFUSALS = 2
+
 -- WHAT COUNTS AS WHAT ------------------------------------------------------------------
 --
 -- These live ABOVE the action that uses them, and the placement is not cosmetic. Lua binds
@@ -189,15 +205,96 @@ ZombieActions.ScenesLoot.onComplete = function(zombie, task)
     local square = cell:getGridSquare(task.x, task.y, task.z)
     if not square then return true end
 
-    -- THE ACTION REFUSES TO REACH. Loot.Search now only queues this once the NPC is already
-    -- standing at the furniture, so this should never fire -- which is exactly why it is here.
-    -- The queue is not ours alone: the ladder, a fight, or a shove can leave this task in place
-    -- while the NPC ends up somewhere else, and the failure it produces is silent and looks
-    -- like a design choice rather than a bug. It cost three play sessions once already.
-    local reach = BanditUtils.DistTo(zombie:getX(), zombie:getY(), task.x + 0.5, task.y + 0.5)
-    if reach > 2.0 then
-        SR.Log(string.format("LOOT refused -- %.1f tiles from %d,%d", reach, task.x, task.y))
+    -- THE ACTION REFUSES TO REACH -- FOR REAL, NOT FOR THE PLAN. Loot.Search only queues this
+    -- once `SR.Move.GoAndDo` (ScenesRelationsMove.lua) decided the NPC was at the right square,
+    -- but that decision was made when the task was QUEUED. R13 (docs/CODE-REVIEW-RULES.md) is
+    -- exactly this: a queued task guarantees it ENDED, never that it ARRIVED. The ladder, a
+    -- fight, a shove, or simply the 200 ticks of "Loot" animation between onStart and onComplete
+    -- are all real time in which the NPC's actual position can drift away from the one that was
+    -- checked. This is the only place left that runs at the moment of taking, with the NPC's
+    -- real position available, so this is where the check has to live.
+    --
+    -- REPORTED FROM PLAY: "alguien pudo lootear a traves de una pared de un objeto que estaba
+    -- en otra habitacion" -- an NPC emptied a container through a wall, into a different room.
+    -- Two squares can be one tile apart and still be in different rooms, and distance alone
+    -- cannot tell them apart -- that is what the wall check below is for. Both conditions below
+    -- have to pass; neither is sufficient on its own.
+    --
+    -- STEP 1: WHERE WOULD SOMEBODY ACTUALLY STAND. Same rule GoAndDo used to queue this task in
+    -- the first place, recomputed here rather than trusted from then: the container's own square
+    -- if it is open, otherwise the nearest free neighbour with no wall between it and the
+    -- container. `BanditUtils.GetAccessSquare(gridSquare, bandit)` --
+    -- vendor/Bandits/mods/Bandits/42.20/media/lua/shared/BanditUtils.lua:1056 -- takes the
+    -- container square and the NPC, in that order, and does exactly this
+    -- (`gridSquare:isWallTo(testSquare)` at :1071, `isWallTo` confirmed on a live IsoGridSquare
+    -- at pzserver/media/lua/server/ISObjectClickHandler.lua:135). `square:isNotBlocked(false)` is
+    -- vanilla, confirmed at pzserver/media/lua/shared/Foraging/forageSystem.lua:1695.
+    local okStand, standSquare = pcall(function()
+        if square:isNotBlocked(false) then return square end
+        return BanditUtils.GetAccessSquare(square, zombie)
+    end)
+    -- A refusal must not be a death sentence for the container. `Loot.Search` marked this spot
+    -- when the WALK arrived, before this action ran, so without giving the mark back a single
+    -- refusal deletes the furniture from this NPC's world permanently. `Loot.Forget` returns
+    -- whether it will be tried again, so the log says which of the two happened.
+    local mood = SR.Mood(zombie)
+    local function refuse(reason)
+        local retry = Loot.Forget(mood, task.x, task.y, task.z)
+        SR.Log(string.format("LOOT refused (%s) at %d,%d -- %s",
+            reason, task.x, task.y, retry and "will try again" or "written off"))
         return true
+    end
+
+    if not okStand or not standSquare then
+        SR.Log(string.format("LOOT no standing square -- zombie %.1f,%.1f, target %d,%d",
+            zombie:getX(), zombie:getY(), task.x, task.y))
+        return refuse("no standing square")
+    end
+
+    local zx, zy, zz = zombie:getX(), zombie:getY(), zombie:getZ()
+    local sx, sy, sz = standSquare:getX(), standSquare:getY(), standSquare:getZ()
+
+    -- STEP 2: DISTANCE TO THAT SQUARE, NOT TO THE CONTAINER'S. Measuring straight to the
+    -- container (the old check) is why REACH had to be a loose 2.0 -- a diagonal access square
+    -- is already 1.4 tiles from the container, before the NPC's own walking slop. Measuring to
+    -- the standing square instead means REACH can be the real adjacency tolerance.
+    local reach = BanditUtils.DistTo(zx, zy, sx + 0.5, sy + 0.5)
+    if reach > REACH then
+        SR.Log(string.format(
+            "LOOT too far -- zombie %.1f,%.1f vs stand %.1f,%.1f | %.2f > %.1f tiles",
+            zx, zy, sx + 0.5, sy + 0.5, reach, REACH))
+        return refuse("too far")
+    end
+
+    -- STEP 3: NO WALL BETWEEN THE NPC AND THE CONTAINER.
+    --
+    -- AND THE TARGET HERE IS THE CONTAINER, NOT THE STANDING SQUARE -- the first version got that
+    -- wrong and the mistake made the whole step INERT. Step 2 has just established that the NPC
+    -- is within 0.7 tiles of the standing square, so flooring both positions gives the SAME tile
+    -- in almost every passing case, and the call was asking whether a square can see itself. It
+    -- could never refuse anything. What was actually catching the through-wall case was step 1,
+    -- inside `GetAccessSquare`'s `isWallTo`
+    -- (vendor/Bandits/mods/Bandits/42.20/media/lua/shared/BanditUtils.lua:1071).
+    --
+    -- Measured against the container's own square it asks the question the report was about:
+    -- "alguien pudo lootear a traves de una pared de un objeto que estaba en otra habitacion."
+    --
+    -- `LosUtil.lineClearCollide(x,y,z,x2,y2,z2,false)` RETURNS TRUE WHEN THE LINE IS BLOCKED --
+    -- confirmed at runtime (console.txt: "ASSERT ok LosUtil.lineClearCollide exists",
+    -- ScenesRelationsAssert.lua:146-148) and the same call, same polarity, already relied on by
+    -- `SR.Move.GoAndDo` (ScenesRelationsMove.lua:103-115). A pcall failure counts as BLOCKED:
+    -- refusing one honest take costs a retry, and taking through a wall because the check itself
+    -- broke is the bug this exists to remove.
+    local okLos, blocked = pcall(function()
+        return LosUtil.lineClearCollide(
+            math.floor(zx), math.floor(zy), math.floor(zz),
+            task.x, task.y, task.z,
+            false)
+    end)
+    if not okLos or blocked then
+        SR.Log(string.format("LOOT wall in the way -- zombie %.1f,%.1f,%.1f cannot see %d,%d,%d",
+            zx, zy, zz, task.x, task.y, task.z))
+        return refuse("wall")
     end
 
     local inventory = zombie:getInventory()
@@ -212,6 +309,17 @@ ZombieActions.ScenesLoot.onComplete = function(zombie, task)
 
     local taken = 0
     local foundBag = nil
+
+    -- WHAT they took, not just how many. Asked for directly, and for a reason worth writing
+    -- down: the only way to audit what an NPC is carrying is to kill it and read the corpse,
+    -- and that audit is worthless without a record of what should be there. "sería bueno que
+    -- en el log quede que item cogio el NPC para que yo corrobore el inventario y esté todo lo
+    -- que tenía el NPC al morir."
+    --
+    -- No cap is needed here and that is worth stating rather than assuming: the loop already
+    -- stops at TAKE_PER_CONTAINER (line 248), so this list cannot grow past a handful and the
+    -- concat cannot flood a log that is read by hand on another machine.
+    local takenNames = {}
 
     local objects = square:getObjects()
     for i = 0, objects:size() - 1 do
@@ -266,6 +374,7 @@ ZombieActions.ScenesLoot.onComplete = function(zombie, task)
                             item:getModData().preserve = true
                             inventory:AddItem(item)
                             taken = taken + 1
+                            takenNames[#takenNames + 1] = tostring(item:getFullType())
 
                             -- A bag out of a drawer is the same find as a bag off the floor,
                             -- and until now only the floor path ever put one on. "se la puse
@@ -307,8 +416,9 @@ ZombieActions.ScenesLoot.onComplete = function(zombie, task)
         pcall(function() Bandit.UpdateItemsToSpawnAtDeath(zombie, brain) end)
     end
 
-    SR.Log(string.format("LOOT %s took %d from %d,%d | carrying %.1f / %.1f%s",
+    SR.Log(string.format("LOOT %s took %d from %d,%d [%s] | carrying %.1f / %.1f%s",
         tostring(brain and brain.fullname), taken, task.x, task.y,
+        table.concat(takenNames, ", "),
         inventory:getCapacityWeight(), inventory:getMaxWeight(),
         foundBag and (" | BAG " .. foundBag) or ""))
 
@@ -452,6 +562,43 @@ end
 local function markSearched(mood, x, y, z)
     mood.looted = mood.looted or {}
     mood.looted[key(x, y, z)] = true
+end
+
+--- Undo a mark, so a container refused at the moment of taking can be tried again.
+---
+--- WHY THIS HAS TO EXIST. `Loot.Search` marks a spot the instant the walk reports arrival --
+--- BEFORE the pickup task runs. That was correct while the pickup could not fail. It no longer
+--- is: `ScenesLoot.onComplete` now refuses three ways, and every refusal used to land on a
+--- container that was already written off, deleting it from `FindContainer`'s answers forever.
+---
+--- The measurement that makes this urgent, from the last session's log: 67 `gives up` against 14
+--- takes, half of which took nothing -- and `LOOT refused` appeared ZERO times in three sessions,
+--- because the old `reach > 2.0` gate was too loose to ever fire. The new gate is the first one
+--- that can actually reject, and it sits in front of an arrival test already failing five to one.
+--- Without this, tightening the check would have quietly switched looting off.
+---
+--- BOUNDED, because an unbounded retry is its own bug and this file has already learned that
+--- once (see MAX_APPROACHES). `mood.approach` cannot serve here -- it is cleared on arrival, and
+--- arrival is precisely what precedes a refusal, so it would reset every time and never expire.
+--- This is its own counter, and when it runs out the write-off is allowed to stand.
+---
+--- A table field, not a local, ON PURPOSE: `onComplete` is defined ABOVE this line, and Lua 5.1
+--- binds locals lexically -- a local declared here is invisible up there and would silently
+--- become a nil global. Table fields resolve at CALL time, which is the documented exemption
+--- this file already relies on for `Loot.CarryBudget`.
+function Loot.Forget(mood, x, y, z)
+    if not mood then return false end
+    local k = key(x, y, z)
+
+    mood.refusals = mood.refusals or {}
+    mood.refusals[k] = (mood.refusals[k] or 0) + 1
+
+    if mood.refusals[k] > MAX_REFUSALS then
+        return false                      -- written off for real now
+    end
+
+    if mood.looted then mood.looted[k] = nil end
+    return true
 end
 
 --- How much this NPC may carry, bag included.
@@ -819,6 +966,44 @@ function Loot.WearBag(zombie, brain, itemType)
         SR.Log(string.format("LOOT %s carries a %s but cannot wear it -- %s",
             tostring(brain.fullname), itemType, tostring(wornErr)))
     end
+
+    -- ATTEMPT THREE, AND IT IS AN EXPERIMENT RATHER THAN A FIX -- labelled as one so nobody
+    -- later reads it as settled. Attempt two succeeded: the log prints `wears the ...` with no
+    -- error, and the bag IS equipped. What it does not do is REDRAW. Reported as "sigue sin
+    -- renderizarla de inmediato, me tocó alejarme y volver a verlo para que renderizara".
+    --
+    -- WHAT THE ENGINE ACTUALLY SHOWS, and it is less than we assumed. Vanilla's real bag-wear
+    -- path is ISWearClothing:complete() -- shared/TimedActions/ISWearClothing.lua:118 -- and it
+    -- calls `setWornItem` and NOTHING ELSE. No reset of any kind. On an IsoPlayer the bag simply
+    -- appears, which means the redraw is native per-frame work, not a Lua call we forgot.
+    -- There is no "refresh worn items" entry point anywhere in the 2,680 engine Lua files.
+    --
+    -- So the honest reading of "walk away and come back" is the one in docs/BANDITS-API.md:290 --
+    -- Bandits REBUILDS the IsoZombie from the brain on range re-entry, and that rebuild is the
+    -- only path confirmed to render this. The bag was never missing; the model was never rebuilt.
+    --
+    -- WHAT IS NEW HERE IS THE ORDER, NOT THE CALL. An earlier draft wrapped this in a pcall and
+    -- logged "resetModel is not available on this NPC", on the theory that it might be the
+    -- HaloTextHelper shape from docs/CAPABILITY-MAP.md:39 -- a method bound for the shared base
+    -- class that throws for IsoZombie specifically. That guard was dead code and the theory was
+    -- already disproven twenty lines up: `Bandit.ApplyVisuals`, called at line 764 of this same
+    -- function, ends with `bandit:resetModel()` at
+    -- vendor/Bandits/mods/Bandits/42.20/media/lua/shared/Bandit.lua:281. It ran, on this exact
+    -- IsoZombie receiver, twice in the last session with no failure line. The method is bound.
+    -- Looking only at the engine tree for proof, while the proof sat in the function above, is
+    -- its own lesson: R1 says vendored code is not a verification SOURCE, not that our own
+    -- successful execution of it proves nothing.
+    --
+    -- So the only untested variable left is ORDER. ApplyVisuals resets BEFORE the item is worn;
+    -- this resets AFTER. Vanilla's own bag-wear path (ISWearClothing.lua:118) calls setWornItem
+    -- and nothing else, because on an IsoPlayer the redraw is native per-frame work -- there is
+    -- no "refresh worn items" entry point anywhere in the 2,680 engine Lua files. If a reset
+    -- after the fact does not render it either, then forcing a live worn-item redraw on an
+    -- already-visible IsoZombie is not reachable from Lua, and the design has to move to the
+    -- rebuild path that IS confirmed to work: Bandits reconstructs the IsoZombie from the brain
+    -- on range re-entry (docs/BANDITS-API.md:290), which is exactly why walking away and coming
+    -- back has been the only thing that shows the bag.
+    zombie:resetModel()
 
     -- The bag is on the brain now, so this is the call that puts it on the corpse.
     pcall(function() Bandit.UpdateItemsToSpawnAtDeath(zombie, brain) end)

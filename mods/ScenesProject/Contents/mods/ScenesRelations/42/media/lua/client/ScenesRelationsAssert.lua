@@ -241,17 +241,26 @@ local function run()
     -- onlyFriendsNear` -- because that method has ZERO callsites in all 2,680 files under
     -- pzserver/media/lua/. It exists only inside dead vendored code.
     --
-    -- The assertion is deliberately NEGATIVE, and it is here rather than deleted along with the
-    -- call: it passes today and will flip the day a build introduces the method, which is when
-    -- somebody would otherwise reach for it again. The four assertions above covered every
-    -- identifier that handler used EXCEPT this one, which is exactly why they all passed while
-    -- the feature was dead.
-    check("getSeeNearbyCharacterDistance is still absent (do not use it)", function()
-        local player = getSpecificPlayer(0)
-        if not player then return false, "no player yet" end
-        local ok = pcall(function() return player:getSeeNearbyCharacterDistance() end)
-        return not ok, ok and "it exists now -- revisit PANIC_RADIUS" or nil
-    end)
+    -- A NEGATIVE ASSERTION USED TO LIVE HERE, AND IT HAD TO GO. It called the method inside a
+    -- `pcall` and passed when the call failed -- which it did, and the check reported `ok`.
+    --
+    -- But `pcall` only stops the error from reaching US. The engine still prints its own Java
+    -- trace underneath, so every single startup put this in console.txt:
+    --
+    --     Lua fail. Message: Tried to call nil
+    --         se.krka.kahlua.vm.KahluaUtil.fail(KahluaUtil.java:96)
+    --         Lua((MOD:ScenesPZ Relations)).getSeeNearbyCharacterDistance is still absent ...
+    --
+    -- A stack trace that reads exactly like a crash, in the one file this project has for
+    -- debugging client code, which is read by hand on another machine. It was found by the user
+    -- asking "why are there errors in console.txt" -- the assertion was manufacturing the alarm
+    -- it was meant to prevent.
+    --
+    -- Deleted rather than repaired because there is nothing to repair: you cannot ask a Java
+    -- binding whether it exists without calling it. And the value was never high -- the method
+    -- appearing in some future build would not change our code, because PANIC_RADIUS in
+    -- ScenesRelationsPanic.lua is a constant we now own on purpose. The lesson that mattered is
+    -- in that file's comments and in docs/CODE-REVIEW-RULES.md, where it costs nothing to keep.
 
     -- The registry the panic sweep reads. Empty is fine and normal; missing is not.
     check("BanditZombie.CacheLight is a table", function()

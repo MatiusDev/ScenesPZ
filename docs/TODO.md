@@ -267,3 +267,88 @@ tightening it, and check that the standing square chosen is the one facing the c
 
 Same session: 56 `gives up on ... could not get there in 3 tries` against 7 `nothing left within
 reach`. Still the reachability problem, which is block B.
+
+---
+
+## Resting should use real furniture, and endurance should recover the way it does for a player (09-08)
+
+**Reported:** "cuando un NPC está cansado se sienta donde sea... si está en una casa o cerca de
+una casa y hay un objeto de una silla donde por lo general para los jugadores aparece
+'descansar', se siente en esos objetos, un sofá o una silla."
+
+Four separate requirements, and they are listed apart because they will not land together:
+
+1. **Sit on a chair or a sofa, not on the tile you happen to be standing on.** Today
+   `restTasks` queues `{action = "Sleep", anim = "Sit", ...}` wherever the NPC is. It needs to
+   find real sittable furniture first, the same objects that offer a player the rest option.
+2. **A chair must restore more endurance than the ground.** Two different recovery values, not
+   one.
+3. **Sitting on the ground becomes a last resort** — "casi una necesidad, digamos que está
+   demasiado exhausto para caminar". So the floor is what you do when you cannot reach a chair
+   and cannot keep walking, not the default.
+4. **Walking should recover a little endurance**, running should not. Today `brain.endurance`
+   only ever decreases; resting is the single thing in the whole framework that gives it back.
+
+The user's own steer on where to look: mirror how vanilla recovers endurance for a player in
+the staged exhaustion states. That is the same staged model already owed for the separate
+"endurance drains too fast and has no stages" item.
+
+**Depends on:** research into what vanilla treats as sittable and what its recovery numbers
+actually are. Do not implement any of the four before that lands — the shape of (2) and (4)
+depends entirely on whether vanilla's furniture rest is mechanical or purely cosmetic.
+
+## A friendly NPC standing near you makes YOU get up off the sofa (09-08)
+
+**Reported:** "cuando un NPC se me acerca y yo estoy descansando en un sofá hace que me pare...
+esto es por lo general una funcionalidad por defecto del juego, ya que si un zombie está cerca
+el PJ lo que hace es levantarse para defenderse, pero esto no debería pasar con los NPC."
+
+**This is the IsoZombie trap again, and it is the third instance.** A Bandits NPC IS an
+IsoZombie -- that inheritance is the entire basis of the framework, which is how it gets
+pathing, animation, combat and the horde system for free. Every piece of vanilla code that
+counts nearby zombies therefore counts your friends. Previous instances:
+
+- the panic moodle rising because your own people read as a horde -- fixed in
+  `ScenesRelationsPanic.lua` with our own suppression handler;
+- melee auto-target locking onto a friendly NPC -- still open, listed above.
+
+This one is worse than those two because the vanilla behaviour acts on the PLAYER, not on an
+NPC, so there may be no seam we own. If the check lives Java-side with no Lua override, the
+honest answer may be that it is not fixable and has to be designed around. Record the answer
+either way -- a verified "not reachable from Lua" is worth as much as a fix, because it stops
+the next session from re-deriving it.
+
+## Fleeing to a window while ALREADY INSIDE the house (09-08) — next Threat pass
+
+**Seen in play, and it is the clearest description of this failure so far:** player and companion
+looting house A. A zombie in house B, next door, banging on B's window. The companion walked to
+a window OF HOUSE A, opened it, and then stood at it doing nothing -- no longer following, no
+longer looting -- until the player killed the zombie, at which point it recovered on its own.
+
+**Two independent defects produced that, and only one of them is already being fixed.**
+
+1. **`seekShelter` never asks whether the NPC is already indoors.** `grep -c indoors
+   ScenesRelationsThreat.lua` returns 0. The whole module is written on the assumption that a
+   frightened survivor is outside and needs a way in -- "Fleeing to a window is what surviving
+   looks like" is in its own header. Inside a house that is not merely useless, it is harmful:
+   `findWindow` prefers an ALREADY-OPEN window and `seekShelter` will happily open a closed one,
+   so a frightened NPC standing in a secure room walks to the wall and opens a hole in it.
+   Worse case, not observed but reachable: `SHELTER_SEARCH` is 8 tiles, so if the zombie's own
+   window is nearer and already smashed, "shelter" routes the NPC TOWARD the zombie.
+
+2. **The freeze itself is the F1 re-assert loop** already scheduled for the current pass. Once
+   the window is open, `findWindow` keeps choosing it, `seekShelter` queues a bare `GoTo` to a
+   square the NPC is already standing on, that completes instantly, and the next sweep does it
+   again. From outside that reads as a person standing motionless at a window -- exactly what
+   was reported -- and it ends the moment fear drops below the limit and the rung leaves
+   SURVIVE, which is exactly what killing the zombie did.
+
+**Third thing the same report exposes: fear has no perception gating.** `grep -c LosUtil
+ScenesRelationsAutonomy.lua` returns 0. `scanSurroundings` counts every zombie within
+`FEAR_RADIUS = 9` with no line-of-sight test, so a zombie inside another building, behind two
+walls, frightens a survivor as much as one in the same room. This is the same missing concept as
+the loot-through-wall defect, in the perception layer instead of the action layer, and it is
+listed separately under block B as "GetClosestZombieLocation has no distance limit".
+
+**Not a defect of ours, recorded so it is not re-diagnosed:** the user also observed that
+Bandits NPCs sometimes fail to climb through a window at all. Upstream limitation.

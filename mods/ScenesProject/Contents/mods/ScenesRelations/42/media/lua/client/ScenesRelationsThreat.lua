@@ -46,25 +46,17 @@ local SR = ScenesRelations
 local DANGER_RADIUS = 15
 local DANGER_RADIUS_SQ = DANGER_RADIUS * DANGER_RADIUS
 
--- Who counts as "us". Someone across the street is not backup.
-local GROUP_RADIUS_SQ = 144  -- 12 tiles
-
 -- How far an NPC will look for a way inside. Every tile searched is a getGridSquare call
 -- inside a sweep that already runs per NPC, so this stays small on purpose.
 local SHELTER_SEARCH = 8
 
--- Odds are per NPC and stable: brain.rnd is rolled once at spawn
--- (BanditServerSpawner.lua:375), so the same survivor is always the one who stands and
--- fights. That consistency is what makes them read as individuals rather than dice.
-local BRAVE_MIN_ROLL = 5   -- rnd[2] is ZombRand(10), so roughly half are brave
-
---- Reads the stable per-NPC roll. Falls back to cautious: an NPC we cannot read should
---- not be the one we ask to hold the line.
-local function isBrave(brain)
-    local rnd = brain and brain.rnd
-    if type(rnd) ~= "table" or type(rnd[2]) ~= "number" then return false end
-    return rnd[2] >= BRAVE_MIN_ROLL
-end
+-- Tiles. How close to the shelter square counts as arrived, whatever the queue's head
+-- says next. A queued task guarantees only that it ENDED, never that anyone got there
+-- (rule 4) -- position is the one thing a Smack or a claim denial cannot fake. Loose
+-- enough to cover pathing stopping a step short of a non-walkable window tile, tight
+-- enough that "still five tiles out" can never read as arrived.
+local ARRIVAL_RADIUS = 1.5
+local ARRIVAL_RADIUS_SQ = ARRIVAL_RADIUS * ARRIVAL_RADIUS
 
 local function countZombiesNear(x, y)
     local cache = BanditZombie.CacheLightZ
@@ -73,22 +65,6 @@ local function countZombiesNear(x, y)
     for _, zombie in pairs(cache) do
         local dx, dy = zombie.x - x, zombie.y - y
         if dx * dx + dy * dy < DANGER_RADIUS_SQ then n = n + 1 end
-    end
-    return n
-end
-
-local function countFriendsNear(x, y, selfId)
-    local cache = BanditZombie.CacheLightB
-    if not cache then return 0 end
-    local n = 0
-    for _, other in pairs(cache) do
-        if other.id ~= selfId then
-            local brain = other.brain
-            if brain and not brain.hostile and not brain.hostileP then
-                local dx, dy = other.x - x, other.y - y
-                if dx * dx + dy * dy < GROUP_RADIUS_SQ then n = n + 1 end
-            end
-        end
     end
     return n
 end
@@ -131,9 +107,12 @@ end
 
 --- Sends an NPC to the nearest window and through it. Two tasks, queued in front of
 --- whatever its program wanted: walk there, then deal with the window.
+---
+--- Returns wx, wy, wz on success (the spot assess() must keep watching), or nil on
+--- failure -- a single nil, so `if not seekShelter(...)` at the caller still works.
 local function seekShelter(zombie, brain)
     local wx, wy, wz, alreadyOpen = findWindow(zombie)
-    if not wx then return false end
+    if not wx then return nil end
 
     -- Explicit time on the window task. The handler's onWorking waits for getBumpType()
     -- to match task.anim (ZAOpenWindow.lua:10); with no anim it may never match, and the
@@ -148,65 +127,131 @@ local function seekShelter(zombie, brain)
         SR.Log(string.format("THREAT %s -> shelter at %d,%d (%s)",
             tostring(brain.fullname), wx, wy, alreadyOpen and "open" or "closed"))
     end
-    return true
+    return wx, wy, wz
 end
 
---- One pass over every friendly NPC the ladder has put on rung 1.
+--- One pass over every friendly NPC the ladder has put on rung 1, bounded to the same
+--- radius that gates whether mood.rung is fresh (F3). Autonomy only ever writes mood.rung
+--- inside its own `masterDist <= NPC_RANGE` guard and never clears it on the way out, so
+--- an NPC who wandered past that radius keeps whatever rung it last held -- possibly
+--- SURVIVE, forever, unwatched by the module that could update it. Reading SR.Autonomy's
+--- own NPC_RANGE, rather than a second number of this file's own, is what R6 exists to
+--- enforce: one module owns the bound, everyone else reads it.
 ---
---- There is no decision left to make here. Fear already weighed the numbers against this
---- person's own limit, and that limit is derived from the same brain.rnd[2] this file used
---- to read for bravery -- so the brave still hold and the cautious still break, by exactly
---- the same field, decided in exactly one place.
+--- There is no decision left to make here otherwise. Fear already weighed the numbers
+--- against a single fixed limit -- see ScenesRelationsAutonomy.fearLimit for why it is no
+--- longer a per-NPC roll and the arithmetic behind the number. This file only owns the
+--- VERB.
 local function assess()
     local cache, bandits = BanditZombie.Cache, BanditZombie.CacheLightB
     if not cache or not bandits then return end
     if not SR.Autonomy then return end
 
+    local player = getSpecificPlayer(0)
+    if not player then return end
+    local px, py = player:getX(), player:getY()
+    local rangeSq = SR.Autonomy.NPC_RANGE * SR.Autonomy.NPC_RANGE
+
     for _, light in pairs(bandits) do
         local brain = light.brain
         if brain and not brain.hostile and not brain.hostileP then
-            local zombie = cache[light.id]
-            -- Mood, not the trust record. Posture is transient and belongs to the entity;
-            -- asking for the record here would create a permanent one for every NPC that
-            -- ever saw a zombie near the player.
-            local mood = zombie and SR.Mood(zombie)
+            local ldx, ldy = light.x - px, light.y - py
+            if ldx * ldx + ldy * ldy <= rangeSq then
+                local zombie = cache[light.id]
+                -- Mood, not the trust record. Posture is transient and belongs to the
+                -- entity; asking for the record here would create a permanent one for
+                -- every NPC that ever saw a zombie near the player.
+                local mood = zombie and SR.Mood(zombie)
 
-            if mood and mood.rung == SR.Autonomy.SURVIVE then
-                -- Once. Re-queuing a route to the same window every sweep is how an NPC
-                -- ends up walking to a latch forever, which is the bug this whole session
-                -- is about. They keep the tasks they were given until the rung changes.
-                if not mood.sheltering then
-                    mood.sheltering = true
-                    mood.posture = "flee"
+                if mood and mood.rung == SR.Autonomy.SURVIVE then
+                    -- Has the route actually been ACHIEVED, not merely ended (rule 4)?
+                    -- Position answers what the queue cannot: a single-task route to an
+                    -- already-open window finishes inside one sweep (F1) -- the head no
+                    -- longer matches what was queued not because anything went wrong, but
+                    -- because it succeeded. Checking distance to the shelter square first
+                    -- catches that; the old head-only check could not, and re-queued a
+                    -- route to the same window every sweep forever -- confirmed in play:
+                    -- `head=Smack@...` on a survivor whose census still read
+                    -- `rung=survive`, standing still and being eaten because
+                    -- mood.sheltering was a permanent latch that never let this file look
+                    -- again.
+                    --
+                    -- A denied claim (F2) is the other false "gone." claimSpot rejecting a
+                    -- contested window makes Autonomy push its own wait task
+                    -- (Autonomy.WAIT_ACTION/WAIT_ANIM) -- that is patience, not
+                    -- displacement, and re-asserting into the same denial every sweep is
+                    -- how two frightened NPCs starve each other forever. The wait task
+                    -- force-completes on its own (BanditUpdate.lua:1759,1804, the same
+                    -- generic timer this file already relies on for OpenWindow above), so
+                    -- treating it as "still on route" is temporary by construction, not a
+                    -- new permanent latch.
+                    local onRoute = false
+                    if mood.shelterX then
+                        local zx, zy = zombie:getX(), zombie:getY()
+                        local sdx, sdy = zx - mood.shelterX, zy - mood.shelterY
+                        local arrived = (sdx * sdx + sdy * sdy) <= ARRIVAL_RADIUS_SQ
+                        local head = brain.tasks and brain.tasks[1]
+                        local waiting = head ~= nil
+                            and head.action == SR.Autonomy.WAIT_ACTION
+                            and head.anim == SR.Autonomy.WAIT_ANIM
 
-                    local threat = countZombiesNear(light.x, light.y)
-                    local friends = countFriendsNear(light.x, light.y, light.id)
-
-                    -- Phrase keys are not free text. These are the only ones used here
-                    -- that appear in Bandits' own Say calls; "PANIC" and "COVER" read
-                    -- better and do not exist. Bandit.Say also self-limits to 14 tiles
-                    -- from the player (Bandit.lua:1171), so this cannot become noise from
-                    -- across the map.
-                    if seekShelter(zombie, brain) then
-                        Bandit.Say(zombie, "INSIDE")
-                        SR.Log(string.format(
-                            "THREAT %s | survive -> shelter | zombies=%d friends=%d brave=%s",
-                            tostring(brain.fullname), threat, friends,
-                            tostring(isBrave(brain))))
-                    else
-                        -- Nowhere to go. Standing and fighting is not courage here, it is
-                        -- the only option left, and it should look like that.
-                        mood.posture = "fight"
-                        Bandit.Say(zombie, "OUTSIDE")
-                        SR.Log(string.format(
-                            "THREAT %s | survive but cornered, no way inside | zombies=%d friends=%d",
-                            tostring(brain.fullname), threat, friends))
+                        if arrived or waiting then
+                            onRoute = true
+                        else
+                            onRoute = head ~= nil
+                                and head.x == mood.shelterX and head.y == mood.shelterY
+                                and (head.action == "GoTo" or head.action == "OpenWindow")
+                        end
                     end
+
+                    -- Assert once on arrival, and re-assert exactly when the route is gone
+                    -- or displaced -- never on a bare timer. This can fire at most once per
+                    -- sweep (assess runs once per EveryOneMinute).
+                    if not mood.sheltering or (mood.shelterX and not onRoute) then
+                        mood.sheltering = true
+                        mood.posture = "flee"
+
+                        local threat = countZombiesNear(light.x, light.y)
+                        -- SR.Autonomy's own count (F6): that module already computes this
+                        -- every sweep, on the same FRIEND_RANGE, including the player. This
+                        -- file used to recompute it on a different radius that never
+                        -- counted the player, so the same NPC in the same sweep logged two
+                        -- disagreeing numbers -- exactly what this file's own header
+                        -- (R6) exists to stop.
+                        local friends = mood.friends or 0
+
+                        -- Phrase keys are not free text. These are the only ones used here
+                        -- that appear in Bandits' own Say calls; "PANIC" and "COVER" read
+                        -- better and do not exist. Bandit.Say also self-limits to 14 tiles
+                        -- from the player (Bandit.lua:1171), so this cannot become noise
+                        -- from across the map.
+                        local wx, wy, wz = seekShelter(zombie, brain)
+                        if wx then
+                            mood.shelterX, mood.shelterY, mood.shelterZ = wx, wy, wz
+                            Bandit.Say(zombie, "INSIDE")
+                            SR.Log(string.format(
+                                "THREAT %s | survive -> shelter | zombies=%d friends=%d",
+                                tostring(brain.fullname), threat, friends))
+                        else
+                            -- Nowhere to go. Standing and fighting is not courage here, it
+                            -- is the only option left, and it should look like that. No
+                            -- shelter coordinates to watch, so this does not retry every
+                            -- sweep -- onRoute above only re-checks when mood.shelterX is
+                            -- set.
+                            mood.shelterX, mood.shelterY, mood.shelterZ = nil, nil, nil
+                            mood.posture = "fight"
+                            Bandit.Say(zombie, "OUTSIDE")
+                            SR.Log(string.format(
+                                "THREAT %s | survive but cornered, no way inside | zombies=%d friends=%d",
+                                tostring(brain.fullname), threat, friends))
+                        end
+                    end
+                elseif mood then
+                    -- Off rung 1: they may look for shelter again next time they need it.
+                    mood.sheltering = nil
+                    mood.posture = nil
+                    mood.shelterX, mood.shelterY, mood.shelterZ = nil, nil, nil
                 end
-            elseif mood then
-                -- Off rung 1: they may look for shelter again next time they need it.
-                mood.sheltering = nil
-                mood.posture = nil
             end
         end
     end

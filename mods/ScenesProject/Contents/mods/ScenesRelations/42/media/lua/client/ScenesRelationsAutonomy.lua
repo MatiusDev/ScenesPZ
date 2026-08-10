@@ -71,6 +71,13 @@ local RUNG_NAME = { "survive", "fight", "obey", "errand", "idle" }
 -- Tiles. Only NPCs near the player are worth thinking about.
 local NPC_RANGE = 40
 
+-- Exposed so ScenesRelationsThreat can bound its own sweep to NPCs whose mood.rung is
+-- actually fresh (F3): mood.rung is only ever written inside the masterDist <= NPC_RANGE
+-- guard below and never cleared on the way out, so reading the SAME bound rather than a
+-- second number of Threat's own is what stops an NPC that wandered off keeping a stale
+-- SURVIVE forever, unwatched by the module that could correct it.
+Autonomy.NPC_RANGE = NPC_RANGE
+
 -- Tiles. Something this close has them: running is not on the table and trying to leave
 -- just means being bitten in the back. Nothing overrides this.
 local GRABBED_RANGE = 1.6
@@ -108,6 +115,30 @@ end
 -- matters. ZPCompanion switches to Run at 10, so 12 leaves it room to do its own job first.
 local LEASH = 12
 
+-- Tiles. How close the master has to have gotten, while moving, for a companion who broke
+-- for SURVIVE to count as found rather than merely somewhere in the area. Same number as
+-- FOLLOW_ENGAGE -- that already means "close enough to be walking with you."
+local REJOIN_RANGE = FOLLOW_ENGAGE
+
+-- Sweeps a rejoin may hold before it expires no matter what. About half a real minute at this
+-- cadence -- long enough to actually close a gap and get behind the player, short enough that a
+-- companion pinned by a fear that will not fall goes back to deciding on the merits instead of
+-- standing there refusing to fight. The bound exists because the CLEAR condition below cannot be
+-- guaranteed to arrive: fear is fed by the zombies the companion would be helping to kill.
+local REJOIN_SWEEPS = 5
+
+-- Tiles. How much masterDist has to change, sweep to sweep, to count as a real shift
+-- rather than pathing jitter. One name for what used to be two separate bare 0.75
+-- literals (the falling-behind check and the old moving-toward check), so both agree on
+-- what "changed" means.
+local MASTER_DIST_EPSILON = 0.75
+
+-- Tiles. Below this, the player's own displacement this sweep is noise, not movement --
+-- gates `approaching` (F4) so a stationary player can never register as closing the gap,
+-- however much masterDist happens to shift purely because the companion itself is
+-- running for a window.
+local PLAYER_MOVE_EPSILON = 0.3
+
 -- Tiles. What an NPC is frightened by. Wider than ENGAGE_RANGE -- you should be able to be
 -- afraid of something you are not yet obliged to fight.
 local FEAR_RADIUS = 9
@@ -140,8 +171,39 @@ local FRIEND_RANGE = 12
 -- when nothing at all was near, which in a populated street meant never.
 local FEAR_KEEP = 0.6
 local FEAR_PER_ZOMBIE = 6
-local FEAR_OUTNUMBERED = 15
 local FEAR_HURT = 20
+
+-- Fear per unit the threat-to-people ratio sits above 1:1. People is this NPC plus its
+-- friends (friendsNear, which now includes the player), so a lone NPC facing five
+-- zombies (5:1) is measured the same way as two people facing five (5:2) -- the ratio,
+-- not a flat headcount. Calibrated against three concrete points the user gave:
+--   3 zombies vs 2 people -- ratio 1.5, +0.5 over 1:1 -- fine, keep fighting
+--   4 zombies vs 2 people -- ratio 2.0, +1.0 over 1:1 -- the ceiling, still fighting
+--   5 zombies vs 2 people -- ratio 2.5, +1.5 over 1:1 -- a problem, fear should climb
+-- 10 per point over 1:1 reproduces that ladder (5, 10, 15). The settled fear those
+-- produce -- 51, 72.5, 94 -- and the single fixed FEAR_LIMIT (83) chosen to sit between
+-- the ceiling and the problem are worked in full in fearLimit's own comment below.
+local FEAR_OUTNUMBERED_PER_RATIO = 10
+
+-- Caps the outnumbered term so a single NPC swarmed by a whole horde (ratio 10:1, 20:1...)
+-- does not produce an unbounded number. The user's own example -- "if ~5 zombies are
+-- focused on ONE NPC specifically, that alone is reason to escape" -- is ratio 5:1, over
+-- = 4, which already reaches this cap.
+local FEAR_OUTNUMBERED_MAX = 30
+
+-- Being in a group means more confidence: somebody who joined chose to stand with this
+-- person, and that should make fleeing rarer, not just survivable. Halves the outnumbered
+-- term for anyone who joined the clan.
+--
+-- brain.loyal, not a "joinMe" field -- there is no such field on the brain record. The
+-- PROBE line's `joinMe=%s` (ScenesRelationsRun.lua:80) prints a LOCAL variable computed
+-- by wouldOfferJoinMe(brain), which only asks whether brain.program.name == "Looter" --
+-- i.e. whether the right-click menu option would currently appear, not whether anyone
+-- joined. The verified "has joined the clan" flag is brain.loyal: set by the JOIN action
+-- (ScenesRelationsActions.lua:94, "JOIN is the ally boundary, and it sets brain.loyal" --
+-- ScenesRelationsActions.lua:35) and already read in this file for engage range
+-- (assistRange above, "if brain.loyal then return CLAN_ENGAGE end").
+local GROUP_CONFIDENCE = 0.5
 
 -- Sweeps a task may sit unchanged, WITH THE NPC NOT MOVING, before it counts as stuck.
 --
@@ -184,6 +246,13 @@ local EXCLUSIVE = {
 -- expiry, an NPC that dies or wanders off would lock a window shut for everybody.
 local CLAIM_SWEEPS = 6
 
+-- The exact fingerprint pushed onto a denied NPC's queue below. Named and exposed so
+-- ScenesRelationsThreat can tell "waiting for a turn at a claimed spot" from "actually
+-- displaced" (F2) without duplicating the literal and risking the two copies drifting
+-- apart.
+Autonomy.WAIT_ACTION = "Time"
+Autonomy.WAIT_ANIM = "Shrug"
+
 -- Sweeps between census lines. Transitions alone told us nothing about the NPCs that never
 -- transitioned -- the whole 04-08 log has AUTO lines for exactly one survivor, because the
 -- other three sat quietly on a rung and were therefore invisible.
@@ -192,6 +261,7 @@ local CENSUS_EVERY = 5
 local claims = {}      -- "x,y,z" -> { id = <npc id>, sweep = <sweep number> }
 local sweepNumber = 0
 local lastSwingMs = 0
+local lastPlayerX, lastPlayerY -- the player's position last sweep; see playerMovedDist below
 
 -- The player swinging is a fact we can only learn as it happens. Same event the guard
 -- already listens to; two listeners on one event is cheaper than a per-tick poll, and this
@@ -255,10 +325,27 @@ local function scanSurroundings(cell, x, y, z)
     return n, math.sqrt(nearestSq), insiders, outsiders
 end
 
-local function friendsNear(x, y, selfId)
+--- `player` is optional so callers that only care about NPC backup (none today, but the
+--- signature should not lie) still work.
+---
+--- The player counts as a friend. CacheLightB (BanditZombie.lua:16) holds only NPCs --
+--- BanditZombie.lua:80-85 files a bandit into CacheLightB and everyone else into
+--- CacheLightZ, and the player is neither -- so a census that only reads this cache always
+--- finds the player alone. Confirmed in play: census lines read `master=0.5 ... friends=0`
+--- with the player standing half a tile away. Dead or absent, the player counts as zero;
+--- "the same plane/range as the NPC test" means the same FRIEND_RANGE, 2D, no z filter --
+--- exactly what the loop below already does for NPCs, so the player is measured no
+--- differently.
+local function friendsNear(x, y, selfId, player)
     local cache = BanditZombie and BanditZombie.CacheLightB
     if not cache then return 0 end
     local n, r2 = 0, FRIEND_RANGE * FRIEND_RANGE
+
+    if player and player:isAlive() then
+        local pdx, pdy = player:getX() - x, player:getY() - y
+        if pdx * pdx + pdy * pdy <= r2 then n = n + 1 end
+    end
+
     for _, other in pairs(cache) do
         if other.id ~= selfId then
             local brain = other.brain
@@ -275,13 +362,44 @@ end
 
 --- How much fear this person can carry before survival takes over everything else.
 ---
---- brain.rnd[2] is ZombRand(10), fixed at spawn -- the same field ScenesRelationsThreat
---- reads for bravery, deliberately, so the two can never disagree about who is brave. A
---- coward breaks at 30; somebody steady holds until 93.
+--- WAS a per-NPC dice roll (brain.rnd[2], fixed at spawn -- BanditServerSpawner.lua:375),
+--- 30 to 93 depending on the roll. Removed on explicit direction: "No quiero que haya una
+--- probabilidad del 50/50 de que un NPC solo corra por que si... el hecho de que un NPC
+--- entre en pánico debería provocar que un NPC huya. No una probabilidad, si no un hecho
+--- o un evento." No coin flip decides who breaks. One threshold, shared by everybody,
+--- until fear is driven by an actual state (a panic flag set by a real cause) instead of
+--- a number rolled once at spawn -- that model is future work and is deliberately NOT
+--- built here.
+---
+--- THE ARITHMETIC BEHIND THE NUMBER. updateFear is a decaying average: each sweep keeps
+--- FEAR_KEEP (0.6) of what was there and adds this sweep's situational term, so under a
+--- CONSTANT situation it settles at situational / (1 - FEAR_KEEP) = situational / 0.4.
+--- Working the settle point for a loyal NPC (GROUP_CONFIDENCE halves the outnumbered
+--- term) with the player counted as one friend (friendsNear), so "vs 2 people" means this
+--- NPC plus one friend:
+---
+---   3 zombies vs 2 -- ratio 1.5: term1 = 3*FEAR_PER_ZOMBIE = 18
+---                                term2 = min(30,(1.5-1)*10)*0.5 = 2.5
+---                                situational = 20.5 -> settles at 20.5/0.4 = 51.25
+---   4 zombies vs 2 -- ratio 2.0: term1 = 4*6 = 24
+---                                term2 = min(30,(2.0-1)*10)*0.5 = 5.0
+---                                situational = 29.0 -> settles at 29.0/0.4 = 72.5
+---   5 zombies vs 2 -- ratio 2.5: term1 = 5*6 = 30
+---                                term2 = min(30,(2.5-1)*10)*0.5 = 7.5
+---                                situational = 37.5 -> settles at 37.5/0.4 = 93.75
+---
+--- The user's own calibration is "3 is fine, 4 is the ceiling, 5 is a problem" -- the
+--- threshold has to clear 72.5 (4 must still fight) and stay under 93.75 (5 must break).
+--- 83 is roughly the midpoint, leaving about ten points of headroom on both sides so a
+--- brief spike near the ceiling does not accidentally trip survival, and 5-on-2 still
+--- reliably trips it once it settles.
+local FEAR_LIMIT = 83
+
+--- `brain` is unused now -- kept as a parameter so every call site (RungOf, the two log
+--- lines in sweep()) stays untouched rather than needing its own edit for a value that is
+--- no longer per-person.
 local function fearLimit(brain)
-    local bravery = 0
-    if type(brain.rnd) == "table" and brain.rnd[2] then bravery = brain.rnd[2] end
-    return 30 + bravery * 7
+    return FEAR_LIMIT
 end
 
 --- Live health as a fraction of what this person spawned with.
@@ -298,15 +416,25 @@ local function healthRatio(zombie, brain)
     return now / max
 end
 
-local function updateFear(mood, threats, nearest, friends, hpRatio, insiders)
+local function updateFear(mood, threats, nearest, friends, hpRatio, insiders, loyal)
     local situational = 0
 
     if nearest <= FEAR_RADIUS then
         situational = situational + math.min(threats, 6) * FEAR_PER_ZOMBIE
     end
-    if threats > friends + 1 then
-        situational = situational + FEAR_OUTNUMBERED
+
+    -- Ratio of threats to people, not a flat headcount -- see FEAR_OUTNUMBERED_PER_RATIO
+    -- above for the calibration. `threats` is scanSurroundings' own count within
+    -- FEAR_RADIUS, already measured per NPC; nothing here asks a zombie who it is chasing
+    -- (zombie:getTarget() does not exist in 42.20 -- Threat.lua:11).
+    local people = 1 + friends
+    local ratio = threats / people
+    if ratio > 1 then
+        local outnumbered = math.min(FEAR_OUTNUMBERED_MAX, (ratio - 1) * FEAR_OUTNUMBERED_PER_RATIO)
+        if loyal then outnumbered = outnumbered * GROUP_CONFIDENCE end
+        situational = situational + outnumbered
     end
+
     if hpRatio < 0.5 then
         situational = situational + FEAR_HURT
     end
@@ -515,6 +643,16 @@ local function sweep()
     local fighting = playerIsFighting(player)
     local sprinting = player:isSprinting() == true
 
+    -- The player's own movement, measured once per sweep rather than once per NPC -- there
+    -- is only one player, and this is what makes `approaching` below (F4) immune to a
+    -- companion's own flight changing masterDist just as much as the player moving does.
+    local playerMovedDist = 0
+    if lastPlayerX then
+        local pdx, pdy = px - lastPlayerX, py - lastPlayerY
+        playerMovedDist = math.sqrt(pdx * pdx + pdy * pdy)
+    end
+    lastPlayerX, lastPlayerY = px, py
+
     for id, _ in pairs(bandits) do
         local zombie = BanditZombie.GetInstanceById(id)
         if zombie then
@@ -553,17 +691,99 @@ local function sweep()
                         SR.Wounds.CheckGlass(zombie, brain, mood, square)
                     end
 
-                    local friends = friendsNear(zx, zy, id)
+                    local friends = friendsNear(zx, zy, id, player)
+                    -- Shared with ScenesRelationsThreat so both modules report the same
+                    -- headcount (F6) instead of Threat re-deriving a different one on its
+                    -- own radius, which is exactly the R6 mistake this file's header warns
+                    -- about. Threat's copy fed no decision, only its log line.
+                    mood.friends = friends
                     local hpRatio = healthRatio(zombie, brain)
 
-                    updateFear(mood, threats, nearest, friends, hpRatio, insiders)
+                    updateFear(mood, threats, nearest, friends, hpRatio, insiders, brain.loyal)
 
                     -- Is the player leaving? Growing distance is the honest test, because
                     -- it does not care WHY -- sprinting, driving, or just walking off while
                     -- the NPC dawdles all read the same to somebody being left behind.
                     local growing = mood.lastMasterDist
-                        and (masterDist - mood.lastMasterDist) > 0.75
+                        and (masterDist - mood.lastMasterDist) > MASTER_DIST_EPSILON
+
+                    -- Is the MASTER approaching, isolated from the companion's own motion?
+                    -- masterDist is the separation between two people, and a companion
+                    -- sprinting for a window shifts it several tiles a sweep with the
+                    -- player standing perfectly still (F4) -- so masterDist shrinking is
+                    -- not by itself evidence the player did anything. Gating on
+                    -- playerMovedDist (computed once above, from the player's own position
+                    -- only) FIRST means a stationary player can never read as "approaching,"
+                    -- whatever the companion does.
+                    local approaching = playerMovedDist > PLAYER_MOVE_EPSILON
+                        and mood.lastMasterDist
+                        and (masterDist - mood.lastMasterDist) < -MASTER_DIST_EPSILON
+
                     mood.lastMasterDist = masterDist
+
+                    -- Read before RungOf overwrites mood.rung with this sweep's verdict --
+                    -- this is genuinely "were they fleeing a second ago."
+                    local wasSurviving = mood.rung == Autonomy.SURVIVE
+
+                    -- THE REJOIN LATCH (F4). The old version re-derived "found again" from
+                    -- wasSurviving every single sweep, and firing it is what overwrites
+                    -- mood.rung to OBEY -- so the very next sweep wasSurviving read false,
+                    -- the clause vanished, fear (still high, decaying slowly under
+                    -- FEAR_KEEP) sent them straight back to SURVIVE, and the cycle repeated:
+                    -- a guaranteed two-sweep flicker, confirmed by reading the code, not
+                    -- merely reported.
+                    --
+                    -- A latch fixes it because it does not live inside the value it forces.
+                    -- CLEAR is gated on fear itself, not on mood.rung -- checking "rung is
+                    -- no longer SURVIVE" would be exactly as self-cancelling as before,
+                    -- since forcing OBEY below is what changes the rung. Fear actually
+                    -- dropping under this person's limit is a real, independent signal that
+                    -- the danger which sent them to SURVIVE has passed.
+                    -- AND IT IS ALSO BOUNDED BY TIME, WHICH IS THE PART THAT WAS MISSING.
+                    -- Fear alone is not a signal that can be trusted to arrive. The fear that
+                    -- sent them to SURVIVE is fed by the very zombies the companion would
+                    -- otherwise be helping to kill, so "wait for fear to drop" can mean
+                    -- "wait for the player to clear the horde alone". And because
+                    -- `disengaging` is the FIRST test in RungOf -- above fear, above every
+                    -- FIGHT branch -- a latch that cannot clear is a companion standing next
+                    -- to you that will not swing at a zombie one tile away.
+                    --
+                    -- That is strictly worse than the two-sweep flicker it replaced: a flicker
+                    -- wastes six seconds, this loses the fight.
+                    --
+                    -- REJOIN_SWEEPS is the budget. Rejoining is a manoeuvre -- close the gap,
+                    -- get behind the player -- and a manoeuvre that has not worked in half a
+                    -- minute is not going to. When it expires the rung is decided on the
+                    -- merits again, which may well be SURVIVE; that is a correct answer, and
+                    -- unlike the latch it is one that gets re-asked every sweep.
+                    if mood.rejoining then
+                        mood.rejoinSweeps = (mood.rejoinSweeps or 0) + 1
+                        if (mood.fear or 0) < fearLimit(brain)
+                           or mood.rejoinSweeps >= REJOIN_SWEEPS then
+                            mood.rejoining = nil
+                            mood.rejoinSweeps = nil
+                        end
+                    end
+
+                    -- SET only once, on the sweep the master verifiably closes the gap
+                    -- (`approaching`, above) while within REJOIN_RANGE. Scoped to
+                    -- `wasSurviving` for the same reason as before: widen it to fire from
+                    -- any rung and a companion mid-FIGHT would be yanked off a zombie every
+                    -- time the player merely walks near them while repositioning. The
+                    -- intent is escaping together, not resuming the fight that was being
+                    -- fled ("la idea es escapar no de regresar a darle a los zombies de los
+                    -- que estabamos huyendo").
+                    --
+                    -- `brain.master` is required, and that is not redundant. RungOf only reads
+                    -- `disengaging` on the owned path, so a free survivor latching this is
+                    -- inert TODAY -- but it would be born already disengaging the moment
+                    -- somebody recruits it, and a flag that is harmless until it silently is
+                    -- not is exactly the kind of thing this project keeps paying for.
+                    if not mood.rejoining and brain.master and wasSurviving and approaching
+                       and masterDist <= REJOIN_RANGE then
+                        mood.rejoining = true
+                        mood.rejoinSweeps = 0
+                    end
 
                     local ctx = {
                         threats = threats, nearest = nearest, friends = friends,
@@ -576,8 +796,14 @@ local function sweep()
                         -- tripping it, and every trip clears the queue -- which would yank
                         -- a companion off a drawer once every six seconds. Somebody four
                         -- tiles away is not leaving you.
+                        --
+                        -- The last clause is the rejoin latch above: found again, and it
+                        -- stays true across sweeps until fear says the danger has actually
+                        -- passed -- disengaging is checked before any FIGHT branch in
+                        -- RungOf, so this can never resolve to FIGHT while it holds.
                         disengaging = sprinting or masterDist > LEASH
-                            or (growing and masterDist > 6),
+                            or (growing and masterDist > 6)
+                            or mood.rejoining,
                     }
 
                     local before = mood.rung or Autonomy.IDLE
@@ -638,7 +864,8 @@ local function sweep()
                             -- Somebody is already on this window. Waiting is a real task,
                             -- so they visibly queue rather than crowding the same tile.
                             Bandit.ClearTasks(zombie)
-                            Bandit.AddTask(zombie, { action = "Time", anim = "Shrug", time = 120 })
+                            Bandit.AddTask(zombie,
+                                { action = Autonomy.WAIT_ACTION, anim = Autonomy.WAIT_ANIM, time = 120 })
                             mood.taskSig, mood.taskTicks = nil, 0
                             SR.Log(string.format("AUTO %s | waits, %s is already working %s",
                                 name, tostring(holder), tostring(key)))

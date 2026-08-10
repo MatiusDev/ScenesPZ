@@ -78,9 +78,23 @@ local FREE_RADIUS = 7
 -- casa. Creo que una de las condiciones para que el se quiera sentar es que se encuentre
 -- cansado", which is exactly right.
 --
--- So tiredness gates every sit. Being the lazy sort only moves WHERE the line is.
+-- THE LAZY SORT IS GONE, AND IT WAS NOT A TUNING PROBLEM. Tiredness already gated every sit;
+-- being the lazy sort moved WHERE the line was, and one in five NPCs got a line so high that
+-- 20% of a spent endurance bar was enough. This round: 17 sit-downs, most tagged "the lazy
+-- sort". Lowering that threshold was the first answer and it was the wrong shape of answer --
+-- the user's instruction is to remove the trait, not to re-price it: "quiero desactivar de
+-- momento el NPC tipo perezoso, ya que afecta el funcionamiento, de momento que se sienten
+-- solo cuando esten cansados y necesiten recuperar el endurance."
+--
+-- Which leaves exactly one reason to sit: recovering endurance. Where they are still matters,
+-- because sitting down in the open is a different decision from sitting down in a room --
+-- that is a fact about the situation, not a dice roll about the person.
+--
+-- This is the same principle being applied to fear in ScenesRelationsAutonomy: a behaviour
+-- should follow from a state the NPC is actually in, not from a number rolled at spawn. The
+-- personality traits are not being deleted as an idea -- they are being held until there is a
+-- real state for them to modulate.
 local TIRED = 0.55           -- anybody gives in below this
-local IDLER_TIRED = 0.80     -- the lazy sort gives in sooner, but still has to be tired
 local OUTDOOR_TIRED = 0.25   -- sitting down in the open takes real exhaustion
 
 -- Recovery was 0.25 and it was losing the race. Reported: "si se sientan, pero despues de un
@@ -99,13 +113,10 @@ local REST_TIME = 450
 local READ_TIME = 600
 local READ_RECOVERY = 0.35
 
--- Who sits down sooner because that is who they are. brain.rnd[4] is ZombRand(1000), fixed
--- at spawn. One person in five, and the same one every time -- the whole point of reading a
--- stable field instead of rolling a die.
-local function isIdler(brain)
-    if type(brain.rnd) ~= "table" or not brain.rnd[4] then return false end
-    return (brain.rnd[4] % 100) < 20
-end
+-- `isIdler` lived here and read brain.rnd[4] to decide who sits down sooner. It is deleted
+-- rather than left unused: an unreferenced predicate that encodes a rule we have withdrawn is
+-- how the next person reintroduces it by accident. brain.rnd[4] is unallocated again, and git
+-- has the function if the trait comes back once there is a real state for it to modulate.
 
 -- Who reads. rnd[5] is ZombRand(10000) and was the last unallocated slot; a quarter of
 -- survivors will sit down with a book if they happen to be carrying one.
@@ -171,31 +182,17 @@ local function restTasks(bandit, brain, mood)
     -- Where the line sits depends on where THEY are and who they are, but there is always a
     -- line. Nobody sits down at full endurance any more, and nobody sits down in the open
     -- unless they are genuinely spent.
-    local threshold
-    if not mood.indoors then
-        threshold = OUTDOOR_TIRED
-    elseif isIdler(brain) then
-        threshold = IDLER_TIRED
-    else
-        threshold = TIRED
-    end
+    local threshold = mood.indoors and TIRED or OUTDOOR_TIRED
 
     if endurance < threshold then
         -- The positive endurance is the important half. It is applied by their loop when
         -- the task completes (BanditUpdate.lua:1822-1824), which makes resting the only
         -- thing in the entire framework that gives endurance back.
-        --
-        -- The lazy sort gets an anim that looks occupied rather than blank. Sit, SitAction,
-        -- SitMaking and SitRubHands are all real -- ZPCamper uses all four -- so this is
-        -- flavour taken from what exists, not a new animation.
-        local anim = isIdler(brain) and "SitRubHands" or "Sit"
-
-        SR.Log(string.format("COMP %s sits down | endurance %.2f < %.2f | %s%s",
+        SR.Log(string.format("COMP %s sits down | endurance %.2f < %.2f | %s",
             tostring(brain.fullname), endurance, threshold,
-            mood.indoors and "indoors" or "outdoors",
-            isIdler(brain) and ", the lazy sort" or ""))
+            mood.indoors and "indoors" or "outdoors"))
 
-        return { { action = "Sleep", anim = anim, time = REST_TIME,
+        return { { action = "Sleep", anim = "Sit", time = REST_TIME,
                    endurance = REST_RECOVERY } }
     end
 

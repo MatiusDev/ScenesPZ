@@ -40,6 +40,24 @@ local originalIncrease = nil
 -- compiles it without a word.
 local reported = false
 
+-- THE FLICKER, AND WHY THE FIX SPLITS IN TWO. Reported: "hay un efecto donde si sucede por un
+-- microsegundo y luego desaparece casi de inmediato... pasa muy de vez en cuando al mirar de
+-- repente a un NPC." `sweep` below only zeroed the PANIC stat once per pass -- once every
+-- ~6 seconds -- and left it alone in between. The engine's own panic tick is not gated by our
+-- increase-value multiplier alone; it can add to the raw stat between our passes, so for most
+-- of that 6 seconds a value we had already decided to suppress was free to climb back into
+-- moodle range and get clamped again on the next pass. That climb-and-clamp is the flash.
+--
+-- The fix keeps the expensive part -- walking `BanditZombie.CacheLight` -- exactly where it
+-- was, and moves only the CHEAP part (write these two numbers) onto a fast event, so the clamp
+-- happens every tick instead of once a pass and the value never has room to become visible.
+-- DECIDE SLOWLY, APPLY FAST: `sweep` decides and writes `friendlyCache`; `applyCached` below
+-- only reads it.
+--
+-- Declared here for the same lexical-scoping reason as `reported` above -- `sweep` writes it,
+-- `applyCached` reads it, and both need it in scope before either is defined.
+local friendlyCache = false
+
 --- Is every "zombie" within panic range one of ours?
 ---
 --- `BanditZombie.CacheLight` is the framework's own registry of live NPCs, the same one
@@ -85,7 +103,9 @@ local function onlyFriendsNear(player)
     return sawFriend
 end
 
---- Suppress while surrounded by friends, restore the moment anything else turns up.
+--- DECIDE. Walks the cache, decides friends-only-or-not, remembers the answer and the one
+--- engine value that has to be restored later. Does not touch the player's panic itself --
+--- that write belongs to `applyCached` now, so it can happen every tick instead of once a pass.
 local function sweep()
     local player = getSpecificPlayer(0)
     if not player then return end
@@ -98,12 +118,7 @@ local function sweep()
             originalIncrease = bodyDamage:getPanicIncreaseValue()
         end
 
-        if onlyFriendsNear(player) then
-            bodyDamage:setPanicIncreaseValue(0.0)
-            player:getStats():set(CharacterStat.PANIC, 0)
-        else
-            bodyDamage:setPanicIncreaseValue(originalIncrease)
-        end
+        friendlyCache = onlyFriendsNear(player)
     end)
 
     -- Once, not once a minute. The throw that killed the first version was worth exactly one
@@ -122,9 +137,112 @@ end
 -- rises every second.
 --
 -- `EveryOneMinute` is ~6 real seconds: fast enough to catch the climb early, still 10x cheaper
--- than a per-tick call. Not `OnTick` -- this reads a cache and calls into BodyDamage, and a
--- per-frame call that throws is how this project learned about 1,553 exceptions in one session.
+-- than a per-tick call. Not `OnTick` for the DECISION -- the cache walk in `onlyFriendsNear`
+-- reads every entry in `BanditZombie.CacheLight`, and a per-frame call that throws is how this
+-- project learned about 1,553 exceptions in one session. That cadence must not get cheaper to
+-- make below (this file's job) -- fix a flicker, and stay the same cost.
 Events.EveryOneMinute.Add(sweep)
+
+--- APPLY. The one thing done at tick rate, and it is small on purpose: read `friendlyCache`
+--- and `originalIncrease` -- both already decided by `sweep` -- and write the two engine
+--- values. No cache walk, no table, no string built, no log line on the path that runs every
+--- tick; `applyCachedBody` is declared once below rather than as a closure inside `applyCached`
+--- so calling it through `pcall` allocates nothing per call either.
+---
+--- `originalIncrease == nil` means `sweep` has not run yet this session -- nothing to apply,
+--- nothing to restore to, so this is a no-op until the first pass completes.
+--- Tracks what we last wrote to the RATE, so we write it on a transition and not on a tick.
+---
+--- WHY THIS MATTERS AND IS NOT A MICRO-OPTIMISATION. The rate is a field we do not own. The
+--- first version of this fast path wrote `setPanicIncreaseValue` on EVERY tick in both
+--- branches, which means that for the whole time suppression is off we would be re-stamping
+--- our remembered value over the engine's -- and over any other mod's -- sixty times a second.
+--- That is "replace" wearing the clothes of "extend": beta blockers, a trait, or a future
+--- Bandits handler writing the same field would be silently undone within a frame and nobody
+--- would ever see a stack trace. Rule 4 in CLAUDE.md, and the reason this file exists at all
+--- rather than uncommenting Slayer's handler.
+---
+--- The CLAMP is the opposite case and stays per-tick on purpose: panic is a value we are
+--- deliberately holding at zero while you stand among your own people, and the whole point of
+--- this change is that it must never have a frame in which it is visible.
+local appliedSuppression = nil
+
+local function applyCachedBody(player)
+    local bodyDamage = player:getBodyDamage()
+    if not bodyDamage then return end
+
+    if friendlyCache then
+        if appliedSuppression ~= true then
+            bodyDamage:setPanicIncreaseValue(0.0)
+            appliedSuppression = true
+        end
+        player:getStats():set(CharacterStat.PANIC, 0)
+    elseif appliedSuppression ~= false then
+        bodyDamage:setPanicIncreaseValue(originalIncrease)
+        appliedSuppression = false
+    end
+end
+
+-- Not the same flag as `reported`, and the difference is the whole point. `reported` silences
+-- the LOG; this silences the CALL.
+--
+-- The first draft of the fast path used `reported` for both, and the message it printed --
+-- "suppression is OFF for this session" -- was simply false: nothing turned it off. The handler
+-- kept invoking the failing call every single tick for the rest of the session. `pcall` catches
+-- the Lua error, but the engine still prints its own Java exception underneath, which is
+-- precisely the 1,553-exception log this file's own comment cites as the thing to never do
+-- again. A per-tick handler that has already thrown once must STOP, not merely stop complaining.
+local fastPathDead = false
+
+local function applyCached(player)
+    if fastPathDead then return end
+    if not player or originalIncrease == nil then return end
+
+    local ok, err = pcall(applyCachedBody, player)
+
+    if not ok then
+        fastPathDead = true
+
+        -- PUT IT BACK BEFORE DYING. This is the half that was missing, and it is the difference
+        -- between a feature that switches itself off and a feature that switches the PLAYER's
+        -- panic off permanently.
+        --
+        -- `sweep` no longer writes this field at all -- it only decides. So once the fast path
+        -- stops, nobody is left to restore anything. If the throw happens on a tick AFTER we
+        -- suppressed, the increase rate is sitting at 0.0, and it stays there for the rest of
+        -- the session: panic silently never rises again, with one log line as the only trace.
+        -- Nobody would notice until a horde failed to frighten them.
+        --
+        -- Its own pcall, because the reason we are here is that a call on this object already
+        -- threw once -- and a restore that throws must not stop us from marking the path dead.
+        if appliedSuppression == true then
+            local restored = pcall(function()
+                local bodyDamage = player:getBodyDamage()
+                if bodyDamage then
+                    bodyDamage:setPanicIncreaseValue(originalIncrease)
+                end
+            end)
+            appliedSuppression = restored and false or nil
+            if not restored then
+                SR.Log("PANIC could not restore the increase rate -- it may be stuck at zero")
+            end
+        end
+
+        SR.Log("PANIC fast-apply threw, fast suppression is OFF for this session: "
+            .. tostring(err))
+    end
+end
+
+-- `OnPlayerUpdate` fires client-side once per game tick with the player object already in
+-- hand -- confirmed by three existing client callers, all in the shape
+-- `Events.OnPlayerUpdate.Add(fn)` / `function fn(player)`:
+--   pzserver/media/lua/client/Tutorial/Steps.lua:1919,1922
+--   pzserver/media/lua/client/erosion/debug/DebugDemoTime.lua:114
+--   pzserver/media/lua/client/DebugUIs/Scenarios/FenrisScenario.lua:500
+-- Not `OnTick` for the reason line above already gives, but this handler earns the tick rate
+-- by doing strictly less than `OnTick` would ask of us: no lookup, no allocation, no log line
+-- unless something actually throws.
+Events.OnPlayerUpdate.Add(applyCached)
 
 Events.OnGameStart.Add(function()
     SR.Log("PANIC ready -- your own people no longer read as a horde")
