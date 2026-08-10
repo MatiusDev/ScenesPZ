@@ -352,3 +352,40 @@ listed separately under block B as "GetClosestZombieLocation has no distance lim
 
 **Not a defect of ours, recorded so it is not re-diagnosed:** the user also observed that
 Bandits NPCs sometimes fail to climb through a window at all. Upstream limitation.
+
+## The loot filter takes pens and spoons, and the reason is precise (10-08)
+
+**Reported:** "cogen un monton de cosas que no sirven" — and now the log names them, because
+`took N` prints the item ids:
+
+```
+Base.Pen, Base.BluePen, Base.Spoon, Base.RollingPin, Base.Lipstick, Base.ToiletPaper
+```
+
+**Both culprits are our own predicates, and both are technically correct.** `isWorthTaking` asks
+the engine five questions. Two of them are far broader than "worth carrying":
+
+| Item | Gets in through | Why |
+|---|---|---|
+| `Pen`, `BluePen`, `Spoon`, `RollingPin` | `item:IsWeapon()` | all declare `ItemType = base:weapon` in `pzserver/media/scripts/generated/items/weapon.txt`. To the engine a pen IS a weapon. |
+| `Lipstick`, `ToiletPaper` | `item:IsDrainable()` | both are `ItemType = base:drainable` in `drainable.txt` — the same class as bandages, disinfectant and batteries. |
+
+So the filter is not buggy. It is asking the wrong questions: the engine's classification is a
+statement about MECHANICS, not about value, and we have been treating one as the other.
+
+**What is NOT yet verified, and has to be before anything is written.** The obvious
+discriminators need checking against `pzserver/media/` first, and a fabricated getter here fails
+silently and costs a restart on the other machine:
+
+- weapon damage — no `getMaxDamage()` / `getMinDamage()` callsite exists anywhere in the engine
+  Lua, so the real getter is something else and has to be found;
+- `item:getCategory()` is real (`ISInventoryPage.lua:1572`) but the values seen in vanilla are
+  "Container", "Clothing", "Literature", "Key" — no weapon/drainable value was observed, so what
+  it returns for those is unknown;
+- `ItemTag.*` is a real and large namespace (`CONSUMABLE`, `CAN_EAT`, `CROWBAR`, ...) and may be
+  the right axis, but which tags exist for medical items was not checked.
+
+**The shape of the answer the user asked for:** "tenemos que hacer un listado de items importantes
+para el looteo" — an explicit, declarative priority list, which per principle 2 belongs in
+`scripts/` rather than in Lua. That also makes it survivable across game updates, which a
+predicate built on engine classifications is not.
