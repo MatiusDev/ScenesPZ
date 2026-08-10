@@ -555,57 +555,9 @@ local function assertFollow(zombie, master, dist, free)
     end
     if free then endurance = 0 end
 
-    -- AIM AT WHERE THEY WENT, NOT AT WHERE THEY ARE, when the straight line is shut.
-    --
-    -- Reported: "yo trepé un muro alto para pasar al otro lado, el NPC de una tomó la opción de
-    -- rodearlo" -- and going the long way round is not merely slower, it drags a companion
-    -- through streets it did not need to be in, which is how a quiet approach turns into a horde.
-    --
-    -- The trail is only consulted when the direct line is BLOCKED. With a clear line the old
-    -- behaviour is exactly right and cheaper, and a heuristic that fires when it is not needed is
-    -- a heuristic that will eventually be wrong for no reason.
-    --
-    -- This is NOT a claim that the trail is shorter. Proving that needs a real pathfind, and a
-    -- pathfind commits the character. It is a claim that the trail is PASSABLE, which is a fact
-    -- rather than an estimate: somebody walked it.
-    local tx, ty, tz = master:getX(), master:getY(), master:getZ()
-    local viaTrail = false
-
-    if SR.Move and SR.Move.TrailTarget and SR.Move.WhatBlocks then
-        local okLine, blocked = pcall(SR.Move.WhatBlocks, zombie, tx, ty, tz)
-        if okLine and blocked ~= nil then
-            local okTrail, cx, cy, cz = pcall(SR.Move.TrailTarget, zombie)
-            if okTrail and cx then
-                tx, ty, tz, viaTrail = cx, cy, cz, true
-            end
-        end
-    end
-
-    -- `tid`/`isPlayer` are still passed because that is the shape of the framework's own helper,
-    -- but nothing in Bandits 42.20 reads either field -- ZAMove paths to the fixed coordinate
-    -- captured at onStart (ZAMove.lua:9). The task walks to a POINT, which is precisely why
-    -- aiming that point at a crumb works at all.
     local task = BanditUtils.GetMoveTaskTarget(endurance,
-        tx, ty, tz,
+        master:getX(), master:getY(), master:getZ(),
         BanditUtils.GetCharacterID(master), true, walkType, dist)
-
-    -- ON THE TRANSITION ONLY. `assertFollow` runs from the 800 ms tick, and a line that stays
-    -- blocked stays blocked -- logging per call would put seventy-five lines a minute per
-    -- companion into the one file this project reads by hand on another machine. That is the
-    -- exact failure the interruption pass was discarded for, and it would have been the same
-    -- mistake twice in one week.
-    --
-    -- Also: the first version called BanditBrain.Get TWICE inside the string.format, on that
-    -- same hot path.
-    local mood = SR.Mood(zombie)
-    if mood and mood.viaTrail ~= viaTrail then
-        mood.viaTrail = viaTrail
-        if viaTrail then
-            local brain = BanditBrain.Get(zombie)
-            SR.Log(string.format("AUTO %s follows the trail to %.0f,%.0f -- direct line shut",
-                tostring(brain and brain.fullname), tx, ty))
-        end
-    end
 
     Bandit.ClearTasks(zombie)
     Bandit.AddTask(zombie, SR.Own(SR.GOAL.FOLLOW, task))
@@ -1053,14 +1005,6 @@ local function fastFollow()
     -- the six-second sweep is for.
     local sprinting = player:isSprinting() == true
     local px, py = player:getX(), player:getY()
-
-    -- Remember where the player has BEEN. One distance test per pass, an append every couple of
-    -- tiles. This tick already runs and already holds the player, so the trail costs nothing to
-    -- collect -- and it is the only route to the player that is known to be walkable, because a
-    -- body already walked it.
-    if SR.Move and SR.Move.DropCrumb then
-        pcall(SR.Move.DropCrumb, player)
-    end
 
     local ok, bandits = pcall(BanditZombie.GetAllB)
     if not ok or type(bandits) ~= "table" then return end

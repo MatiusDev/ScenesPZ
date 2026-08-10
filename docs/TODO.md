@@ -389,3 +389,80 @@ silently and costs a restart on the other machine:
 para el looteo" — an explicit, declarative priority list, which per principle 2 belongs in
 `scripts/` rather than in Lua. That also makes it survivable across game updates, which a
 predicate built on engine classifications is not.
+
+## The player-trail idea is sound; the implementation was reverted (10-08)
+
+Reverted 99601e1. The IDEA survives and should be rebuilt — following the route the player
+actually walked is the only reachable answer to "yo trepé un muro y el NPC lo rodeó", and it is
+the only thing that addresses the 44% of jams where the straight line is clear. What follows is
+what a review found, so the next attempt does not rediscover it.
+
+### The two that made it worse than not having it
+
+**1. The cross-floor fix broke the feature it was meant to serve, and regressed the old
+behaviour.** `WhatBlocks` was changed to return `BLOCK_UNKNOWN` for a target on another floor.
+But `TrailTarget` accepts a crumb only when `WhatBlocks` is nil — so **no cross-floor crumb can
+ever be selected**, and the crumb `DropCrumb` exists to create (always one on a floor change) is
+exactly the one that is structurally rejected.
+
+Worse, it regressed what worked before. Player upstairs, companion below: `assertFollow` used to
+pass the master's own z, and `ZAMove` hands that to `pathToLocation`
+(`vendor/Bandits/mods/Bandits/42.20/media/lua/shared/ZombieActions/ZAMove.lua:9`) — the engine
+pathfinder, which solves stairs. After the change, whenever a same-floor crumb was available the
+companion was never given a cross-floor destination at all.
+
+**The lesson is about the fix, not the bug.** The same predicate was used with INVERTED POLARITY
+at two call sites. Fixing one end and not re-deriving the other is precisely what a self-review
+cannot catch: the author is blind in the same place twice.
+
+**2. A two-tile pacing limit cycle, invisible to the watchdog.** `TrailTarget` skipped a crumb
+within `CRUMB_SPACING` and then **continued to older ones**. The comment claimed "this crumb and
+every older one are behind us"; the code never implemented it — no break, no test that a crumb is
+ahead. So it returns crumbs the NPC already walked past.
+
+Concretely: player upstairs and still. Companion reaches the stair foot. Next call, that crumb is
+within 2 tiles → skipped, newer ones are cross-floor → rejected, and an OLDER crumb 2 tiles
+behind is clear → returned. It walks back. Now the first crumb is >2 tiles and clear → walks
+forward. Forever.
+
+`watchdog` cannot see it: it requires the NPC to have moved less than `MOVED_EPSILON = 0.6`, and
+a pacing NPC moves two tiles. **The safety net is blind to this by construction.**
+
+### The three that would have bitten later
+
+**3. Endurance is charged per COMPLETED task, and short legs complete.** `walkType` and
+`endurance` are computed from the distance to the MASTER, then the task is aimed at a CRUMB.
+A long Run at a distant master was usually cleared by the next sweep before completing, so it
+cost nothing (`BanditUpdate.lua:1819-1821` applies `task.endurance` only in the COMPLETED
+branch). A short crumb leg completes in 1-2 s and charges -0.07 every sweep: 0.7/min against a
+ceiling of 1.0. At zero, `BanditUpdate.lua:437-444` queues five locked `Exhausted` tasks. About
+ninety seconds of following a blocked line locks a companion into the exhaustion animation --
+which is the old "después de un rato los veo cansado de nuevo", re-created by the fix.
+
+**4. No distance cap on a crumb candidate.** `WhatBlocks` documents itself as bounded by the
+distance asked about, and every previous caller passed a target inside a search radius.
+`TrailTarget` was the first that did not.
+
+**5. Crumbs are dropped while the player is in a VEHICLE.** `fastFollow` guards only "player
+exists and is not dead". At 800 ms even a slow car exceeds `CRUMB_SPACING`, so a crumb lands
+every pass and the 2-tile spacing that `TRAIL_SCAN` and `CRUMB_MAX` were both sized against
+silently becomes 10-15 tiles. And the trail's founding premise -- *known passable because a body
+walked it* -- is simply false for a route a car took.
+
+### Telemetry note for whoever reads the next log
+
+`blocked by unknown` now has two unrelated causes: the probe did not run, and the target was on
+another floor. A cross-floor stuck NPC used to be counted as `clear`. The 10-08 counts (12 solid,
+11 clear, 1 locked, 1 hop) predate that and are still good.
+
+### What to keep when rebuilding
+
+- Drop crumbs from the fast tick — it already runs and already holds the player. That part is free
+  and correct.
+- Keep the narrow claim: the trail is PASSABLE, not SHORTER. Proving shorter needs a pathfind, and
+  `pathToLocation` commits the character.
+- A crumb must be *ahead*: nearer the master than the NPC currently is. Skipping-and-continuing is
+  what created the limit cycle.
+- Recompute walk type and endurance from the ACTUAL target, never from the master.
+- Cap the candidate distance, skip crumbs laid from a vehicle, and clear the trail on death as
+  well as on game start.
