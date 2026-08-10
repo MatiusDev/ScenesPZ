@@ -912,7 +912,52 @@ function Loot.WearBag(zombie, brain, itemType)
         end
     end)
 
-    local ok, err = pcall(function() Bandit.ApplyVisuals(zombie, brain) end)
+    -- THE BAG NEVER RENDERED BECAUSE APPLYVISUALS WAS RETURNING WITHOUT DOING ANYTHING.
+    --
+    -- Three attempts went into making a worn bag appear on a live NPC -- setWornItem, then
+    -- resetModelNextFrame, then resetModel -- and all three were the wrong question. The answer
+    -- is a guard clause at the top of the function we were already calling:
+    --
+    --     local skin = banditVisuals:getSkinTexture()
+    --     if not skin or skin:find("^FemaleBody") or skin:find("^MaleBody") then return end
+    --         vendor/Bandits/mods/Bandits/42.20/media/lua/shared/Bandit.lua:83-84
+    --
+    -- `FemaleBody...` / `MaleBody...` ARE the ordinary body textures. So on any NPC that is
+    -- already dressed and already on screen, `Bandit.ApplyVisuals` bails on line 84 and never
+    -- reaches the block that pushes an ItemVisual for `brain.bag` (:234-246). Our call returned
+    -- cleanly, logged nothing, and did nothing. Not an engine limitation -- a line we never read.
+    --
+    -- THE WAY THROUGH IS UPSTREAM'S OWN, and it is deliberate rather than a hack. The Ark
+    -- re-dresses a living NPC in front of the player -- Emma changes outfit mid-programme -- and
+    -- its transform action does exactly this first:
+    --
+    --     zombie:getHumanVisual():setSkinTextureName("x") -- sic!
+    --     Bandit.ApplyVisuals(zombie, brain)
+    --         vendor/TheArk/mods/BanditsWeekOneTheArk/42.20/.../ZombieActions/ZATransform.lua:56-57
+    --
+    -- "x" matches neither `^FemaleBody` nor `^MaleBody`, so the guard passes. ApplyVisuals then
+    -- sets the real skin back itself, from `brain.skin` or `brain.skinTexture`. Slayer's own
+    -- `-- sic!` is him noting it looks wrong and is meant.
+    --
+    -- WE RESTORE IT OURSELVES IF IT DOES NOT. Both of ApplyVisuals' restore paths are
+    -- conditional, so a brain carrying neither field would leave this NPC wearing a skin called
+    -- "x" -- which is not a texture, and the failure would be a permanently broken-looking
+    -- survivor rather than a missing bag. Cheap to prevent, expensive to discover in play.
+    local ok, err = pcall(function()
+        local visual = zombie:getHumanVisual()
+        if not visual then error("no HumanVisual on this NPC", 0) end
+
+        local realSkin = visual:getSkinTexture()
+        visual:setSkinTextureName("x")
+
+        Bandit.ApplyVisuals(zombie, brain)
+
+        local after = visual:getSkinTexture()
+        if realSkin and (not after or after == "x") then
+            visual:setSkinTextureName(realSkin)
+            SR.Log("LOOT put the skin back by hand -- the brain carried no skin to restore")
+        end
+    end)
     if not ok then
         SR.Log("LOOT could not apply the bag: " .. tostring(err))
         return false
