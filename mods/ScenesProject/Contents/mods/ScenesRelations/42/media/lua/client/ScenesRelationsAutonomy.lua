@@ -78,9 +78,11 @@ local NPC_RANGE = 40
 -- SURVIVE forever, unwatched by the module that could correct it.
 Autonomy.NPC_RANGE = NPC_RANGE
 
--- Tiles. Something this close has them: running is not on the table and trying to leave
--- just means being bitten in the back. Nothing overrides this.
-local GRABBED_RANGE = 1.6
+-- GRABBED_RANGE (1.6 tiles) lived here -- "this close has them, running is not on the table".
+-- Deleted rather than kept: the reasoning is in RungOf where the branch used to be. Once
+-- leaving wins outright for a companion, 1.6 is simply a subset of ENGAGE_RANGE and the test
+-- could never fire. A dead constant that reads like a rule is how the next person tunes a
+-- number and wonders why nothing changed. git has it if the branch ever comes back.
 
 -- Tiles. Close enough to be worth swinging at when nothing else is being asked of them.
 -- Was 10, which meant any zombie in the street outranked every order the player had given.
@@ -147,10 +149,13 @@ local FEAR_RADIUS = 9
 -- below, so it is set to the widest of them rather than scanning the cache three times.
 local SCAN_RADIUS = 10
 
--- Zombies that got INSIDE with you. One is a problem; this many is a reason to leave rather
--- than to hold a room. Asked for directly: "a no ser de que esten entrando demasiados
--- zombies y sea necesario para escapar del lugar."
-local BREACH_PANIC = 4
+-- BREACH_PANIC (4) lived here -- "one inside is a problem, four is a reason to leave", asked
+-- for in those words: "a no ser de que esten entrando demasiados zombies y sea necesario para
+-- escapar del lugar." It was referenced NOWHERE. The rule it names is enforced, but by the
+-- FEAR_PER_BREACH term, which crosses the limit at three rather than four -- so the documented
+-- rule and the shipped behaviour disagreed silently, with this constant as the only evidence
+-- anybody had intended four. Recalibrating that term is a tuning decision and it is tracked
+-- with the rest of the fear model in docs/PLAN-OBJETIVOS.md.
 
 -- Zombies outside the walls but close enough to be working on them. Below this, searching
 -- the house is reasonable; at or above it, the job is to clear the area first --

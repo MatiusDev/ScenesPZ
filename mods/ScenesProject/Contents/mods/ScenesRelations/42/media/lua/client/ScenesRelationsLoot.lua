@@ -252,7 +252,7 @@ ZombieActions.ScenesLoot.onComplete = function(zombie, task)
     end
 
     local zx, zy, zz = zombie:getX(), zombie:getY(), zombie:getZ()
-    local sx, sy, sz = standSquare:getX(), standSquare:getY(), standSquare:getZ()
+    local sx, sy = standSquare:getX(), standSquare:getY()
 
     -- STEP 2: DISTANCE TO THAT SQUARE, NOT TO THE CONTAINER'S. Measuring straight to the
     -- container (the old check) is why REACH had to be a loose 2.0 -- a diagonal access square
