@@ -209,18 +209,81 @@ Los casos especiales (horda, señuelo, salir por atrás) van a `TODO.md`, como p
 
 ---
 
+## 4b. Cómo bajar el costo de revisar
+
+`pz-review` encontró defectos reales tres veces esta semana, incluida una en un commit que ya
+estaba pusheado. No es negociable. Pero cuesta ~100k tokens por pasada, y **la mayor parte se
+gasta re-derivando hechos que un grep contesta**.
+
+Separando los hallazgos de esta sesión por naturaleza:
+
+| Hallazgo | ¿Lo puede encontrar una herramienta? |
+|---|---|
+| `mood.sheltering` / `rejoining` / `posture` trabados | **Sí** — escritura de un flag sin ruta de limpieza |
+| tarea con `time=20` vive 0.33 s, contra un throttle de 800 ms | **Sí** — es aritmética sobre una constante |
+| cita a `vendor/` sin carpeta de versión | **Sí** — patrón de texto |
+| `local` usado por encima de su declaración | **Sí** — es exactamente lo que hace `luacheck` |
+| `pcall` que se traga un error sin loguear | **Sí** — heurística de forma |
+| ¿este bucle termina? | No |
+| ¿el llamador tiene motor de re-entrada? | No |
+| ¿este umbral es el correcto? | No |
+
+Las cinco primeras son mecánicas y hoy las paga un modelo. **`tools/lint.sh` son 51 líneas y solo
+mira sintaxis e ids; `luacheck` ni siquiera está instalado**, pese a que el bug de "un `local`
+declarado abajo se vuelve un global nil" mató una conducta entera el 08-08.
+
+Propuesta: `tools/audit.py`, con estos chequeos, elegidos porque cada uno corresponde a un defecto
+que **realmente ocurrió**:
+
+1. **Auditoría de latches.** Toda escritura `mood.X = <truthy>` sin un `mood.X = nil` en el mismo
+   archivo. Habría marcado cuatro de los seis defectos de la semana.
+2. **Vida real de las tareas.** Toda tarea encolada con `time = N`, convertida a segundos con la
+   fórmula del motor (`1 / ((fps + 0.5) * 0.01666667)` por frame ≈ 60 por segundo), contra la
+   cadencia del código que la consulta. Habría cazado el defecto 1 del revert al instante.
+3. **Puntos de vaciado de cola.** Todo `ClearTasks` / `AddTaskFirst` con su dueño.
+4. **Citas a vendor sin versión.** El árbol trae 42.12 … 42.20 en paralelo.
+5. **`luacheck`**, para globales no declarados y orden léxico.
+
+Y el cambio que de verdad baja el costo: el brief de `pz-review` empieza con *"corré
+`tools/audit.py` y no vuelvas a derivar lo que reporta"*. Deja de gastar tokens en lo grepeable y
+los gasta en lo que solo un modelo puede contestar: terminación, motores de re-entrada, y si el
+número elegido tiene sentido.
+
+**Automatizar el gate, no la revisión.** La revisión es una llamada a un modelo y no va en un hook.
+Lo que sí va en un hook de `pre-push` es `lint.sh` + `audit.py`: si fallan, no sale. La revisión
+sigue siendo un paso delegado, pero con un brief mucho más chico.
+
 ## 5. El orden
 
 Cada paso deja algo probable en juego. No se encadenan a ciegas.
 
-| # | Qué | Por qué antes que el resto |
-|---|---|---|
-| **1** | Revertir el vestir la mochila | Cierra P1 con un "no se puede" verificado y quita el duplicado del cadáver. Chico y aislado. |
-| **2** | Guardar el loot **dentro** del bolso | Tu 139% de sobrecarga. Alto valor, contenido en un archivo. Antes falta verificar si `UpdateItemsToSpawnAtDeath` ve lo que está dentro del bolso. |
-| **3** | Dejar de vaciar la cola al seguir | Arregla el seguimiento **sin arquitectura nueva**, y es el prerrequisito real del modelo de objetivos: mientras el barrido tire la cola cada 6 segundos, ningún secundario puede sobrevivir. |
-| **4** | Etiquetar tareas por dueño (`srGoal`) | Convierte "vaciar" en "reemplazar lo mío". Habilita el 6. |
-| **5** | Acción de puerta + orden entrar/salir | Primer comportamiento nuevo real. Desbloquea el bloque B. |
-| **6** | Modelo de objetivos ppal/secundarios | Ya con la cola sana y las tareas etiquetadas, es refactor, no invención. |
+Reordenado el 10-08, después de que el intento de hacer el 3 solo tuviera que revertirse. Cada
+fila dice qué se delega y qué tiene que ser verdad para poder cerrarla — para que el brief del
+subagente salga de acá y no haya que redactarlo cada vez.
+
+| # | Qué | Estado | Se delega a | Terminado cuando |
+|---|---|---|---|---|
+| **0** | `tools/audit.py` + `luacheck` (sección 4b) | ⬜ | `pz-lua` (es tooling, no mod) | los 5 chequeos corren y el brief de review los cita |
+| **1** | Revertir el vestir la mochila | ✅ `f4839cf` | — | el cadáver trae UNA mochila |
+| **2** | Etiquetar **todos** los productores de tarea con `srGoal` | ⬜ | 1 escritor, mecánico | `grep -c srGoal` cubre loot, refugio, descanso, idle y follow |
+| **3** | Corte de interrupción rápida | ⬜ | `pz-research` → 1 escritor | un zombi en rango preempta en < 1 s, no en 6 |
+| **4** | Re-aterrizar la cola que sobrevive | ⬜ | 1 escritor + review | Threat sabe que una cabeza ajena no es ruta perdida; Loot distingue "interrumpido" de "no llegué" |
+| **5** | Modelo de objetivos ppal/secundarios | ⬜ | 1 escritor + review | ningún `mood.*Goal` guardado; todo derivado |
+| **6** | Acción de puerta + orden entrar/salir | ⬜ | `pz-research` → 1 escritor | entra por la puerta antes que por la ventana |
+| **7** | Persistencia `scenesCarry` → `permaInv` | ⬜ | `pz-research` → 1 escritor | desbloquea guardar en el bolso Y la sobrecarga |
+
+**Qué cambió respecto de la primera versión, y por qué.** El 3 original —dejar de vaciar la cola—
+se intentó solo y hubo que revertirlo: sin `srGoal` en todos lados, Threat leyó una cabeza ajena
+como ruta perdida y acumuló tareas, y una interrupción de seguimiento hizo que Loot registrara un
+rechazo falso que borra el mueble a los tres. **La cola que sobrevive es una consecuencia del
+etiquetado, no un paso previo.** Por eso ahora el etiquetado es el 2 y la cola es el 4.
+
+El 3 (interrupción rápida) se adelantó porque el barrido decide cada 6 segundos, y ningún modelo de
+objetivos se siente vivo encima de eso — un NPC que tarda seis segundos en notar que lo muerden no
+parece que tenga objetivos, parece tildado.
+
+Guardar en el bolso bajó al 7: resultó ser un cambio de **persistencia**, no de looteo. El
+inventario vivo es una vista que se pierde al despawnear.
 
 **El modelo de miedo se arregla dentro del 6**, no antes: su defecto conocido —el término
 dominante ignora cuánta gente hay— es el mismo problema de "el principal no mira el contexto".
