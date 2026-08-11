@@ -70,6 +70,10 @@ local C = {
     bleeding  = { r = 0.85, g = 0.15, b = 0.15 },
     glass     = { r = 0.55, g = 0.80, b = 0.95 },
     bandaged  = { r = 0.35, g = 0.65, b = 0.35 },
+    burn      = { r = 0.90, g = 0.45, b = 0.15 },
+    fracture  = { r = 0.70, g = 0.25, b = 0.65 },
+    infected  = { r = 0.30, g = 0.75, b = 0.25 },
+    pain      = { r = 0.95, g = 0.30, b = 0.30 },
 }
 
 -- Bandage types, best first.
@@ -79,7 +83,15 @@ local BANDAGES = {
 }
 
 --- Wound status for a body part, read directly from the engine.
---- Returns { kind, label, color, bleeding, bandaged, hasGlass, isDeep }
+--- Returns { kind, label, color, bleeding, bandaged, hasGlass, isDeep,
+---          burned, fractured, infected, stitched, splinted, pain }
+---
+--- Wound types verified in ISHealthPanel.lua:
+---   scratched() :631, deepWounded() :667, bitten() :683
+--- Status: bleeding() :732, haveGlass() :844, bandaged() :773, stitched() :523
+--- Burns: getBurnTime() :246, Fractures: getFractureTime() :267
+--- Infection: isInfectedWound() :297 (bacterial, NOT zombie virus)
+--- Pain: getAdditionalPain() :691, Stiffness: getStiffness() :523
 local function readPart(bd, partType)
     local ok, bp = pcall(function() return bd:getBodyPart(partType) end)
     if not ok or not bp then return nil end
@@ -92,31 +104,57 @@ local function readPart(bd, partType)
     pcall(function() hasGlass = bp:haveGlass() end)
     pcall(function() bandageLife = bp:getBandageLife() or 0 end)
 
+    local burned, fractured, woundInfected, stitched, splinted, pain = false, false, false, false, false, false
+    pcall(function() burned = (bp:getBurnTime() or 0) > 0 end)
+    pcall(function() fractured = (bp:getFractureTime() or 0) > 0 end)
+    pcall(function() woundInfected = bp:isInfectedWound() end)
+    pcall(function() stitched = bp:stitched() end)
+    pcall(function() splinted = bp:getSplintFactor() > 0 end)
+    pcall(function() pain = (bp:getAdditionalPain() or 0) > 10 end)
+
     local bandaged = bandageLife > 0
 
+    -- Build status flags for the right panel to enumerate.
+    local flags = {}
+    if bleeding then flags[#flags + 1] = { label = "Bleeding", color = C.bleeding } end
+    if hasGlass then flags[#flags + 1] = { label = "Glass lodged", color = C.glass } end
+    if woundInfected then flags[#flags + 1] = { label = "Wound infected", color = C.infected } end
+    if burned then flags[#flags + 1] = { label = "Burned", color = C.burn } end
+    if fractured then flags[#flags + 1] = { label = "Fractured", color = C.fracture } end
+    if stitched then flags[#flags + 1] = { label = "Stitched", color = C.bandaged } end
+    if splinted then flags[#flags + 1] = { label = "Splinted", color = C.bandaged } end
+
     if bitten then
-        return { kind = "bite", label = "Bitten", color = C.bite, bleeding = bleeding,
-            bandaged = bandaged, hasGlass = hasGlass, isDeep = false, bp = bp }
+        return { kind = "bite", label = "Bitten", color = C.bite,
+            bleeding = bleeding, bandaged = bandaged, hasGlass = hasGlass,
+            isDeep = false, burned = burned, fractured = fractured,
+            infected = woundInfected, flags = flags, bp = bp }
     elseif deep then
         return { kind = "deepWound", label = "Deep wound", color = C.deepWound,
-            bleeding = bleeding, bandaged = bandaged, hasGlass = hasGlass, isDeep = true, bp = bp }
+            bleeding = bleeding, bandaged = bandaged, hasGlass = hasGlass,
+            isDeep = true, burned = burned, fractured = fractured,
+            infected = woundInfected, flags = flags, bp = bp }
     elseif scratched then
         return { kind = "scratch", label = "Scratch", color = C.scratch,
-            bleeding = bleeding, bandaged = bandaged, hasGlass = hasGlass, isDeep = false, bp = bp }
+            bleeding = bleeding, bandaged = bandaged, hasGlass = hasGlass,
+            isDeep = false, burned = burned, fractured = fractured,
+            infected = woundInfected, flags = flags, bp = bp }
     end
 
-    if hasGlass then
-        return { kind = "glass", label = "Glass lodged", color = C.glass, bleeding = false,
-            bandaged = false, hasGlass = true, isDeep = false, bp = bp }
+    if #flags > 0 then
+        return { kind = "injured", label = flags[1].label, color = flags[1].color,
+            bleeding = false, bandaged = false, hasGlass = false,
+            isDeep = false, burned = burned, fractured = fractured,
+            infected = woundInfected, flags = flags, bp = bp }
     end
 
     if bandaged then
-        return { kind = "bandaged", label = "Bandaged", color = C.bandaged, bleeding = false,
-            bandaged = true, hasGlass = false, isDeep = false, bp = bp }
+        return { kind = "bandaged", label = "Bandaged", color = C.bandaged,
+            flags = {}, bp = bp }
     end
 
-    return { kind = "healthy", label = "Healthy", color = C.healthy, bleeding = false,
-        bandaged = false, hasGlass = false, isDeep = false, bp = bp }
+    return { kind = "healthy", label = "Healthy", color = C.healthy,
+        flags = {}, bp = bp }
 end
 
 --- Find the first usable bandage.
@@ -179,8 +217,33 @@ function ScenesRelationsHealthPanel:prerender()
 
     -- Infection
     local inf = tonumber(brain.infection) or 0
-    self:drawText(string.format("Infection: %d%%", inf), lx, ly, 0.75, 0.35, 0.75, 1, UIFont.Small)
-    ly = ly + 18
+    self:drawText(string.format("Zombie virus: %d%%", inf), lx, ly, 0.75, 0.35, 0.75, 1, UIFont.Small)
+    ly = ly + 16
+
+    -- Wound infection (bacterial, not zombie virus) — per-body, check all parts
+    -- and body-level cold/food sickness
+    local hasWoundInfection = false
+    local coldLevel, foodSick = 0, 0
+    if bd then
+        for _, entry in ipairs(BODY_PARTS) do
+            local st = readPart(bd, entry.part)
+            if st and st.infected then hasWoundInfection = true; break end
+        end
+        pcall(function() coldLevel = bd:getColdStrength() or 0 end)
+        pcall(function() foodSick = bd:getFoodSicknessLevel() or 0 end)
+    end
+    if hasWoundInfection then
+        self:drawText("Wound infection: YES", lx, ly, C.infected.r, C.infected.g, C.infected.b, 1, UIFont.Small)
+        ly = ly + 16
+    end
+    if coldLevel > 0 then
+        self:drawText(string.format("Cold: %.0f%%", coldLevel), lx, ly, 0.4, 0.6, 0.9, 1, UIFont.Small)
+        ly = ly + 16
+    end
+    if foodSick > 0 then
+        self:drawText(string.format("Food sickness: %.0f%%", foodSick), lx, ly, 0.6, 0.7, 0.3, 1, UIFont.Small)
+        ly = ly + 16
+    end
 
     -- Separator
     self:drawRect(lx, ly, lw, 1, 0.4, 0.4, 0.4, 0.4)
@@ -243,16 +306,13 @@ function ScenesRelationsHealthPanel:prerender()
             self:drawText("Status: " .. st.label, rx, ry, st.color.r, st.color.g, st.color.b, 1, UIFont.Small)
             ry = ry + 20
 
-            if st.bleeding then
-                self:drawText("[!] Bleeding", rx, ry, C.bleeding.r, C.bleeding.g, C.bleeding.b, 1, UIFont.Small)
+            for _, flag in ipairs(st.flags or {}) do
+                self:drawText("- " .. flag.label, rx + 8, ry, flag.color.r, flag.color.g, flag.color.b, 1, UIFont.Small)
                 ry = ry + 18
             end
-            if st.hasGlass then
-                self:drawText("[!] Glass lodged", rx, ry, C.glass.r, C.glass.g, C.glass.b, 1, UIFont.Small)
-                ry = ry + 18
-            end
+
             if st.isDeep then
-                self:drawText("[!] Deep wound - needs suture", rx, ry, C.deepWound.r, C.deepWound.g, C.deepWound.b, 1, UIFont.Small)
+                self:drawText("- Deep wound (needs suture)", rx + 8, ry, C.deepWound.r, C.deepWound.g, C.deepWound.b, 1, UIFont.Small)
                 ry = ry + 18
             end
             if st.bandaged then
@@ -260,7 +320,7 @@ function ScenesRelationsHealthPanel:prerender()
                 ry = ry + 18
             end
             if st.kind == "healthy" then
-                self:drawText("No injuries", rx, ry, 0.4, 0.7, 0.4, 1, UIFont.Small)
+                self:drawText("No injuries on this part", rx, ry, 0.4, 0.7, 0.4, 1, UIFont.Small)
             end
         end
     end
