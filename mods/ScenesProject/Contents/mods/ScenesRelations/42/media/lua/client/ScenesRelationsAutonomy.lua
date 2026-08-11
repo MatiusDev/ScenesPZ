@@ -1249,51 +1249,48 @@ local function watchdog(zombie, brain, mood, name)
         local overcame = false
 
         if blocking == "hop" or blocking == "tall" then
-            -- THE ENGINE METHODS climbOverFence/Wall DO NOT WORK ON IsoZombie.
-            -- Tested in two sessions: zero "climbed over" lines, zero probe logs.
-            -- The Java binding either rejects the call or is a no-op on zombies.
+            -- THE ENGINE METHODS climbOverFence/Wall TAKE A DIRECTION, NOT AN OBJECT.
+            -- JavaDoc confirms: ClimbOverFenceState.setParams(IsoGameCharacter, IsoDirections)
+            -- and ClimbOverWallState.setParams(IsoGameCharacter, IsoDirections).
+            -- The previous code passed the fence object, which is silently wrong.
             --
-            -- WHAT DOES WORK, AND IT IS THE WINDOW PATTERN. Bandits crosses windows
-            -- (BanditUpdate.lua:684-685) by calling setParams on the STATE SINGLETON,
-            -- then changing the zombie's state:
-            --   ClimbThroughWindowState.instance():setParams(bandit, object)
-            --   bandit:changeState(ClimbThroughWindowState.instance())
+            -- The direction follows getFacingDirection() from ISClimbOverFence.lua:48-58:
+            -- read IsoFlagType.HoppableN from the square. Cross opposite to where the
+            -- character is relative to the square.
             --
-            -- For fences, Bandits' own code (line 574) calls changeState WITHOUT
-            -- setParams -- which is why it was commented out. The state has no
-            -- direction or object reference, so the animation plays but the NPC
-            -- never moves. We add the missing setParams here.
-            --
-            -- The fence object is on the obstacle square (task.x, task.y). Get the
-            -- first hoppable/tall-hoppable object on that square, same way Bandits'
-            -- own collision handler finds it (BanditUpdate.lua:544-598).
+            -- AND climbOverFence(dir)/climbOverWall(dir) ARE available on IsoGameCharacter
+            -- (JavaDoc shows both on the class, not just IsoPlayer). The previous test
+            -- that "proved" they didn't work may have been passing the wrong type.
             local square = zombie:getCell():getGridSquare(task.x, task.y, task.z or zombie:getZ())
             if square then
-                local objects = square:getObjects()
-                local fenceObj = nil
-                for j = 0, objects:size() - 1 do
-                    local obj = objects:get(j)
-                    if (blocking == "tall" and obj:isTallHoppable())
-                       or (blocking == "hop" and obj:isHoppable()) then
-                        fenceObj = obj
-                        break
-                    end
+                local dir
+                if square:has(IsoFlagType.HoppableN) then
+                    dir = (zombie:getY() < square:getY()) and IsoDirections.S or IsoDirections.N
+                else
+                    dir = (zombie:getX() < square:getX()) and IsoDirections.E or IsoDirections.W
                 end
-                if fenceObj then
+                -- Try the engine method first (what the player uses).
+                -- Then fall back to setParams+changeState (what Bandits does for windows).
+                local okClimb = pcall(function()
+                    if blocking == "tall" then
+                        zombie:climbOverWall(dir)
+                    else
+                        zombie:climbOverFence(dir)
+                    end
+                end)
+                if not okClimb then
+                    -- Engine method rejected. Try the Bandits pattern with direction.
                     local state = (blocking == "tall")
                         and ClimbOverWallState.instance()
                         or ClimbOverFenceState.instance()
-                    -- setParams BEFORE changeState -- this is what Bandits skips
-                    -- and why their fence climb never worked.
-                    pcall(function() state:setParams(zombie, fenceObj) end)
+                    pcall(function() state:setParams(zombie, dir) end)
                     pcall(function() zombie:changeState(state) end)
-                    overcame = true
-                    SR.Log(string.format(
-                        "AUTO %s | stuck on %s for %d sweeps -- blocked by %s -- changeState(%s)",
-                        name, signature, STUCK_SWEEPS, blocking,
-                        blocking == "tall" and "ClimbOverWall" or "ClimbOverFence"))
                 end
-            end
+                overcame = true
+                SR.Log(string.format(
+                    "AUTO %s | stuck on %s for %d sweeps -- blocked by %s -- %s",
+                    name, signature, STUCK_SWEEPS, blocking,
+                    okClimb and "climbed over" or "changeState (setParams with direction)"))
 
         elseif blocking == "window" then
             -- TWO KINDS OF WINDOW, AND THE NPC FINDS OUT WHICH BY TRYING.
