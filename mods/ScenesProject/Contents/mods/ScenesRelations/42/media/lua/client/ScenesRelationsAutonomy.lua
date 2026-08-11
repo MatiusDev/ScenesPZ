@@ -62,12 +62,24 @@
 --    (a) We only ever read `isSprinting()`. A player who JOGS is invisible to this file, and
 --        jogging is what people actually do. `obey -> fight` is the single most common rung
 --        transition in the 10-08 log -- 36 times, several off ONE zombie at 5 tiles.
---    (b) Even once we assert a follow, ManageCombat calls Bandit.ClearTasks UNCONDITIONALLY
---        (BanditUpdate.lua:1181/1196/1205/1212) and appends a Smack. Our follow was wiped in
---        the same frame we queued it. Bandit.ClearTasks KEEPS tasks whose `lock == true`
---        (Bandit.lua:369-382), so a locked follow survives, stays at the head, and the Smack
---        queues BEHIND it. Upstream sets `task.lock = false` itself (BanditUpdate.lua:1383),
---        so writing that field is an accepted pattern here, not a hack.
+--    (b) Even once we assert a follow, ManageCombat can call Bandit.ClearTasks and append a
+--        Smack (BanditUpdate.lua:1181/1196/1205/1212). Bandit.ClearTasks KEEPS tasks whose
+--        `lock == true` (Bandit.lua:369-382), so a locked follow survives, stays at the head,
+--        and the Smack queues BEHIND it. Upstream sets `task.lock = false` itself
+--        (BanditUpdate.lua:1383), so writing that field is an accepted pattern here.
+--
+--        TWO CORRECTIONS THIS COMMENT USED TO GET WRONG, BOTH FOUND BY MEASURING.
+--
+--        It said "UNCONDITIONALLY". It is not: all four sites are guarded by
+--        BanditBrain.HasTaskType / HasTaskTypes / HasActionTask. That guard is load-bearing --
+--        it is why a Smack already in the queue is not re-cleared every frame, and therefore
+--        why a locked follow holds the head most of the time instead of fighting for it.
+--
+--        And it treated (b) as the main thief. The census now measures exactly that, and in a
+--        full session `combat took the follow before it ran` fired ONCE, while our own ladder
+--        printed `obey -> fight` 35 times. The lock is worth keeping and it fixes a real case,
+--        but the thing taking your companion off you is RungOf, not Bandits -- see the FIGHT
+--        branches there, which is where the remaining work is.
 --
 -- 3. "SI CAMINA PUEDE DESCANSAR MAS SU ENDURANCE." brain.endurance was a one-way ratchet:
 --    Bandit.UpdateEndurance (Bandit.lua:423-432) accepts a positive delta, but nothing in
@@ -290,14 +302,14 @@ local MASTER_DIST_EPSILON = 0.75
 -- tighter floor; 4 is inside FREE_RADIUS (7, ScenesRelationsCompanion.lua:60) on purpose,
 -- because the streak below is what protects free activity, not the distance.
 --
--- RUNNING_LEAVE_SWEEPS (2) is the guard that actually does the protecting. Two CONSECUTIVE
--- growing sweeps is twelve seconds and at least 1.5 tiles of continuous opening. A player who
--- crosses a room and stops produces exactly one; a player who is leaving produces many. The
--- twelve-second latency costs nothing, because the urgent case never depended on this term --
--- the 800 ms lane's closeChase answers a jogging player in under a second and is gated on the
--- rung, not on `disengaging`.
+-- A SECOND GUARD -- two consecutive growing sweeps -- WAS DESIGNED AND IS NOT BUILT, and the
+-- reason is that FLEE_HOLD_MS replaced the need for it. It would have added twelve seconds of
+-- latency to a term whose whole job is to notice somebody leaving, and it would have been
+-- protecting against a case that declared flight now answers directly and in under a second.
+-- It is recorded here rather than left as a constant: `RUNNING_LEAVE_SWEEPS = 2` sat in this
+-- file unreferenced for one commit, which is precisely the defect BREACH_PANIC and
+-- GRABBED_RANGE were deleted for -- a number that reads like a rule nobody enforces.
 local RUNNING_LEAVE_RANGE = 4
-local RUNNING_LEAVE_SWEEPS = 2
 
 -- Tiles. Below this, the player's own displacement this sweep is noise, not movement --
 -- gates `approaching` (F4) so a stationary player can never register as closing the gap,
@@ -491,6 +503,109 @@ local function masterIsRunning(player)
     return running == true
 end
 
+-- FLIGHT, DECLARED BY THE PLAYER ------------------------------------------------------
+--
+-- ASKED FOR IN THESE WORDS, after a round where following was better but still not right:
+--
+--   "siento que no es necesario que hayan tantos tiles para que el sepa que estoy huyendo,
+--    el hecho de correr o mantener shift presionado por mas de 5 segundos deberia
+--    referenciar que estoy huyendo... De esta manera es mas facil para ellos seguirme."
+--
+-- That is a better signal than everything above it, and the reason is worth stating because it
+-- reframes the whole problem. Every previous attempt asked a GEOMETRIC question -- is the gap
+-- growing, is he past the leash, did masterDist change by more than 0.75 in six seconds -- and
+-- every one of them shares the same defect: it cannot answer until the player has ALREADY got
+-- away. By the time the geometry is convincing, the companion is the distance behind that the
+-- geometry required as evidence. That is the "tantos tiles" in the sentence, exactly.
+--
+-- Holding run is not evidence of flight. It IS flight, and it is authored by the person who
+-- knows. Nobody sprints for five seconds by accident, and nobody who is doing it wants their
+-- companion to stay and trade blows. So this measures ONE thing: how long the player has been
+-- under power without a break, in milliseconds, on the player and not per NPC.
+--
+-- FIVE SECONDS is the user's number and it is a good one. Shorter and crossing a room at a jog
+-- would count; longer and a short sprint away from a bad room would not register until it was
+-- over. It is deliberately NOT tunable per NPC: this is a fact about the player, and every
+-- companion should read the same fact.
+--
+-- WHY A GRACE PERIOD. `isRunning()` is sampled, and the sample can be false for a frame at a
+-- doorway, on a stair, or in the frame a collision resolves -- which would reset the clock and
+-- mean a player who is plainly fleeing never accumulates five seconds. So a gap shorter than
+-- FLEE_GRACE_MS does not break the run; anything longer does. This is the same reason
+-- MOVED_EPSILON exists for the watchdog: a sampled world needs a tolerance or the measurement
+-- is of the sampling, not of the thing.
+--
+-- AND IT MUST BE LARGER THAN THE SAMPLE PERIOD, which is the whole reason FAST_MS is declared
+-- HERE rather than beside the fast lane that uses it. The first version of this shipped with a
+-- flat 700 ms against an 800 ms tick, and an independent review found that it made the entire
+-- feature dead code: every consecutive sample is at least FAST_MS apart, 800 > 700 was true on
+-- EVERY tick, so `runStartedMs` was reset every tick and `now - runStartedMs` was always 0. The
+-- five-second threshold could never be reached, six call sites read a value that was
+-- permanently false, and the only evidence on the gaming PC would have been `flee=false` on
+-- every census line -- indistinguishable from "he never ran".
+--
+-- A tolerance smaller than the resolution of the thing it tolerates is not a small mistake, it
+-- is the measurement inverted. So the relationship is now STRUCTURAL rather than a coincidence
+-- of two numbers that happen to be ordered correctly: two ticks of slack means one dropped
+-- sample never breaks a run, and no future change to FAST_MS can silently kill this again.
+-- THREE TICKS, NOT TWO, AND THE REASON IS THAT THE THROTTLE DRIFTS. The gate is
+-- `if now - lastFastMs < FAST_MS then return end` followed by `lastFastMs = now` -- `now`, not
+-- `lastFastMs + FAST_MS`. So each execution fires on the first OnTick at or past 800 ms and
+-- then re-bases the clock to that later timestamp, never absorbing the overshoot. Two
+-- consecutive executions are 1600 + 2 frames apart, which at 60fps is ~1633 ms.
+--
+-- At `FAST_MS * 2` (1600) that gap EXCEEDS the grace on every single dropped sample, so the
+-- tolerance could never once be exercised: the only gap it exists to forgive is the gap that
+-- breaks it. A review caught it; the shipped behaviour would have been "one missed frame at a
+-- doorway costs you the whole five seconds", which is the complaint this feature answers.
+--
+-- Three ticks (2400) clears 1633 with room for a frame spike, and still cannot swallow a real
+-- stop: two genuine crossings of the run/walk boundary are seconds apart, not milliseconds.
+local FAST_MS = 800
+local FLEE_HOLD_MS = 5000
+local FLEE_GRACE_MS = FAST_MS * 3
+
+local runStartedMs = nil     -- when the current unbroken run began
+local runLastSeenMs = nil    -- the last tick the player was actually under power
+
+-- The verdict, held for whoever asks between ticks. A plain value rather than a mood field on
+-- purpose: it is a fact about the player, so storing a copy per NPC would let two companions
+-- disagree about whether you are running away, which is not a thing that can be true.
+local playerFleeing = false
+
+--- Forget the run entirely. Called when the player is gone rather than merely walking.
+---
+--- ITS OWN FUNCTION BECAUSE THE CALLER THAT NEEDS IT IS THE ONE THAT RETURNS EARLY. fastFollow
+--- is the only writer of `playerFleeing`, and it bails above the write when the player is dead
+--- (`player:isDead()`). `sweep` has no such test and keeps running on EveryOneMinute, so it
+--- would keep reading a stale `true`: every companion pinned on OBEY -- no fighting, no
+--- looting, no resting -- for the whole death screen, because RungOf returns OBEY outright for
+--- an owned companion whenever `disengaging` holds.
+local function forgetFlight()
+    runStartedMs, runLastSeenMs, playerFleeing = nil, nil, false
+end
+
+--- Update the flight clock, and answer whether the player is fleeing RIGHT NOW.
+---
+--- Called once per fast tick from fastFollow -- once per 800 ms for the whole world, not once
+--- per NPC -- and the answer is cached on a file-local so the slow sweep reads the SAME verdict
+--- rather than sampling the player a second time on its own cadence. Two modules measuring the
+--- same player on two clocks is the R6 mistake this file's header already warns about.
+local function updateFlight(player, now)
+    local underPower = player:isSprinting() == true or masterIsRunning(player)
+
+    if underPower then
+        if not runStartedMs or (runLastSeenMs and (now - runLastSeenMs) > FLEE_GRACE_MS) then
+            runStartedMs = now
+        end
+        runLastSeenMs = now
+    elseif runLastSeenMs and (now - runLastSeenMs) > FLEE_GRACE_MS then
+        runStartedMs, runLastSeenMs = nil, nil
+    end
+
+    return runStartedMs ~= nil and (now - runStartedMs) >= FLEE_HOLD_MS
+end
+
 -- COUNTING ---------------------------------------------------------------------------
 
 --- Everything the ladder and the companion program need to know about what is around this
@@ -504,7 +619,7 @@ end
 ---
 --- Returns: threats (within FEAR_RADIUS), nearest, insiders, outsiders.
 ---
---- "Inside" is `square:isOutside() == false`, the same question BanditUpdate.lua:941 asks
+--- "Inside" is `square:isOutside() == false`, the same question BanditUpdate.lua:912 asks
 --- of the NPC itself. A zombie whose square cannot be read counts as outside: being unsure
 --- should not sound the breach alarm.
 local function scanSurroundings(cell, x, y, z)
@@ -756,18 +871,85 @@ end
 --- so the srGoal test is not a nicety: it is the boundary between "undo our own doing" and
 --- "reach into somebody else's".
 ---
+--- AND THE ACTION TEST, WHICH SRGOAL ALONE TURNED OUT NOT TO COVER. `srGoal == FOLLOW` was the
+--- only condition at first, and it was too wide the moment the watchdog started queueing its
+--- own locked work: the ClimbFence it inserts to get an NPC over a fence is tagged FOLLOW too
+--- (it exists to resume the follow), so the next assertFollow unlocked it and the ClearTasks on
+--- the very next line deleted it. The climb never happened and the NPC walked back into the
+--- same fence -- the exact loop the watchdog was extended to break.
+---
+--- Movement is the only thing we ever lock for the reason this function exists to undo: a
+--- follow must survive somebody else's clear, and then WE must be able to replace it. An action
+--- task we locked is locked because it has to run to completion, which is the opposite.
+---
 --- Returns how many were released, so callers can log a number rather than a guess.
 local function unlockOurs(brain)
     if not brain or type(brain.tasks) ~= "table" then return 0 end
 
     local released = 0
     for _, task in pairs(brain.tasks) do
-        if task.lock == true and task.srGoal == SR.GOAL.FOLLOW then
+        if task.lock == true and task.srGoal == SR.GOAL.FOLLOW
+           and (task.action == "Move" or task.action == "GoTo") then
             task.lock = false
             released = released + 1
         end
     end
     return released
+end
+
+--- Hand the pathfinder back before throwing a movement task away.
+---
+--- THIS IS THE FIX FOR "EL NPC COMENZO A CORRER DEMASIADO RAPIDO... Y DIO TODA LA VUELTA".
+--- Reported from play on 2026-08-10, and it is our bug, not Bandits'.
+---
+--- Bandits runs a task through NEW -> WORKING -> COMPLETED, and ONLY the COMPLETED branch
+--- calls `ZombieActions[task.action].onComplete` (BanditUpdate.lua:1824). For a Move that
+--- handler is the entire cleanup: `finder:cancel()`, `finder:reset()`, `setPath2(nil)`
+--- (ZAMove.lua:45-51). Neither `Bandit.ClearTasks` (Bandit.lua:369-382) nor
+--- `Bandit.RemoveTask` (Bandit.lua:361-367) calls it -- both are a bare `table.remove` /
+--- table rebuild. A Move discarded mid-flight therefore leaves the pathfinder RUNNING, still
+--- holding the route it was computing.
+---
+--- Two things follow, and the player reported both in the same sentence:
+---
+---   TOO FAST. `ZAMove.onStart` calls `pathToLocation` and then `getPathFindBehavior2():update()`
+---   (ZAMove.lua:9-10), and `onWorking` calls `update()` again (:34) on the same frame the new
+---   task starts working. On a finder that was never reset, that is two advancement steps in one
+---   frame. Bandits never notices because its own programs replace a task perhaps once every few
+---   seconds; our fast lane re-asserts up to five times in four seconds, so we pay it constantly.
+---
+---   THE LONG WAY ROUND. The stale route was computed for where the player USED to be. Cancelled
+---   properly it is discarded; left alive it keeps steering, which is a companion walking a
+---   corner it no longer has any reason to walk.
+---
+--- Calling `onComplete` ourselves is using their action's own contract, not replacing it
+--- (principle 4) -- it is idempotent, it is exactly what "cancel this move" means, and it is
+--- what the COMPLETED branch would have called one moment later. Deliberately NOT applying
+--- `task.endurance`: the COMPLETED branch pays that (BanditUpdate.lua:1820) and this task is
+--- being cancelled, not finished. Charging for a journey we are throwing away is how endurance
+--- became a one-way ratchet in the first place.
+---
+--- Only Move and GoTo, and only while WORKING. A task still in NEW never started a path, and
+--- every other action's onComplete has side effects we have no business triggering early.
+local function releaseMove(zombie, brain)
+    local head = brain and type(brain.tasks) == "table" and brain.tasks[1]
+    if not head then return false end
+    if head.action ~= "Move" and head.action ~= "GoTo" then return false end
+    if head.state ~= "WORKING" then return false end
+
+    local handler = ZombieActions and ZombieActions[head.action]
+    if not handler or not handler.onComplete then return false end
+
+    -- WRAPPED for the same reason the watchdog's probe is: this runs immediately before the
+    -- ClearTasks that unsticks an NPC, and a throw here would propagate out of the per-NPC
+    -- loop and out of a function registered bare on an event. Cleanup that can disable the
+    -- clearing it precedes would be worse than no cleanup.
+    local ok, err = pcall(handler.onComplete, zombie, head)
+    if not ok then
+        SR.Log(string.format("AUTO could not release the pathfinder on a %s -- %s",
+            tostring(head.action), tostring(err)))
+    end
+    return ok
 end
 
 --- Put the master back at the head of the queue, using the framework's own follow task.
@@ -856,6 +1038,7 @@ local function assertFollow(zombie, master, dist, free, lock)
     -- survive this one, and re-asserting a follow every 800 ms would stack locked follows
     -- until Bandit.AddTask's overflow guard flushed the queue (Bandit.lua:290-293).
     unlockOurs(brain)
+    releaseMove(zombie, brain)
     Bandit.ClearTasks(zombie)
 
     local ours = SR.Own(SR.GOAL.FOLLOW, task)
@@ -936,6 +1119,20 @@ local function watchdog(zombie, brain, mood, name)
 
     if signature ~= mood.taskSig or moved then
         mood.taskSig, mood.taskTicks = signature, 1
+
+        -- AND THE LIST OF OPENINGS WE ALREADY TRIED DIES HERE, which is the clear that keeps
+        -- `mood.triedOpenings` from being a latch. Reaching this line means the NPC is either
+        -- working on something new or has physically moved, and both answer the only question
+        -- the list exists to answer: the route is no longer stuck, so nothing is owed to the
+        -- memory of which door failed. A door that was locked a minute ago may be open now, and
+        -- refusing it forever is a worse lie than trying it twice.
+        --
+        -- Reachability, stated because this project has shipped four latches whose clear could
+        -- not be reached: this branch is not gated on anything the list influences. `moved` is
+        -- physics and `signature` is whatever Bandits put at the head -- neither can be
+        -- suppressed by refusing an opening, and the routing leg itself sets `moved` true the
+        -- moment the NPC takes a step. It cannot starve itself.
+        mood.triedOpenings = nil
         return false
     end
 
@@ -977,6 +1174,20 @@ local function watchdog(zombie, brain, mood, name)
     -- Only ours: a Bandits lock (Die, Zombify, Exhausted, GetUp) is theirs and their state
     -- machines depend on it surviving.
     unlockOurs(brain)
+
+    -- RELEASED HERE, NOT BESIDE THE CLEAR AT THE BOTTOM, and the difference is the whole fix.
+    --
+    -- It sat next to that clear first, and a review found it silently no-oped in the one branch
+    -- the comment there claims it matters most for. The obstacle block below calls
+    -- Bandit.AddTaskFirst, which inserts at index 1 (Bandit.lua:300-307) and pushes the stuck
+    -- Move to index 2 -- so by the time the bottom of this function ran, releaseMove read
+    -- ClimbFence as the head, saw a non-movement action, and returned without cancelling
+    -- anything. The pathfinder kept the exact route that had just failed.
+    --
+    -- Up here the head is still the stuck task itself, which is what we mean to release: a
+    -- stuck NPC is BY DEFINITION one whose route did not work, so carrying that route past the
+    -- clear is carrying the thing that broke.
+    releaseMove(zombie, brain)
 
     -- WHAT THE 10-08 SESSION ADDED, AND WHY CLEARING THE QUEUE WAS NOT ENOUGH.
     --
@@ -1049,12 +1260,135 @@ local function watchdog(zombie, brain, mood, name)
             end
         end
 
+        -- THE SIXTEEN OF TWENTY THE TWO BRANCHES ABOVE CANNOT TOUCH.
+        --
+        -- Measured across two play sessions, `blocked by` came out 10 `solid`, 6 `clear`,
+        -- 2 `locked`, 2 `hop`, 0 `door`. ClimbFence and ToggleDoor between them address four of
+        -- those twenty, and in a full session afterwards they fired once and never. The other
+        -- sixteen are a wall, or a jam with the straight line clear -- meaning the obstacle was
+        -- never on the line at all, which WhatBlocks is blind to by construction.
+        --
+        -- Those sixteen are one symptom with one cause, and the player named all three faces of
+        -- it in one sentence: "se atasca demasiado para salir de una casa", "rodean todo los
+        -- edificios", "sigue sin poder saltar muros y vallas". An NPC inside a building whose
+        -- target is outside asks the engine pathfinder for a route, and the engine answers with
+        -- the way around, because going around IS a valid path and nothing tells it to prefer an
+        -- opening. It is not failing to use the window. It is never asked to.
+        --
+        -- SO WE ROUTE, AND BANDITS CROSSES. Move.FindOpening is a pure query that returns the
+        -- square to STAND ON next to the best door or window, in the ordering the user asked
+        -- for. We walk them there and stop. Their own bump handler does the rest:
+        -- canClimbThrough -> ClimbThroughWindowState (BanditUpdate.lua:683-686), or a closed
+        -- window -> its own OpenWindow task (:677-680). We add no crossing verb, which is
+        -- principle 4 -- the machinery already works, it was just never reached.
+        --
+        -- HERE, NOT IN THE SWEEP, and that is the routing agent's own constraint: this scans
+        -- about 314 squares of getObjects(), which is fine occasionally and badly wrong several
+        -- times a second. Being stuck is exactly "occasionally", and it is also the only moment
+        -- we KNOW the ordinary route failed. The obstacleAttempts cooldown below covers it for
+        -- free, so a building whose openings are all unusable is not re-scanned every sweep.
+        --
+        -- NO LATCH, DELIBERATELY. Nothing remembers that an opening was chosen. The next stall
+        -- asks again from scratch, because the door may have been opened, locked or smashed by
+        -- anyone in the meantime -- an objective is RECALCULATED, never REMEMBERED, and the
+        -- one-shot flag is precisely how ScenesRelationsIdle.goGet died on 2026-08-08.
+        if not overcame and SR.Move and SR.Move.FindOpening then
+            -- THE OPENING WE ALREADY TRIED IS EXCLUDED, which is how the user's second tier --
+            -- "la siguiente puerta exterior" -- actually happens. FindOpening deliberately
+            -- keeps no memory (an objective is recalculated, never remembered), so "we tried
+            -- that one and it did not work" is the caller's to hold, and the caller is here.
+            --
+            -- Without this the branch re-picks the same door on every stall forever: the
+            -- obstacleAttempts cooldown is keyed on the TARGET square, which moves with the
+            -- player, so it never stands in for this. A documented capability wired to nothing
+            -- is the same defect as a constant nobody reads.
+            --
+            -- Scoped per building visit rather than forever: cleared as soon as a route
+            -- succeeds or the NPC stops being stuck, because a door that was locked five
+            -- minutes ago may be open now and refusing it permanently is a worse lie than
+            -- trying it twice.
+            mood.triedOpenings = mood.triedOpenings or {}
+            local okOpen, opening = pcall(SR.Move.FindOpening, zombie,
+                task.x, task.y, task.z or zombie:getZ(),
+                { exclude = mood.triedOpenings })
+
+            -- BREAK is a REPORT, not a plan, and we decline it here. Smashing a window is loud,
+            -- permanent and never what a companion trying to follow you should do on its own;
+            -- it is logged so the census can show how often it was the only way through.
+            if okOpen and opening and opening.kind ~= SR.Move.OPEN_BREAK then
+                -- LOCKED, AND TAGGED ROUTE RATHER THAN FOLLOW. Both halves are load-bearing and
+                -- the first version had neither, which made this whole branch a no-op that
+                -- logged success -- the most expensive kind of bug, because the log is the only
+                -- instrument on the other machine.
+                --
+                --   lock: `Bandit.ClearTasks` fires twenty lines below and keeps ONLY locked
+                --   tasks (Bandit.lua:369-382). Unlocked, the route was deleted in the same
+                --   sweep it was queued. The ClimbFence branch above already states this rule;
+                --   this branch was written without it, which is exactly the R6 shape.
+                --
+                --   ROUTE, not FOLLOW: `unlockOurs` releases every locked FOLLOW Move so a
+                --   re-asserted follow can replace the old one, and the fast lane calls it
+                --   about once a second. Tagged FOLLOW, the route would have survived the clear
+                --   here only to be unlocked and deleted ~800 ms later. Adding the lock alone
+                --   fixes nothing; it took both.
+                --
+                -- TIME DERIVED FROM THE ACTUAL DISTANCE, not a flat 200. task.time burns about
+                -- one unit per frame normalised to 60fps (BanditUpdate.lua:1802), so 200 is
+                -- ~3.3 real seconds -- and openings are selected out to OPENING_RADIUS (10)
+                -- plus the standing square. A walk that times out mid-route completes exactly
+                -- like a walk that arrived (ZAMove.lua:33-38 only reports done on Succeeded or
+                -- Failed), so the difference would have been invisible. 60 units per tile at a
+                -- walk is generous; the watchdog re-fires if it was not enough.
+                -- THE CEILING THIS BUYS, STATED SO NOBODY HAS TO DERIVE IT. A locked task at the
+                -- head is one nothing else can replace, so for legTime the NPC will not
+                -- re-assert a follow and will not be pulled off by the fast lane. At the widest
+                -- opening (11 tiles) that is about twelve seconds of committed walking.
+                --
+                -- That is deliberate and it is the point: the whole failure being fixed is an
+                -- NPC that keeps being redirected at the player and therefore keeps taking the
+                -- route around the building. It is also SAFE, because nothing can hold it past
+                -- the timer -- ProcessTask forces COMPLETED at time <= 0 and Bandit.RemoveTask
+                -- ignores lock entirely (Bandit.lua:361-367), so a route that cannot finish
+                -- expires rather than freezing anybody.
+                local legDist = BanditUtils.DistTo(zombie:getX(), zombie:getY(),
+                    opening.x + 0.5, opening.y + 0.5)
+                local legTime = math.max(120, math.floor(legDist * 60) + 60)
+
+                Bandit.AddTaskFirst(zombie, SR.Own(SR.GOAL.ROUTE, {
+                    action = "Move", walkType = "Walk", lock = true,
+                    x = opening.x, y = opening.y, z = opening.z,
+                    time = legTime,
+                }))
+                -- Recorded BEFORE we know whether it worked, on purpose. If it works we clear
+                -- the list on the next unstuck sweep; if it does not, the next stall must pick
+                -- a different one, and that is only possible if this attempt is already here.
+                table.insert(mood.triedOpenings,
+                    { x = opening.ox or opening.x, y = opening.oy or opening.y,
+                      z = opening.oz or opening.z })
+                overcame = true
+                SR.Log(string.format(
+                    "AUTO %s | stuck on %s -- blocked by %s -- routing to the %s at %d,%d (%s) | %.1f tiles, %d units",
+                    name, signature, blocking, tostring(opening.kind),
+                    opening.ox or opening.x, opening.oy or opening.y, tostring(opening.why),
+                    legDist, legTime))
+            elseif okOpen and opening then
+                SR.Log(string.format(
+                    "AUTO %s | stuck on %s -- blocked by %s -- the only way through is %s (%s), declined",
+                    name, signature, blocking, tostring(opening.kind), tostring(opening.why)))
+            elseif not okOpen then
+                SR.Log(string.format("AUTO %s | FindOpening threw -- %s",
+                    name, tostring(opening)))
+            end
+        end
+
         if overcame then
             if not mood.obstacleAttempts then mood.obstacleAttempts = {} end
             mood.obstacleAttempts[obstacleKey] = sweepNumber
         end
     end
 
+    -- releaseMove already ran, ABOVE the obstacle block -- see the note there for why it
+    -- cannot run here: AddTaskFirst has moved the stuck task off the head by this point.
     Bandit.ClearTasks(zombie)
     mood.taskSig, mood.taskTicks = nil, 0
     SR.Log(string.format(
@@ -1094,6 +1428,13 @@ local function sweep()
     -- unqualified because a sprint is unambiguous and player-authored; a jog is only evidence
     -- of leaving when you are in fact being left.
     local running = masterIsRunning(player)
+
+    -- READ, NOT MEASURED. The flight clock is advanced once per fast tick (800 ms) in
+    -- fastFollow; this six-second sweep only reads the verdict. Sampling the player again on
+    -- this cadence would give the two lanes different answers about the same person, and a
+    -- five-second threshold measured on a six-second clock cannot distinguish four seconds of
+    -- running from eleven.
+    local fleeing = playerFleeing
 
     -- The player's own movement, measured once per sweep rather than once per NPC -- there
     -- is only one player, and this is what makes `approaching` below (F4) immune to a
@@ -1232,15 +1573,23 @@ local function sweep()
                     -- ONE LINE PER CROSSING. Endurance moves every sweep; the only interesting
                     -- moments are the two where it changes what the NPC will do -- below WINDED
                     -- a follow downgrades from Run to Walk (assertFollow), above it does not.
+                    --
+                    -- THE BAND IS NOW ACTUALLY APPLIED, and the play log is what proved it had
+                    -- to be. WINDED_HYSTERESIS was declared, documented, and then never
+                    -- referenced -- so this shipped as a bare threshold and printed 36 lines in
+                    -- one session, Carter Wood alone crossing five times each way. A single
+                    -- threshold cannot help flapping here: the two forces either side of it are
+                    -- tiny and opposite -- +WALK_RECOVERY (0.02) pushes up through 0.35 on a
+                    -- walking sweep, one completed Run leg (-0.07) pushes straight back down.
                     if endurance < WINDED and not mood.winded then
                         mood.winded = true
                         SR.Log(string.format(
                             "AUTO %s | winded -- endurance %.2f below %.2f, follow walks under %d tiles",
                             name, endurance, WINDED, WINDED_WALK_MAX))
-                    elseif endurance >= WINDED and mood.winded then
+                    elseif endurance >= (WINDED + WINDED_HYSTERESIS) and mood.winded then
                         mood.winded = nil
                         SR.Log(string.format("AUTO %s | rested -- endurance %.2f back above %.2f",
-                            name, endurance, WINDED))
+                            name, endurance, WINDED + WINDED_HYSTERESIS))
                     end
 
                     -- Where they are standing decides how the same street reads. Written to
@@ -1373,14 +1722,27 @@ local function sweep()
                         -- passed -- disengaging is checked before any FIGHT branch in
                         -- RungOf, so this can never resolve to FIGHT while it holds.
                         --
-                        -- `running and growing` is the jog, and it is QUALIFIED for the reason
-                        -- spelled out where `running` is computed: unqualified it would be
-                        -- true almost always and OBEY would win forever. Note it carries no
-                        -- distance floor of its own, unlike the `growing` term below it --
-                        -- that one exists to ignore a player shuffling around a room, and a
-                        -- player who is jogging is by definition not shuffling.
-                        disengaging = sprinting or masterDist > LEASH
-                            or (running and growing)
+                        -- `fleeing` IS THE ANSWER AND IT COMES FIRST, with no distance term of
+                        -- any kind. See updateFlight: five seconds of unbroken running is the
+                        -- player SAYING they are leaving, and a companion should not need to
+                        -- watch a gap open to be told something it has already been told.
+                        -- Everything below it is now the fallback for a player who is leaving
+                        -- without running -- walking out of a house, driving off.
+                        --
+                        -- `running and growing` is the jog, and it is QUALIFIED with a distance
+                        -- floor of its own. It did not have one, and that was a defect an
+                        -- independent review caught before it reached the gaming PC: `growing`
+                        -- only needs 0.75 tiles across a six-second sweep, so a player jogging
+                        -- from the kitchen counter to the bedroom -- four tiles -- tripped it,
+                        -- and every trip clears the queue. The comment that used to sit here
+                        -- argued "a player who is jogging is by definition not shuffling",
+                        -- which is false: jogging between rooms is shuffling with a faster
+                        -- animation. RUNNING_LEAVE_RANGE is the floor, and it is lower than
+                        -- the 6 of the drift term below because running is a stronger signal
+                        -- than drifting, not because four tiles means anything on its own.
+                        disengaging = fleeing
+                            or sprinting or masterDist > LEASH
+                            or (running and growing and masterDist > RUNNING_LEAVE_RANGE)
                             or (growing and masterDist > 6)
                             or mood.rejoining,
                     }
@@ -1412,6 +1774,21 @@ local function sweep()
                                 tostring(mood.unfinished.x), tostring(mood.unfinished.y)))
                         end
 
+                        -- RELEASE BEFORE CLEARING, both the lock and the pathfinder.
+                        --
+                        -- The lock: without this, ClearTasks PRESERVES our locked follow
+                        -- (Bandit.lua:369-382) and the line below prints "queue cleared" while
+                        -- one task quietly survived -- the log would be lying about the single
+                        -- most load-bearing action in this file. Escalation is allowed to win:
+                        -- a rung can only rise to FIGHT or SURVIVE when `disengaging` is false,
+                        -- because RungOf returns OBEY outright whenever an owned companion is
+                        -- disengaging, so this can never cancel a follow the player is owed.
+                        --
+                        -- The pathfinder: see releaseMove. Escalating to FIGHT while a route
+                        -- keeps steering is a companion swinging at one thing and drifting
+                        -- toward another.
+                        unlockOurs(brain)
+                        releaseMove(zombie, brain)
                         Bandit.ClearTasks(zombie)
                         mood.taskSig, mood.taskTicks = nil, 0
                         SR.Log(string.format(
@@ -1506,12 +1883,22 @@ local function sweep()
                         -- Still ONE line: a second census line per NPC halves how much history
                         -- fits in console.txt, and console.txt is the only debugger we have.
                         SR.Log(string.format(
-                            "AUTO census | %s | rung=%s fear=%d/%d hp=%.2f end=%.2f z=%d@%.1f in=%d out=%d %s friends=%d master=%.1f run=%s bag=%s head=%s lock=%s",
+                            -- `dis=` AND `flee=` ARE THE TWO THAT WERE MISSING, and their
+                            -- absence is why the last round could not be diagnosed from the
+                            -- log alone. 35 `obey -> fight` transitions were recorded with no
+                            -- way to tell whether the disengage test had FAILED or had never
+                            -- been consulted -- and those are opposite bugs with opposite
+                            -- fixes. `disengaging` is the first test in RungOf and decides
+                            -- everything below it; a value that decides everything and prints
+                            -- nowhere is the most expensive kind of invisible.
+                            "AUTO census | %s | rung=%s fear=%d/%d hp=%.2f end=%.2f z=%d@%.1f in=%d out=%d %s friends=%d master=%.1f run=%s flee=%s dis=%s bag=%s head=%s lock=%s",
                             name, RUNG_NAME[mood.rung], mood.fear, fearLimit(brain),
                             hpRatio, endurance, threats, nearest, insiders, outsiders,
                             mood.indoors and "indoors" or "outdoors",
                             friends, masterDist,
                             tostring(sprinting and "sprint" or (running and "run" or "no")),
+                            tostring(fleeing),
+                            tostring(ctx.disengaging == true),
                             -- `SR.Loot and HasBag(...) or "?"` printed "?" for everybody,
                             -- because `false or "?"` is "?" -- the whole run logged bag=?
                             -- and told us nothing. Lua's and/or is not a ternary when the
@@ -1645,7 +2032,10 @@ Events.EveryOneMinute.Add(sweep)
 -- mine, is their master pulling away, and are they already on their way. Throttled to a bit
 -- over once a second, which is fast enough that the gap never opens and slow enough to cost
 -- nothing.
-local FAST_MS = 800
+-- FAST_MS lives up with the flight clock, not here, because FLEE_GRACE_MS is derived from it
+-- and a tolerance smaller than its own sample period silently kills the feature it guards --
+-- which is exactly what shipped once. Declaring it beside its only other consumer would have
+-- put the two numbers a thousand lines apart and made that relationship invisible again.
 local CHASE_NOW = 5          -- tiles; past this while the master is moving off, go now
 
 -- Tiles. The SAME question at a much shorter range, and only while the master is actually
@@ -1662,6 +2052,13 @@ local CHASE_NOW = 5          -- tiles; past this while the master is moving off,
 -- distance at which "you are being left behind" is a true statement rather than jitter.
 local CHASE_RUNNING = 2.5
 
+-- Tiles. The floor while the player has DECLARED flight (five unbroken seconds under power).
+-- Lower than CHASE_RUNNING because a declaration needs no corroborating distance, and not zero
+-- because zero means "re-issue the order to somebody already at your shoulder", which clears
+-- their queue every 800 ms and is how a rest that only pays on completion never completes.
+-- 1.5 tiles is close enough to be moving with you already.
+local CHASE_FLEEING = 1.5
+
 -- Consecutive fast ticks with no pull before a chase counts as over, for LOGGING only --
 -- nothing about behaviour reads it. 4 x FAST_MS is about 3.2 seconds, which is longer than
 -- any flicker of `widening` and shorter than any real journey, so the pair of lines brackets
@@ -1676,7 +2073,13 @@ local function fastFollow()
     lastFastMs = now
 
     local player = getSpecificPlayer(0)
-    if not player or player:isDead() then return end
+    -- FORGET THE RUN BEFORE BAILING. This function is the ONLY writer of playerFleeing, and
+    -- `sweep` has no isDead test of its own -- so returning here with the flag still true would
+    -- leave every companion pinned on OBEY for the whole death screen. See forgetFlight.
+    if not player or player:isDead() then
+        forgetFlight()
+        return
+    end
     if not BanditZombie or not BanditZombie.GetAllB then return end
 
     -- Only worth doing while the player is actually going somewhere. Standing still is what
@@ -1685,10 +2088,37 @@ local function fastFollow()
     local running = masterIsRunning(player)
     local px, py = player:getX(), player:getY()
 
+    -- THE FLIGHT CLOCK IS ADVANCED HERE AND NOWHERE ELSE, on this 800 ms tick, once for the
+    -- whole world. It has to live in the fast lane: five seconds cannot be measured to any
+    -- useful precision by a clock that only ticks every six. The slow sweep reads the result.
+    local fleeing = updateFlight(player, now)
+    if fleeing ~= playerFleeing then
+        SR.Log(string.format("AUTO the player %s -- %s",
+            fleeing and "is fleeing" or "stopped fleeing",
+            fleeing and string.format("under power for %.1fs without a break",
+                (now - (runStartedMs or now)) / 1000)
+                or "no longer running"))
+    end
+    playerFleeing = fleeing
+
     -- The floor for this tick. Lowered ONLY while the master is moving under their own
     -- power; with the player standing still it stays at CHASE_NOW, so nothing about a
     -- stationary scene changes.
-    local chaseFloor = (sprinting or running) and CHASE_RUNNING or CHASE_NOW
+    --
+    -- DECLARED FLIGHT LOWERS THE FLOOR TO CHASE_FLEEING, NOT TO ZERO. Zero was the first
+    -- version and a review caught what it costs: `dist > 0` is true for every companion at
+    -- every distance, so assertFollow -- and with it ClearTasks -- ran every 800 ms for
+    -- everybody, including a companion sitting down. The rest task is a Sleep of ~7.5 s that
+    -- pays its 0.5 endurance ONLY on completion (BanditUpdate.lua:1820), so it could never
+    -- finish and a tired companion recovered NOTHING for the whole flight. That is the same
+    -- defect the previous round found on the shelter route, re-opened through a new term.
+    --
+    -- CHASE_FLEEING (1.5) is "already at your shoulder". Somebody inside it is coming with you
+    -- whatever they are doing, so re-issuing the order buys nothing and costs a cleared queue.
+    -- It is still far below CHASE_RUNNING (2.5) and CHASE_NOW (5), which is the request --
+    -- "no es necesario que hayan tantos tiles" -- honoured without the side effect.
+    local chaseFloor = fleeing and CHASE_FLEEING
+        or ((sprinting or running) and CHASE_RUNNING or CHASE_NOW)
 
     local ok, bandits = pcall(BanditZombie.GetAllB)
     if not ok or type(bandits) ~= "table" then return end
@@ -1747,16 +2177,39 @@ local function fastFollow()
                         -- statement a sprint makes, just with evidence attached -- and it is
                         -- the literal sentence from the report: "cuando estamos corriendo se
                         -- queda pegandole a los zombies".
-                        local free = sprinting
-                            or (running and widening)
+                        --
+                        -- SURVIVE IS DELIBERATELY PROTECTED, and that exception was found by an
+                        -- independent review rather than by reasoning. `(running and widening)`
+                        -- as first written bypassed BOTH rungs below OBEY. Bypassing FIGHT is
+                        -- the intent. Bypassing SURVIVE is not, and it is self-inflicted: a
+                        -- companion that is fleeing is itself moving, and its own motion makes
+                        -- `widening` true with the player standing perfectly still. So a
+                        -- frightened companion's shelter route was cleared every 800 ms while
+                        -- the six-second sweep re-queued it -- a 0.8 s clear against a 6 s
+                        -- rebuild, which means the route never completes and the companion dies
+                        -- in the open. Fleeing is the one thing this file does not own; it
+                        -- belongs to ScenesRelationsThreat and to their own program.
+                        --
+                        -- Declared flight is the ONE case that outranks even that, because it is
+                        -- not a guess: if the player has been running for five seconds, coming
+                        -- with them IS the survival plan, and it is a better one than a door.
+                        local free = sprinting or fleeing
+                            or (running and widening and (mood.rung or Autonomy.IDLE) >= Autonomy.FIGHT)
                             or (mood.rung and mood.rung >= Autonomy.OBEY)
 
                         -- Two ways to be pulled. The ordinary one is unchanged and still
                         -- starts at CHASE_NOW; the close one exists only while the master is
                         -- under power and the gap is opening, and it is the only reason
                         -- `chaseFloor` can be lower than CHASE_NOW at all.
+                        --
+                        -- `widening` is dropped while fleeing, and dropping it is the point.
+                        -- It is the evidence clause -- "the gap is measurably opening" -- and a
+                        -- companion that is keeping up perfectly produces no such evidence. A
+                        -- five-second run is the statement itself, so requiring corroboration
+                        -- would mean the only companions that come with you are the ones
+                        -- already losing you. That is the "tantos tiles" complaint restated.
                         local closeChase = dist > chaseFloor
-                            and (sprinting or running) and widening
+                            and (fleeing or ((sprinting or running) and widening))
                         local ordinaryChase = dist > CHASE_NOW
                             and (sprinting or widening or dist > LEASH)
 

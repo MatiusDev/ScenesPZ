@@ -204,16 +204,61 @@ QUEUE_CALLS = ("Bandit.ClearTasks", "Bandit.AddTaskFirst", "Bandit.RemoveTask",
                "Bandit.UpdateTask", "brain.tasks =")
 
 
+# AN UNLOCKED AddTaskFirst FOLLOWED BY A ClearTasks IN THE SAME FUNCTION IS A NO-OP, and this
+# is the one queue rule mechanical enough to enforce.
+#
+# `Bandit.ClearTasks` rebuilds the queue keeping ONLY tasks with `lock == true`
+# (vendor/Bandits/mods/Bandits/42.20/media/lua/shared/Bandit.lua:369-382). So a task inserted at
+# the head and then cleared a few lines later is deleted in the same sweep that created it.
+#
+# It shipped exactly that way on 2026-08-10 in the watchdog's building-routing branch, and the
+# reason it is worth a check rather than a rule is what the failure looked like: the branch
+# LOGGED that it had routed the NPC to a door. On the other machine, with only console.txt to
+# read, a whole play session would have been spent confirming that routing works. The sibling
+# branch fifteen lines above -- ClimbFence -- had the lock and said why in its comment, so the
+# rule was already written down in the same `if` block and still got missed by a human diff read.
+#
+# The heuristic: within one function body, an `AddTaskFirst` whose inserted table shows no
+# `lock` before the next `Bandit.ClearTasks`. Function boundaries come from `^local function` /
+# `^function`, which is how this codebase writes them. Deliberately narrow -- it does not chase
+# a task table built in a variable several lines earlier -- so it under-reports rather than
+# crying wolf. BLOCKS: every instance of this pattern found so far has been a real no-op.
+LOCK_RE = re.compile(r"\block\s*=\s*true")
+FUNC_START_RE = re.compile(r"^\s*(local\s+)?function\b")
+
+
 def check_queue_surgery(files):
     findings = []
     for path in files:
         lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+
+        pending = None   # (line number of the AddTaskFirst, saw_lock)
         for n, line in enumerate(lines, 1):
             code = line.split("--", 1)[0]
+
+            # A new function body ends any pending question -- a clear in a DIFFERENT function
+            # is not evidence about this insert.
+            if FUNC_START_RE.match(code):
+                pending = None
+
+            if "Bandit.AddTaskFirst" in code:
+                pending = [n, bool(LOCK_RE.search(code))]
+            elif pending and not pending[1]:
+                # The table often spans several lines after the call; keep looking for the lock
+                # until something clears the queue or the function ends.
+                if LOCK_RE.search(code):
+                    pending[1] = True
+                elif "Bandit.ClearTasks" in code:
+                    findings.append((rel(path), pending[0], color(
+                        f"AddTaskFirst with no lock=true, then Bandit.ClearTasks at :{n} "
+                        f"-- the task is deleted in the same pass that queued it", RED)))
+                    pending = None
+
             for call in QUEUE_CALLS:
                 if call in code:
                     findings.append((rel(path), n, f"{call.strip()}  {DIM}{code.strip()[:70]}{RESET}"))
-    return findings, False
+
+    return findings, any("deleted in the same pass" in f[2] for f in findings)
 
 
 # --- 4. VENDOR CITATIONS ---------------------------------------------------------------
@@ -398,8 +443,72 @@ def check_five_one(files):
     return findings, True
 
 
+# A CONSTANT THAT IS DECLARED AND NEVER READ IS AN UNSHIPPED FEATURE THAT LOOKS SHIPPED, and
+# that sentence is the whole reason this check exists rather than a line in CLAUDE.md asking
+# people to be careful.
+#
+# It has now happened four times in this project, and every single time it survived code review,
+# lint, and a human reading the diff:
+#
+#   BREACH_PANIC        documented "four inside is a reason to leave" while the term that
+#                       actually enforced the rule crossed at three. The constant was the only
+#                       evidence anybody had ever intended four. Deleted.
+#   GRABBED_RANGE       named a rule ("this close and running is not on the table") whose branch
+#                       had become unreachable. Deleted.
+#   RUNNING_LEAVE_SWEEPS  written, documented in eight lines of reasoning, committed, and never
+#                       referenced. The guard it described was simply not there.
+#   WINDED_HYSTERESIS   same: declared with its arithmetic worked out, then read by nothing, so
+#                       the threshold shipped bare and flapped 36 times in one play session.
+#
+# The failure mode is specific and nasty: a reviewer reads the constant, reads its careful
+# comment, and concludes the behaviour exists. The comment IS the evidence, and it is wrong. A
+# missing feature that announces itself in prose is harder to catch than one that is simply
+# absent, because the prose satisfies exactly the check a human performs.
+#
+# Deliberately NOT a luacheck job. luacheck's `unused` warning covers unused locals, but this
+# codebase declares module tables, forward declarations and event handlers that legitimately
+# look unused to it, so it is configured off; and its message would not say the thing that
+# matters, which is "the rule you wrote down is not enforced anywhere".
+#
+# Scope: only ALL_CAPS file-level locals -- the shape this project uses for a tuning constant
+# that states a rule. A lowercase local that goes unused is ordinary dead code and luacheck's
+# problem. BLOCKS, because shipping one of these has cost a play session every time.
+CONST_RE = re.compile(r"^local\s+([A-Z][A-Z0-9_]{2,})\s*=")
+
+
+def check_dead_constants(files):
+    findings = []
+    for path in files:
+        text = path.read_text(encoding="utf-8", errors="replace")
+        lines = text.splitlines()
+
+        declared = {}
+        for n, line in enumerate(lines, 1):
+            m = CONST_RE.match(line.strip())
+            if m:
+                declared.setdefault(m.group(1), n)
+
+        for name, n in sorted(declared.items(), key=lambda kv: kv[1]):
+            # Count uses OUTSIDE comments, and outside the declaration itself. A constant
+            # mentioned only in prose is the exact case this check exists to catch, so a
+            # comment must never count as a use.
+            uses = 0
+            for i, line in enumerate(lines, 1):
+                if i == n:
+                    continue
+                code = line.split("--", 1)[0]
+                uses += len(re.findall(r"\b%s\b" % re.escape(name), code))
+
+            if uses == 0:
+                findings.append((rel(path), n, color(
+                    f"{name} is declared and never read -- the rule it states is NOT enforced",
+                    RED)))
+    return findings, any("never read" in f[2] for f in findings)
+
+
 CHECKS = {
     "latches": ("flags set but never cleared", check_latches),
+    "deadconst": ("constants that state a rule nothing enforces", check_dead_constants),
     "tasktime": ("real lifetime of every queued task", check_task_times),
     "queue": ("every place the task queue is operated on", check_queue_surgery),
     "vendor": ("vendor citations missing a version folder", check_vendor_citations),

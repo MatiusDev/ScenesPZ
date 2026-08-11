@@ -61,6 +61,35 @@ PROGRAM (the role)  ->  returns TASKS  ->  TASK QUEUE (the actions)
 Consequence for us: to change what an NPC *does*, queue tasks. To change what it *is*,
 set a program. Do not write per-tick logic that fights the queue.
 
+### The three-state dispatcher, with line numbers
+
+**Written down because three reviews in a row re-derived it**, each one opening a 2,200-line
+vendored file to find the same branch layout. `ProcessTask` is `client/BanditUpdate.lua:1753`:
+
+| State | Line | What happens |
+|---|---|---|
+| *(unset)* | `:1753` | `if not task.state then task.state = "NEW" end` — so an unprocessed task carries `state == nil`, not `"NEW"`. Any test against `"WORKING"` must be nil-safe. |
+| `NEW` | `~:1790` | calls `onStart`; on true, `task.state = "WORKING"` |
+| `WORKING` | `:1801-1808` | `task.time = task.time - 1 / ((getAverageFPS() + 0.5) * 0.01666667)` — about **1 per frame**, so ~60 units/second at 60 fps and ~30 at 30 fps. Calls `onWorking`. `done or task.time <= 0` promotes to `COMPLETED`. |
+| `COMPLETED` | `:1812-1830` | plays `task.sound`, then **`Bandit.UpdateEndurance(bandit, task.endurance)` at `:1820`**, then `onComplete` at `:1824`, then `Bandit.RemoveTask` at `:1828`. |
+
+**Four consequences that keep costing us, in one place:**
+
+1. **`task.endurance` is paid ONLY in the COMPLETED branch** (`:1820`). A task cancelled at 99%
+   pays nothing. This is why a 7.5-second rest that gets interrupted recovers zero endurance.
+2. **`onComplete` is called ONLY from the COMPLETED branch** (`:1824`). Neither
+   `Bandit.ClearTasks` (`shared/Bandit.lua:369-382`) nor `Bandit.RemoveTask`
+   (`shared/Bandit.lua:361-367`) calls it — both are a bare `table.remove` / table rebuild.
+3. Therefore **a `Move` thrown away mid-flight leaks its pathfinder.** `ZAMove.onComplete` is
+   the entire cleanup — `finder:cancel()`, `finder:reset()`, `setPath2(nil)`
+   (`shared/ZombieActions/ZAMove.lua:45-51`) — and it never runs. `onStart` then calls
+   `pathToLocation` **and** `update()` (`:9-10`) while `onWorking` calls `update()` again
+   (`:34`), so the next Move takes two advancement steps on its first frame. That is a
+   companion that visibly runs too fast, on a stale route. Diagnosed from play on 2026-08-10.
+4. `ZAGoTo.onComplete` is `return true` and nothing else (`ZAGoTo.lua:53-55`) — it releases no
+   pathfinder. `GetMoveTaskTarget` only emits `GoTo` in multiplayer (`BanditUtils.lua:1026-1031`),
+   so this is latent, not live, in singleplayer.
+
 ---
 
 ## 1. Task actions — 49 of them
@@ -419,3 +448,27 @@ Built by `banditize(zombie, bandit, clan, args)`, `server/BanditServerSpawner.lu
 - **`ZPThief` and `ZPCompanionGuard` have no assigning callsite.** Dead.
 - **Zero `pcall` in 22,458 lines.** One error in a handler kills the rest of that frame's
   work. Wrap our own entry points.
+- **`Bandit.ClearTasks` PRESERVES tasks with `task.lock == true`** (`shared/Bandit.lua:369-382`)
+  — it rebuilds the table keeping only those. `Bandit.RemoveTask` ignores lock entirely
+  (`:361-367`). So a locked task at the head survives somebody else's clear, and since
+  `GenerateTask` **appends** with `table.insert(brain.tasks, task)` (`client/BanditUpdate.lua:1911`)
+  rather than inserting first, whatever it queues lands BEHIND the locked one. This is the only
+  way to make a task of ours outlive `ManageCombat`. Upstream writes `task.lock = false` itself
+  (`client/BanditUpdate.lua:1383`), so mutating that field is an accepted pattern, not a hack.
+- **`Bandit.AddTaskFirst` flushes the WHOLE queue past 9 entries, ignoring `lock`**
+  (`shared/Bandit.lua:300-307`, `brain.tasks = {}`). Inserting "first" is not safe from a
+  locked task's point of view.
+- **`ManageCombat` does NOT clear unconditionally.** All four sites are guarded by
+  `BanditBrain.HasTaskType` / `HasTaskTypes` / `HasActionTask`
+  (`client/BanditUpdate.lua:1181/1196/1205/1212`), and `HasActionTask` excludes `Move`/`GoTo`
+  (`shared/BanditBrain.lua:68-76`). That guard is load-bearing: it is why a `Smack` already in
+  the queue is not re-cleared every frame. Measured in play, `ManageCombat` stole a follow
+  **once** in a full session while our own rung ladder did it 35 times — do not assume upstream
+  is the thief without measuring.
+- **Bandits' own locked tasks, complete list**, so nothing of ours ever unlocks one of theirs:
+  Die (`client/BanditUpdate.lua:282`, `:1721`), Exhausted (`:439`), Zombify (`:476`), GetUp
+  (`:2191`, `shared/ZombiePrograms/ZPCamper.lua:86`, `ZPRoadblock.lua:34`).
+- **Crossing a window is a STATE CHANGE, not a task.** `ClimbThroughWindowState.instance()` +
+  `bandit:changeState(...)` + `setBumpType("ClimbWindow")` (`client/BanditUpdate.lua:684-686`).
+  There is no `ZAClimbWindow` in `shared/ZombieActions/` — all 47 files checked. Anything that
+  wants to observe a crossing must watch the engine state, not the task queue.

@@ -323,6 +323,19 @@ SR.GOAL = {
     REST    = "rest",     -- sitting down to recover endurance
     CARE    = "care",     -- bandaging, healing, looking after somebody
     FIGHT   = "fight",    -- readying for, or dealing with, something hostile
+    -- ROUTE is a leg, not a purpose: walking to the door or window that gets you out of a
+    -- building, on the way to something else. It exists as its own goal ONLY because FOLLOW
+    -- was load-bearing elsewhere and reusing it silently destroyed this feature.
+    --
+    -- The routing task must be `lock = true` to survive the watchdog's own ClearTasks
+    -- (Bandit.lua:369-382 keeps only locked tasks). But `unlockOurs` in the ladder releases
+    -- every locked FOLLOW Move by design -- that is how a re-asserted follow replaces the
+    -- previous one instead of stacking. Tagged FOLLOW, the routing leg matched that predicate
+    -- exactly, so the next fast tick unlocked it and the ClearTasks on the following line
+    -- deleted it. Two correct rules, one shared tag, and a feature that logged success while
+    -- doing nothing. A distinct goal is what keeps them apart, and it also makes the census
+    -- readable: `head=Move@x,y/route` says WHY without anybody guessing.
+    ROUTE   = "route",    -- walking to the opening that gets through a wall
     -- No GEAR. It was here for "putting something on or in hand" and had exactly one producer,
     -- the Equip that arms a companion -- which the FIGHT branch emits, so FIGHT is what owns
     -- it. Putting on clothes is an ERRAND. A named constant with no producer is the same lie

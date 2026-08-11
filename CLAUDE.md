@@ -52,7 +52,7 @@ git, network/deploy, and reading `console.txt` the user pastes.
 pz-research  ->  writer (pz-lua | pz-data)  ->  pz-review  ->  pz-verify  ->  user tests
 ```
 
-Five rules hold this together, and each one is here because skipping it cost something:
+Six rules hold this together, and each one is here because skipping it cost something:
 
 1. **Research before writing.** `pz-research` first, then a writer. Never a writer alone on
    a question that starts with "how does the game/Bandits do X".
@@ -78,11 +78,39 @@ Five rules hold this together, and each one is here because skipping it cost som
    spend-limit stop, **relaunch the review before doing anything else**. A half-finished piece of
    work is resumed; a killed review is re-run.
 
-4. **A writer that produced no report produced no verified work.** A subagent can die
-   mid-task — spend limits, timeouts, context exhaustion — and leave lint-clean files with
-   no account of what it changed or what it could not check. Treat those files as a stranger's
-   patch: review them before believing them, whatever `lint.sh` says.
-5. **`pz-verify` after every change touching loadable files**, and remember what it cannot
+4. **A writer that produced no report produced no verified work, and it does not get
+   committed.** A subagent can die mid-task — spend limits, timeouts, context exhaustion —
+   and leave lint-clean files with no account of what it changed or what it could not check.
+   Treat those files as a stranger's patch: review them before believing them, whatever
+   `lint.sh` says.
+
+   **The second half of that sentence is new, and it is new because the first half was not
+   enough.** On 2026-08-10 a writer applying eight review findings died on a spend limit
+   after fixing four. `lint.sh` passed, `audit.py` passed, the diff read beautifully — and it
+   was committed and pushed with the other four unfixed, plus two constants that had been
+   declared and never wired. Green tooling on a half-finished change is not evidence of
+   anything; it is what a half-finished change looks like.
+
+   So: **a dead agent's work stays uncommitted until somebody finishes it and `pz-review` has
+   seen the whole thing.** If you are resuming after a spend-limit stop, the first question is
+   "what did it not get to", and the answer comes from re-checking every item on the list it
+   was given — not from reading the diff and judging it complete.
+
+5. **Measure whether the case happens before building the lever for it.** A play report says
+   what it felt like; the log says what occurred, and they are not the same question.
+
+   On 2026-08-10 a door-opening action was built, correctly and with good citations, for
+   obstacle kind `door`. The obstacle census across two sessions was **10 `solid`, 6 `clear`,
+   2 `locked`, 2 `hop`, and 0 `door`** — the measurement already existed, in the log, from a
+   test written for exactly this decision. In a full play session afterwards, `ToggleDoor`
+   fired zero times and `ClimbFence` once. The code was not wrong. It was aimed at a case
+   that does not occur, while 16 of 20 real jams went untouched.
+
+   Before writing a lever, grep `logs/` for how often its trigger actually fires. If nothing
+   in the log can answer that, say so and add the instrument first — an instrument that
+   settles a design question is cheaper than the feature it saves you from writing.
+
+6. **`pz-verify` after every change touching loadable files**, and remember what it cannot
    see: a dedicated server never executes `media/lua/client/`, which is most of this mod. A
    PASS there means "the shared and server halves load", nothing more.
 
@@ -134,6 +162,13 @@ of truth for both machines and is committed on every version change.
 - `docs/CODE-REVIEW-RULES.md` — eleven rules, each written after a real bug that cost
   a play session. `pz-review` reads it before every review; read it before writing code
   that touches the engine.
+- `tools/audit.py` — the mechanical half of a review, eight checks, each added after a real
+  defect. Run it before asking for a review, not after: every finding it reports is one a
+  human reviewer would otherwise spend tokens re-deriving. Four of the checks BLOCK —
+  `latches`, `deadconst`, `vendor`, `lua51`. `deadconst` is the newest and the most
+  counter-intuitive: a constant declared with a careful comment and read by nothing is worse
+  than a missing feature, because the comment is exactly the evidence a reviewer checks for.
+  It has caught that pattern four times.
 - `docs/TODO.md` — things seen in play that no stage has claimed yet. Add to it rather
   than derailing the open stage.
 - `docs/PLAN-STATUS.md` — **start here.** An index, under a screen: which block is open and

@@ -31,6 +31,66 @@ poison, ours does not.
 
 ---
 
+## Vidrios: corta al salir pero no al entrar, y falta el sangrado (10-08)
+
+**Reportado:** *"funcionó solo cuando salió, pero no cuando entró por la ventana rota de nuevo.
+Debe hacerle daño cada que entra o salga. Aparte debe aplicarle un efecto de sangrado que solo
+se puede curar vendándose."*
+
+### Por qué corta solo una vez, y es estructural
+
+El hook actual envuelve `ZombieActions.OpenWindow.onComplete`
+(`ScenesRelationsWounds.lua:354`). Eso dispara cuando el NPC **abre** la ventana — o sea la
+primera vez. Al volver a entrar la ventana **ya está abierta**, no se encola ningún
+`OpenWindow`, y el cruce es invisible. El barrido de `CheckGlass` corre cada ~6 s y el cruce
+dura ~1 s, así que casi siempre lo pierde.
+
+**Y no existe una acción que envolver.** Bandits no cruza ventanas con una tarea: cambia de
+estado del motor —
+
+```lua
+ClimbThroughWindowState.instance():setParams(bandit, object)
+bandit:changeState(ClimbThroughWindowState.instance())
+bandit:setBumpType("ClimbWindow")
+```
+
+(`vendor/Bandits/mods/Bandits/42.20/media/lua/client/BanditUpdate.lua:684-686`). No hay
+`ZAClimbWindow` en `ZombieActions/` — lo verifiqué, los 47 archivos están listados y no está.
+
+### El hook correcto, con el identificador ya verificado
+
+`character:isCurrentState(ClimbThroughWindowState.instance())` es vanilla y llamable:
+`pzserver/media/lua/client/Tutorial/Steps.lua:1564` y `:1570` lo usan tal cual, y
+`Steps.lua:891` usa la variante `getCurrentState() ==`. Vanilla solo lo llama sobre
+`getPlayer()`, así que **sobre `IsoZombie` va con `pcall` y sonda de una sola vez** — la misma
+disciplina que `masterIsRunning`, y por la misma razón que costó una sesión con
+`getSeeNearbyCharacterDistance`.
+
+Detectar el **flanco de subida** de ese estado en el carril de 800 ms captura entrada y salida
+por igual, porque mide el cruce y no la apertura.
+
+### El sangrado, y por qué no puede ser el del motor
+
+`BodyPart:setBleeding` es por parte del cuerpo, y Bandits modela la salud de un NPC como un
+solo float (`zombie:getHealth()`). Ese hueco ya está anotado más abajo — *"quedan inválidos con
+la salud al 100%"*. Así que el sangrado va en NUESTRA capa, donde ya existe el vocabulario:
+
+- `Wounds.Of(brain)` ya guarda `{ dressing, day }` (`ScenesRelationsWounds.lua:~100`) → agregar
+  `bleeding` y `bleedingSince`.
+- Drenar una fracción por barrido mientras `bleeding` esté puesto.
+- **Se limpia SOLO en `scenesBandageComplete`** (`:215`), nunca por tiempo ni por salud. Eso es
+  literalmente lo pedido: *"solo se puede curar vendándose"*.
+- `Wounds.NeedsDressing` (`:118`) hoy solo mira `getHealth() < BLEED_FLOOR`; tiene que devolver
+  `true` también con `bleeding` puesto, o el NPC sangra y nunca decide vendarse.
+
+**Ojo con el latch.** `bleeding` es una decisión recordada con un clear que depende de que el
+NPC llegue a completar un `Bandage`. Ese es exactamente el patrón que `audit.py` marca y que ya
+costó cuatro defectos. Necesita el mismo tratamiento que `mood.rejoining`: o un tope de tiempo,
+o la garantía escrita y verificada de que `NeedsDressing` no puede quedar bloqueado por el
+propio sangrado.
+
+---
+
 ## La mochila de un NPC no es un contenedor — es una calcomanía (10-08)
 
 **Esto es la respuesta real a "el NPC lootea antes de conseguir su bolso" y a "que mantenga

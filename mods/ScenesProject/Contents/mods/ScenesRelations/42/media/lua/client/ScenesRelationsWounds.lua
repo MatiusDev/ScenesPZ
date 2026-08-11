@@ -9,7 +9,9 @@
 -- No. There are no body parts. A Bandits NPC's entire injury model is one float --
 -- getHealth, roughly 0..2.6 -- and three lines in BanditUpdate:
 --
---   * below 0.7 they bleed, at 0.00005 per tick, forever (ManageHealth, :491-501);
+--   * below 0.7 they bleed, at 0.00005 per tick, forever (ManageHealth, :449-467 in 42.20 --
+--     the line range here used to read :491-501, which is a different function; re-checked
+--     against the pinned copy on 10-08 and corrected, see the note on BLEED_FLOOR);
 --   * below 0.4 a healing flag is set, but ONLY when the task queue holds nothing but
 --     movement (`if not BanditBrain.HasActionTask(brain)`, :952 and :955);
 --   * the Bandage action that flag queues sets health to a flat 1.2 and COSTS NOTHING
@@ -58,6 +60,50 @@
 -- It would be the obvious home for "this rag is filthy". It is also the counter Bandits
 -- turns into a Zombify task at 100 (BanditUpdate.lua:509). A dirty bandage must not turn
 -- somebody into a zombie. Wound state is ours and stays ours.
+--
+-- ------------------------------------------------------------------------------------
+-- THE 10-08 SECOND PASS: WINDOWS CUT BOTH WAYS, AND THE CUT NOW BLEEDS
+--
+-- REPORTED: "el tema de que un NPC pase por una ventana rota no le estaba haciendo dano,
+-- ahora lo activo y funciono solo cuando salio, pero no cuando entro por la ventana rota
+-- de nuevo. Debe hacerle dano cada que entra o salga. A parte de eso debe aplicarle un
+-- efecto de sangrado que solo se puede curar vendandose."
+--
+-- Both halves were true, and the first half had a structural cause rather than a tuning one.
+-- Everything that could cut somebody ran on a clock that is slower than a crossing:
+--
+--   * Wounds.CheckGlass samples once per autonomy sweep -- EveryOneMinute, about six real
+--     seconds (ScenesRelationsAutonomy.lua:1870). A crossing takes about one. It catches an
+--     NPC who LINGERS in a smashed frame and misses almost every NPC who walks through one.
+--   * The OpenWindow hook further down was written to close that gap and cannot. Bandits
+--     queues OpenWindow at exactly one site and that site is guarded by `not
+--     object:isSmashed()` -- vendor/Bandits/mods/Bandits/42.20/media/lua/client/
+--     BanditUpdate.lua:672, task at :677-678. A window with glass still in it never produces
+--     an OpenWindow task at all, so the hook could only ever fire on a window that got
+--     smashed BETWEEN the task being queued and it completing. That is a race, not a path.
+--
+-- AND THERE IS NO ACTION TO WRAP FOR THE CROSSING ITSELF. Bandits does not queue a task to
+-- climb a window; it changes engine state directly:
+--
+--     ClimbThroughWindowState.instance():setParams(bandit, object)
+--     bandit:changeState(ClimbThroughWindowState.instance())
+--     bandit:setBumpType("ClimbWindow")
+--
+-- vendor/Bandits/mods/Bandits/42.20/media/lua/client/BanditUpdate.lua:684-686. There is no
+-- ZAClimbWindow in their ZombieActions folder to hook, and the second crossing -- back in
+-- through a window that is already open -- queues nothing whatsoever. That is exactly the
+-- reported asymmetry: going out happened to coincide with something we could see, coming
+-- back in was invisible by construction.
+--
+-- So the crossing is measured where it actually happens: the RISING EDGE of
+-- ClimbThroughWindowState, sampled on a fast lane of this module's own. The edge is what
+-- makes it symmetric -- the engine enters that state to go out and enters it again to come
+-- back, so one test covers both directions and neither needs a task to exist.
+--
+-- BLEEDING IS OURS BECAUSE BODY PARTS ARE NOT REACHABLE. BodyPart:setBleeding is per limb;
+-- Bandits models a whole person as one float. That gap is recorded in docs/TODO.md and is
+-- not closed here. The bleed is a field on our wound record, drained by us, and cleared in
+-- exactly one place: a completed Bandage. "Solo se puede curar vendandose", literally.
 
 require "ScenesRelations"
 
@@ -87,22 +133,106 @@ local CUT_COOLDOWN = 10
 
 --- Our wound record. On the brain rather than SR.Mood because a wound is not a mood -- it
 --- outlives the moment, and it has to survive the cell unloading the way their health does.
+---
+--- FIELDS
+---   dressing     what is currently tied round it, or nil for nothing
+---   day          SR.Today() when that dressing went on
+---   bleeding     true while an untreated cut is losing them blood
+---   bleedDay     SR.Today() when the bleed started -- for the log and the panel only, NOT
+---                for any bound: SR.Today() floors world age to whole DAYS, so a difference
+---                of anything under 24 h reads as exactly 0. See bleedSweeps.
+---   bleedSweeps  autonomy sweeps this person has spent bleeding IN RANGE. The bound is
+---                counted in sweeps precisely because it is the same motor that does the
+---                draining, so the two can never disagree about how long this has gone on.
+---
+--- Older brains were saved with only the first two fields. Every read below is nil-safe on
+--- purpose so a save from before this change loads as "not bleeding" rather than throwing.
 function Wounds.Of(brain)
     if not brain.scenesWound then
-        brain.scenesWound = { dressing = nil, day = nil }
+        brain.scenesWound = { dressing = nil, day = nil,
+                              bleeding = nil, bleedDay = nil, bleedSweeps = nil }
     end
     return brain.scenesWound
 end
 
--- Absolute health at which Bandits starts draining somebody (ManageHealth,
--- BanditUpdate.lua:491). Not a ratio: their bleed test is absolute, so ours is too, or a
--- frail survivor would be judged healthy while bleeding out.
+-- Absolute health at which Bandits starts draining somebody. Not a ratio: their bleed test is
+-- absolute, so ours is too, or a frail survivor would be judged healthy while bleeding out.
+--
+-- THE CITATION WAS WRONG AND IS CORRECTED HERE. It read "ManageHealth, BanditUpdate.lua:491",
+-- which in 42.20 is inside RemoveWindowFromPathing, not ManageHealth. Re-checked while working
+-- on the bleed: ManageHealth begins at
+-- vendor/Bandits/mods/Bandits/42.20/media/lua/client/BanditUpdate.lua:449, the `health < 0.7`
+-- test is at :456 and the `setHealth(health - 0.00005)` drain at :465, the whole block behind
+-- SandboxVars.Bandits.General_BleedOut at :453. The VALUE was right; only the line was stale.
 local BLEED_FLOOR = 0.7
 
 -- In-game hours before somebody will try dressing a wound again. Without it, a survivor
 -- still under the floor after an improvised dressing would re-dress every few seconds and
 -- burn every rag they own.
+--
+-- IT IS COARSER THAN IT LOOKS, AND THE BLEED HAD TO BE TOLD ABOUT IT. `SR.Today()` returns
+-- `math.floor(getWorldAgeHours() / 24)` -- whole days (shared/ScenesRelations.lua:64-70) --
+-- so `(SR.Today() - wound.day) * 24` can only ever be 0, 24, 48... The test below is
+-- therefore not "two hours have passed" but "the calendar day has turned". That is fine for
+-- rationing rags; it would be fatal for a bleed whose only cure is a bandage, because
+-- somebody cut ten seconds after dressing a wound could not re-dress until tomorrow and
+-- would drain the whole time. So NeedsDressing answers `true` for a bleed BEFORE it reaches
+-- this gate. Not fixed here: SR.Today() belongs to shared/ScenesRelations.lua.
 local REDRESS_HOURS = 2
+
+-- BLEEDING -----------------------------------------------------------------------------
+
+-- The lowest condition anything in this file will drive somebody to. Glass and the bleed
+-- both stop here: neither is meant to be an execution, and something has to be left for the
+-- zombie or the fall that actually kills them. Was a bare 0.05 inside applyGlassCut; named
+-- so the two paths cannot drift apart.
+local HEALTH_FLOOR = 0.05
+
+-- Condition lost per autonomy sweep while bleeding.
+--
+-- THE ARITHMETIC. CheckGlass is called once per NPC per sweep from ScenesRelationsAutonomy,
+-- and that sweep is EveryOneMinute -- one IN-GAME minute, about six real seconds
+-- (ScenesRelationsAutonomy.lua:1870, and the header above it states the six). So 0.02 per
+-- sweep is about 0.2 of condition per real minute. From a healthy 2.0 that is
+-- (2.0 - 0.7) / 0.02 = 65 sweeps, roughly six and a half real minutes, before they reach
+-- 0.7 and Bandits' own drain joins in (ManageHealth,
+-- vendor/Bandits/mods/Bandits/42.20/media/lua/client/BanditUpdate.lua:456 and :465).
+--
+-- Deliberately slower than it could be. The point is a person who visibly needs a bandage
+-- and goes looking for one, not a person who dies on the way to the rag.
+local BLEED_PER_SWEEP = 0.02
+
+-- One log line per bleeding person per this many sweeps. 5 x ~6 s = about half a real minute,
+-- which is often enough to watch a bleed progress in console.txt and rare enough that two
+-- bleeding companions do not bury every other line in the file. Start and stop always print.
+local BLEED_LOG_EVERY = 5
+
+-- THE BOUND, AND WHY IT EXISTS RATHER THAN A HOPEFUL COMMENT ---------------------------
+--
+-- `bleeding` is a remembered decision whose clear hangs off the NPC reaching a completed
+-- Bandage. That is the exact shape of the four latches this project has already paid for
+-- (mood.sheltering, mood.rejoining, mood.wanting, mood.posture), and every one of them had a
+-- clear -- they broke because the clear could not be REACHED. So the clear is traced in full
+-- at scenesBandageComplete, and the paths that can block it are these:
+--
+--   1. the NPC is on a program we do not wrap. FreeActivity is reached from Companion.Main
+--      (ScenesRelationsCompanion.lua:284) and Looter.Main (:486) only. Somebody on Bandit,
+--      Hunter or any other program never consults NeedsDressing at all.
+--   2. rung SURVIVE or FIGHT: scenesMain hands those back to Bandits untouched
+--      (ScenesRelationsCompanion.lua:235 and :238), so a companion in a long fight never
+--      reaches the bandage decision.
+--   3. the task queue never empties, so Main never runs -- Bandits only calls a program's
+--      Main on an empty queue, which is the whole re-entry motor this decision rides on.
+--   4. Wounds.Install failed, so ZombieActions.Bandage.onComplete is still theirs and the
+--      clear is not wired up at all.
+--
+-- 2 and 3 end on their own. 1 and 4 do not, and an unbounded latch there would be a person
+-- who bleeds for the rest of the save. So the bleed also stops after this many sweeps SPENT
+-- IN RANGE -- 100 x ~6 s is about ten real minutes of being visible to the sweep and never
+-- completing a bandage. A healthy path clears this in a sweep or two, so reaching the bound
+-- is itself evidence of one of the four cases above, which is why it logs loudly when it
+-- trips: the bound doubles as the detector for its own reason to exist.
+local BLEED_MAX_SWEEPS = 100
 
 --- Should this person stop and deal with a wound right now?
 ---
@@ -115,12 +245,20 @@ local REDRESS_HOURS = 2
 ---
 --- So the companion program queues the Bandage task itself. Their action, their animation,
 --- their sound; only the decision to start is ours, because theirs cannot fire.
+---
+--- A BLEED ANSWERS TRUE BEFORE EITHER GATE BELOW, and that ordering is the whole reason the
+--- bleed can ever be cured. Both gates would otherwise refuse the one bandage that clears it:
+--- the health floor because a cut person is usually still well above 0.7, and REDRESS_HOURS
+--- because it is really "wait until tomorrow" (see the note on that constant). A latch whose
+--- clear is suppressed by the latch itself is the defect this project has paid for four times.
 function Wounds.NeedsDressing(zombie, brain)
+    local wound = brain.scenesWound
+    if wound and wound.bleeding then return true end
+
     local ok, now = pcall(function() return zombie:getHealth() end)
     if not ok or type(now) ~= "number" then return false end
     if now >= BLEED_FLOOR then return false end
 
-    local wound = brain.scenesWound
     if wound and wound.day then
         local hours = (SR.Today() - wound.day) * 24
         if hours < REDRESS_HOURS then return false end
@@ -219,6 +357,20 @@ local function scenesBandageComplete(zombie, task)
     local name = tostring(brain.fullname)
     local wound = Wounds.Of(brain)
 
+    -- THE ONLY PLACE A BLEED IS EVER CLEARED. Not by time, not by health recovering, not by
+    -- the sweep giving up on them -- the request was "solo se puede curar vendandose" and this
+    -- is that sentence in code. The one other writer is the BLEED_MAX_SWEEPS bound in
+    -- bleedTick, which is a bug detector rather than a cure and says so when it fires.
+    --
+    -- DONE HERE, ABOVE THE setHealth pcall, ON PURPOSE. The wrap decides how much condition
+    -- the dressing is worth; it does not decide whether the dressing happened. The Bandage
+    -- task has already completed by the time this runs, so if setHealth throws below they are
+    -- still bandaged and must not go on bleeding because our arithmetic failed.
+    if wound.bleeding then
+        wound.bleeding, wound.bleedDay, wound.bleedSweeps = nil, nil, nil
+        SR.Log(string.format("WOUND %s stopped bleeding -- a dressing went on", name))
+    end
+
     local max = tonumber(brain.health) or 2
     local before = max
     pcall(function() before = zombie:getHealth() end)
@@ -273,54 +425,207 @@ end
 
 -- GLASS --------------------------------------------------------------------------------
 
---- Is there broken glass in the frame on this square?
+--- The window on this square if it still has glass in it, or nil.
 ---
 --- `isSmashed() and not isGlassRemoved()` is vanilla's own test for exactly this -- it is
 --- the isValid of ISRemoveBrokenGlass (line 6), the action a player takes precisely so they
 --- can climb through without being cut.
-local function glassOnSquare(square)
-    if not square then return false end
+---
+--- RETURNS THE WINDOW RATHER THAN A BOOLEAN because the crossing test below has to ask it one
+--- more question -- which way it faces -- to know whether it is the window being climbed or
+--- an unrelated one on the same tile.
+---
+--- KNOWN LIMIT, STATED RATHER THAN GUESSED AT: `square:getWindow()`
+--- (pzserver/media/lua/client/DebugUIs/Scenarios/Trailer3Scenario_Building.lua:381-382)
+--- returns ONE window, and a corner tile can carry both a north and a west one. This has
+--- always been true of this file; it is recorded here rather than fixed because fixing it
+--- means walking getObjects() per square per sample, and the miss it causes is a corner
+--- window that goes uncut, not a wrong cut.
+local function smashedWindowOn(square)
+    if not square then return nil end
     local ok, window = pcall(function() return square:getWindow() end)
-    if not ok or not window then return false end
+    if not ok or not window then return nil end
 
     local smashed, removed = false, true
-    pcall(function()
+    local read = pcall(function()
         smashed = window:isSmashed()
         removed = window:isGlassRemoved()
     end)
-    return smashed and not removed
+    if not read then return nil end
+
+    if smashed and not removed then return window end
+    return nil
 end
 
---- Cut an NPC and log it. Shared by both the sweep checker and the OpenWindow hook so the
---- two paths produce the same line and the same cooldown.
+--- Is there broken glass in the frame on this square? The original predicate, unchanged in
+--- meaning, kept because the sweep and the OpenWindow hook only ever needed a yes or no.
+local function glassOnSquare(square)
+    return smashedWindowOn(square) ~= nil
+end
+
+--- Which way a window faces, or nil if it will not say.
+---
+--- `getNorth()` on an IsoWindow is vanilla and appears wherever the game has to know which
+--- two tiles a wall separates -- pzserver/media/lua/server/BuildingObjects/ISWoodenWall.lua:109
+--- and .../ISBuildIsoEntity.lua:326 both compare it directly.
+local function windowFacesNorth(window)
+    local ok, north = pcall(function() return window:getNorth() end)
+    if not ok or type(north) ~= "boolean" then return nil end
+    return north
+end
+
+--- The square holding the window this person is climbing through, or nil if there is no glass
+--- left in it.
+---
+--- WHICH TILE HOLDS THE WINDOW, AND HOW THAT WAS ESTABLISHED. A window belongs to ONE square
+--- and sits on that square's north or west edge, so the two tiles it joins are the square
+--- itself and its N or W neighbour. That is not inferred -- it is exactly what vanilla does in
+--- reverse: AdjacentFreeTileFinder.FindWindowOrDoor takes the window's square and offers the
+--- player `gridSquare` and `gridSquare:getAdjacentSquare(IsoDirections.N)` when the window is
+--- north, `gridSquare` and its W neighbour when it is not
+--- (pzserver/media/lua/shared/Util/AdjacentFreeTileFinder.lua:231-268).
+---
+--- Inverted, from the climber's tile C, the windows that touch C are:
+---   * the one on C itself -- it joins C to N(C) or to W(C);
+---   * the one on S(C) IF it faces north -- N(S(C)) is C;
+---   * the one on E(C) IF it faces west -- W(E(C)) is C.
+--- Three lookups, no direction needed, and it answers the same for both halves of a crossing:
+--- whichever side of the frame the climber is standing on when we sample, the other side is
+--- one of the three. That symmetry is the point -- "cada que entra o salga" is one test, not
+--- two.
+---
+--- The orientation test is what keeps it honest. Without it, a window on the west edge of the
+--- tile south of C -- which does not touch C at all -- would read as the one being climbed.
+local function crossingGlassSquare(zombie)
+    local ok, here = pcall(function() return zombie:getSquare() end)
+    if not ok or not here then return nil end
+
+    if smashedWindowOn(here) then return here end
+
+    local okS, south = pcall(function() return here:getAdjacentSquare(IsoDirections.S) end)
+    if okS and south then
+        local window = smashedWindowOn(south)
+        if window and windowFacesNorth(window) == true then return south end
+    end
+
+    local okE, east = pcall(function() return here:getAdjacentSquare(IsoDirections.E) end)
+    if okE and east then
+        local window = smashedWindowOn(east)
+        if window and windowFacesNorth(window) == false then return east end
+    end
+
+    return nil
+end
+
+--- Cut an NPC and log it. Shared by the sweep checker, the OpenWindow hook and the climb
+--- watcher so all three produce the same line, the same wound and the same cooldown.
+---
+--- EVERY CUT ALSO OPENS A BLEED, which is the second half of the request. The bleed is not
+--- re-armed if one is already running: a person who is already bleeding and gets cut again
+--- loses the condition twice but keeps ONE bleed, so the BLEED_MAX_SWEEPS bound cannot be
+--- pushed out of reach by walking back and forth through the same frame.
 local function applyGlassCut(zombie, brain, mood, square, why)
     local max = tonumber(brain.health) or 2
     local ok, now = pcall(function() return zombie:getHealth() end)
     if not ok or type(now) ~= "number" then return end
 
-    local hurt = math.max(0.05, now - GLASS_DAMAGE)
-    pcall(function() zombie:setHealth(hurt) end)
+    local hurt = math.max(HEALTH_FLOOR, now - GLASS_DAMAGE)
+    local set = pcall(function() zombie:setHealth(hurt) end)
+    if not set then
+        SR.Log("WOUND could not cut " .. tostring(brain.fullname) .. " -- setHealth threw")
+    end
 
-    Wounds.Of(brain).dressing = nil
+    local wound = Wounds.Of(brain)
+    wound.dressing = nil
     mood.cutAt = CUT_COOLDOWN
 
-    pcall(function() Bandit.Say(zombie, "HIT") end)
+    local said = pcall(function() Bandit.Say(zombie, "HIT") end)
+    if not said then
+        SR.Log("WOUND Bandit.Say(HIT) threw for " .. tostring(brain.fullname))
+    end
 
     SR.Log(string.format("WOUND %s cut on broken glass at %d,%d | %.2f -> %.2f / %.2f | %s",
         tostring(brain.fullname), square:getX(), square:getY(), now, hurt, max, why))
+
+    if not wound.bleeding then
+        wound.bleeding = true
+        wound.bleedDay = SR.Today()
+        wound.bleedSweeps = 0
+        SR.Log(string.format(
+            "WOUND %s is bleeding -- %.2f per sweep until a dressing goes on, bound %d sweeps",
+            tostring(brain.fullname), BLEED_PER_SWEEP, BLEED_MAX_SWEEPS))
+    end
 end
 
---- Cut them if they are standing in a broken frame.
+--- Drain somebody who is bleeding, once per autonomy sweep.
+---
+--- IT LIVES IN A FILE WHOSE OTHER SWEEP FUNCTION IS CALLED CheckGlass, and that is deliberate
+--- rather than untidy. ScenesRelationsAutonomy already calls Wounds.CheckGlass once per NPC
+--- per sweep with the brain and the mood in hand (ScenesRelationsAutonomy.lua:1462-1464); a
+--- second registration walking the same NPCs to ask one more question about the same people
+--- would be pure waste, and the call site belongs to another module that this change does not
+--- touch. So the drain is invoked from there, in its own function, with its own log.
+---
+--- ONLY IN RANGE. That sweep skips anybody past NPC_RANGE (ScenesRelationsAutonomy.lua:1307),
+--- so a bleeding person who wanders off neither drains nor advances the bound, and picks up
+--- exactly where they left off when they come back. That is the right lifetime: we are not
+--- simulating people we cannot see, and freezing both halves together means the bound still
+--- measures what it claims to -- sweeps spent bleeding WHERE WE COULD HAVE HELPED.
+local function bleedTick(zombie, brain)
+    local wound = brain.scenesWound
+    if not wound or not wound.bleeding then return end
+
+    local name = tostring(brain.fullname)
+    wound.bleedSweeps = (wound.bleedSweeps or 0) + 1
+
+    local ok, now = pcall(function() return zombie:getHealth() end)
+    if ok and type(now) == "number" and now > HEALTH_FLOOR then
+        local drained = math.max(HEALTH_FLOOR, now - BLEED_PER_SWEEP)
+        local set = pcall(function() zombie:setHealth(drained) end)
+        if not set then
+            SR.Log("WOUND could not drain " .. name .. " -- setHealth threw")
+        elseif (wound.bleedSweeps % BLEED_LOG_EVERY) == 0 then
+            SR.Log(string.format("WOUND %s still bleeding | %.2f -> %.2f | sweep %d of %d",
+                name, now, drained, wound.bleedSweeps, BLEED_MAX_SWEEPS))
+        end
+    end
+
+    -- THE BOUND. Not a cure and never described as one -- see BLEED_MAX_SWEEPS for the four
+    -- ways the real clear can be unreachable. Reaching this means one of them happened, so the
+    -- line says so in words somebody reading console.txt on another machine can act on.
+    if wound.bleedSweeps >= BLEED_MAX_SWEEPS then
+        wound.bleeding, wound.bleedDay, wound.bleedSweeps = nil, nil, nil
+        SR.Log(string.format(
+            "WOUND %s bled for %d sweeps without ever completing a Bandage -- bound reached, "
+            .. "bleed dropped. Check their program and whether Main is being reached at all",
+            name, BLEED_MAX_SWEEPS))
+    end
+end
+
+--- Cut them if they are standing in a broken frame, and bleed them if they already are.
 ---
 --- Called from the autonomy sweep, which already holds the brain, the mood and the square,
 --- so this costs one getWindow per NPC per sweep and no second pass over anything.
 ---
---- WHAT THE 10-08 SESSION CHANGED. The sweep runs about every six seconds, so an NPC that
---- crosses a window entirely between two sweeps is not caught. The OpenWindow hook below
---- catches the moment they open the window, which is the single most likely crossing; the
---- sweep catches the rest -- an NPC that loiters on a smashed frame, or that pathfinds
---- through one the engine already knows about.
+--- WHAT THE 10-08 FIRST PASS CLAIMED, AND WHY THE CLAIM WAS WRONG. It said the OpenWindow
+--- hook below "catches the moment they open the window, which is the single most likely
+--- crossing". It does not, and the reason is in Bandits: OpenWindow is queued at one site,
+--- under `not object:isSmashed()`
+--- (vendor/Bandits/mods/Bandits/42.20/media/lua/client/BanditUpdate.lua:672, task at :677-678).
+--- A window with glass in it never produces that task. The hook is kept because a window CAN
+--- be smashed between the task being queued and completing, but that is a race and not the
+--- crossing path. The crossing path is the climb watcher at the bottom of this file.
+---
+--- WHAT THIS FUNCTION IS ACTUALLY FOR, THEN: an NPC who LINGERS in a smashed frame -- which
+--- the six-second sample is well suited to and the one-second climb watcher would miss, since
+--- somebody standing still enters no state at all. The two are complements, not rivals.
+---
+--- THE BLEED TICK RIDES HERE. Above the glass test on purpose: the early return below fires
+--- for everybody who is not standing in glass, which is nearly everybody, and a bleeding
+--- person standing in a corridor still has to bleed.
 function Wounds.CheckGlass(zombie, brain, mood, square)
+    bleedTick(zombie, brain)
+
     if not glassOnSquare(square) then
         mood.cutAt = nil
         return false
@@ -338,14 +643,20 @@ end
 
 -- OPEN-WINDOW HOOK ----------------------------------------------------------------------
 --
--- THE GAP THE SWEEP CANNOT CLOSE. CheckGlass samples every ~6 s and catches an NPC who
--- LINGERS on a smashed frame. But the common case is: NPC reaches a window, Bandits queues
--- OpenWindow (time=60, ~1 s), they open it, and the engine pathfinds them through in under
--- a second. If that whole sequence happens between two sweeps, the cut is never applied.
+-- THIS COMMENT USED TO SAY THIS HOOK WAS THE MAIN CROSSING PATH. IT IS NOT, and the correction
+-- matters more than the code under it. The old text read: "Wrapping OpenWindow.onComplete
+-- catches it at the one moment every window crossing shares". Every window crossing does NOT
+-- share it. Bandits queues OpenWindow at exactly one place, and that place is inside
+-- `elseif not object:IsOpen() and not object:isSmashed() ...`
+-- (vendor/Bandits/mods/Bandits/42.20/media/lua/client/BanditUpdate.lua:672, the task itself at
+-- :677-678). A window with glass still in it is smashed by definition, so it never produces an
+-- OpenWindow task, so this hook's glass test is false almost every time it runs.
 --
--- Wrapping OpenWindow.onComplete catches it at the one moment every window crossing shares:
--- the completion of the OpenWindow task. At that point the window HAS been toggled, so we
--- check the square they are about to cross -- BEFORE the engine carries them through.
+-- WHY IT IS KEPT ANYWAY. There is one sequence it does catch and nothing else does: the window
+-- was intact when the task was queued and something smashed it -- the player, a zombie, another
+-- NPC -- while the 25-unit action played out. Then the glass is there, the NPC finishes opening
+-- the frame, and this is the only code looking. Cheap, correct, and unreachable by the climb
+-- watcher, which fires on the state change and not on the task.
 --
 -- WHY NOT ZASmashWindow. SmashWindow is a deliberate act that already implies the glass is
 -- gone; OpenWindow is the one where an unaware NPC walks into a frame that still has teeth.
@@ -361,11 +672,16 @@ local function scenesOpenWindowComplete(zombie, task)
     -- But a window that was ALREADY smashed when they arrived will still read smashed,
     -- and if the glass was never removed, they should have been cut.
     --
-    -- The sweep checker and this hook share one cooldown (mood.cutAt), so a crossing
-    -- caught by both paths only bleeds once.
+    -- The sweep checker and this hook share one cooldown (mood.cutAt), so a frame caught by
+    -- both of them only bleeds once. The climb watcher deliberately does NOT honour that
+    -- cooldown -- see the note at its call to applyGlassCut for why -- but it does SET it, so
+    -- a cut it applies still suppresses these two for the next CUT_COOLDOWN sweeps.
     local brain = BanditBrain.Get(zombie)
-    if brain then
-        local mood = SR.Mood(zombie)
+    local mood = brain and SR.Mood(zombie)
+    -- `mood` is nil when the entity has no modData. It never has been in play, but this runs
+    -- inside somebody else's onComplete with no pcall around it, so a nil index here would
+    -- take their action down with it.
+    if brain and mood then
         local square = zombie:getSquare()
         if glassOnSquare(square) and not (mood.cutAt and mood.cutAt > 0) then
             applyGlassCut(zombie, brain, mood, square, "window-open")
@@ -373,6 +689,170 @@ local function scenesOpenWindowComplete(zombie, task)
     end
 
     return result
+end
+
+-- THE CLIMB WATCHER ----------------------------------------------------------------------
+--
+-- THIS IS THE PATH THAT ACTUALLY CUTS PEOPLE, and it exists because there is nothing to wrap.
+-- Bandits crosses a window by changing engine state, not by queueing a task
+-- (vendor/Bandits/mods/Bandits/42.20/media/lua/client/BanditUpdate.lua:684-686), and there is
+-- no ZAClimbWindow in their ZombieActions folder. Coming back in through a window that is
+-- already open queues nothing at all -- which is precisely the reported asymmetry, "funciono
+-- solo cuando salio, pero no cuando entro por la ventana rota de nuevo".
+--
+-- So the crossing is read from the state itself. `isCurrentState(ClimbThroughWindowState
+-- .instance())` is vanilla and is used in exactly this form at
+-- pzserver/media/lua/client/Tutorial/Steps.lua:1564 and :1570; Steps.lua:891 writes the same
+-- test as `getCurrentState() == ClimbThroughWindowState.instance()`.
+--
+-- VANILLA ONLY EVER CALLS IT ON getPlayer(). Every one of those three lines is on the player
+-- object. An IsoZombie is a different class and "the method is on the class" has already cost
+-- this project a session once -- getSeeNearbyCharacterDistance existed and was not callable.
+-- So the first call decides for the session and the answer is remembered, exactly the way
+-- masterIsRunning does it in ScenesRelationsAutonomy.lua:487-504. A missing method degrades to
+-- the sweep and the OpenWindow hook, which is what shipped before this change, and it logs
+-- ONCE -- a line per NPC per 200 ms would bury console.txt in a minute.
+
+local climbStateCallable
+
+local function isClimbingWindow(zombie)
+    if climbStateCallable == false then return false end
+
+    local ok, climbing = pcall(function()
+        return zombie:isCurrentState(ClimbThroughWindowState.instance())
+    end)
+    if not ok then
+        if climbStateCallable == nil then
+            SR.Log("WOUND isCurrentState(ClimbThroughWindowState) is not callable on an "
+                .. "IsoZombie -- window crossings fall back to the sweep and the OpenWindow "
+                .. "hook for the rest of the session")
+        end
+        climbStateCallable = false
+        return false
+    end
+
+    climbStateCallable = true
+    return climbing == true
+end
+
+-- HOW OFTEN TO LOOK, AND THE ARITHMETIC BEHIND IT. A crossing is about one second: Bandits
+-- hands the character to ClimbThroughWindowState and the engine carries it through. At 200 ms
+-- that is 1000 / 200 = 5 samples per crossing, so the state cannot begin and end unseen unless
+-- the entire crossing does. The 800 ms lane in ScenesRelationsAutonomy would give barely one
+-- sample and a rising edge sampled once is a coin toss, which is why this module gets a lane
+-- of its own rather than borrowing that one.
+local CLIMB_TICK_MS = 200
+
+-- The floor between two cuts on the same person, in milliseconds.
+--
+-- THE EDGE ALONE IS ALMOST ENOUGH AND THIS IS THE SECOND GUARD. A cut needs a rising edge,
+-- which needs a not-climbing sample in between, which is already 200 ms of the state genuinely
+-- being over. This adds a floor of 600 ms -- three samples -- so a flicker in the state cannot
+-- read as a second crossing. It cannot swallow a real one: a crossing takes ~1 s to finish and
+-- the return leg needs the NPC to land, be re-decided and face the frame again, so two genuine
+-- rising edges are seconds apart, not tenths. It is a timestamp compared against a clock that
+-- only moves forwards WITHIN A SESSION, so nothing about it can stick -- see climbCutMs for
+-- why "within a session" is doing real work in that sentence.
+local CLIMB_RECUT_MS = 600
+
+-- BOTH OF THESE ARE FILE-LOCALS AND NEITHER IS A FIELD ON SR.Mood, and the second one is a bug
+-- that was written and then caught before it shipped. SR.Mood lives on the entity's modData,
+-- which is SAVED (shared/ScenesRelations.lua:202-207 -- and its own comment says posture is
+-- "meaningless after a reload", which is the same argument).
+--
+--   climbSeen   who is inside ClimbThroughWindowState right now. A per-sample boolean has no
+--               business surviving a reload.
+--   climbCutMs  when we last cut somebody mid-climb, by getTimestampMs().
+--
+-- WHY climbCutMs ESPECIALLY MUST NOT PERSIST. Written on SR.Mood first. Every vanilla use of
+-- getTimestampMs keeps it on a transient object -- an action, a cursor, a UI element
+-- (pzserver/media/lua/client/TimedActions/ISInventoryTransferAction.lua:253 and :775,
+-- .../Vehicles/TimedActions/ISHorn.lua:10 and :16) -- and not one of them saves it, so whether
+-- the clock is epoch-based or since-process-start is a question the engine has never had to
+-- answer in Lua. If it restarts near zero, a saved stamp from the previous session is larger
+-- than `now`, `now - stamp` is negative, negative is less than 600, and every crossing reads as
+-- "just cut them" -- the feature silently dead after every reload, which is exactly the class of
+-- defect this project keeps paying for. Keeping the stamp in the session makes the question
+-- irrelevant instead of answered by guesswork. ScenesRelationsAutonomy.lua:454, :464 and :469
+-- keeps lastSwingMs on a file-local for the same reason.
+--
+-- BOTH ARE PRUNED IN THE SAME PASS at the bottom of watchClimbs: any id the live cache no
+-- longer lists is dropped, so neither table can outgrow the NPCs actually in the world.
+local climbSeen = {}
+local climbCutMs = {}
+
+local lastClimbMs = 0
+
+local function watchClimbs()
+    local now = getTimestampMs()
+    if now - lastClimbMs < CLIMB_TICK_MS then return end
+    lastClimbMs = now
+
+    -- The probe already answered no once. Nothing below can start working again, so stop
+    -- paying for the walk.
+    if climbStateCallable == false then return end
+    if not BanditZombie or not BanditZombie.GetAllB then return end
+
+    local ok, bandits = pcall(BanditZombie.GetAllB)
+    if not ok or type(bandits) ~= "table" then return end
+
+    for id, _ in pairs(bandits) do
+        local zombie = BanditZombie.GetInstanceById(id)
+        if zombie then
+            -- THE STATE IS SAMPLED BEFORE ANYTHING ELSE IS LOOKED UP, and that ordering is
+            -- what keeps a 200 ms lane affordable. Nearly every sample is "not climbing", and
+            -- that answer costs one engine call -- no brain fetch, no modData, no square walk.
+            -- The expensive half only runs on the frame somebody actually starts a crossing.
+            local isClimb = isClimbingWindow(zombie)
+
+            if isClimb and not climbSeen[id] then
+                climbSeen[id] = true
+
+                local brain = BanditBrain.Get(zombie)
+                local mood = brain and SR.Mood(zombie)
+
+                -- Same three exclusions the sweep uses, for the same reasons stated there
+                -- (ScenesRelationsAutonomy.lua:1311-1316): somebody actively hostile is
+                -- Bandits' business, and somebody the caches still list after BanditRemove has
+                -- unmade them is nobody's.
+                if brain and mood and not brain.hostile and not brain.hostileP
+                   and (not SR.IsStillOurs or SR.IsStillOurs(zombie)) then
+                    local last = climbCutMs[id]
+                    local recent = last and (now - last) < CLIMB_RECUT_MS
+
+                    if not recent then
+                        -- mood.cutAt is deliberately NOT consulted here. That cooldown exists
+                        -- to stop the six-second sweep shredding somebody who is loitering in a
+                        -- frame; a rising edge is already once per crossing, and honouring a
+                        -- ten-sweep cooldown would mean an NPC who climbed out and straight
+                        -- back in got cut once. "Debe hacerle dano cada que entra o salga" is
+                        -- the requirement, and this is the line that delivers it.
+                        --
+                        -- applyGlassCut still SETS mood.cutAt, so the sweep will not add a
+                        -- second cut on top of this one.
+                        local square = crossingGlassSquare(zombie)
+                        if square then
+                            climbCutMs[id] = now
+                            applyGlassCut(zombie, brain, mood, square, "window-climb")
+                        end
+                    end
+                end
+
+            elseif not isClimb and climbSeen[id] then
+                climbSeen[id] = nil
+            end
+        end
+    end
+
+    -- Drop anybody the live cache no longer lists, from both tables. See the note above them.
+    -- Setting an EXISTING key to nil during pairs() is the one mutation Lua 5.1 permits mid
+    -- traversal, which is why this is written as a delete and never as an insert.
+    for id, _ in pairs(climbSeen) do
+        if bandits[id] == nil then climbSeen[id] = nil end
+    end
+    for id, _ in pairs(climbCutMs) do
+        if bandits[id] == nil then climbCutMs[id] = nil end
+    end
 end
 
 -- INSTALL ------------------------------------------------------------------------------
@@ -391,9 +871,11 @@ function Wounds.Install()
         ZombieActions.Bandage.onComplete = scenesBandageComplete
     end
 
-    -- The OpenWindow hook catches window crossings the sweep-based CheckGlass misses.
-    -- Bandits' ZAOpenWindow exists (verified in 42.20 media/lua/shared/ZombieActions/),
-    -- and if it ever doesn't, glass still works through the sweep alone.
+    -- The OpenWindow hook covers the one race the climb watcher cannot: a window smashed
+    -- while the open action was already playing. See the block above it for why it is NOT the
+    -- crossing path, which the first version of this comment got wrong. Bandits' ZAOpenWindow
+    -- exists (vendor/Bandits/mods/Bandits/42.20/media/lua/shared/ZombieActions/ZAOpenWindow.lua:19),
+    -- and if it ever doesn't, glass still works through the watcher and the sweep.
     if ZombieActions and ZombieActions.OpenWindow
        and type(ZombieActions.OpenWindow.onComplete) == "function"
        and not vanillaOpenWindowComplete then
@@ -404,8 +886,18 @@ function Wounds.Install()
     return ok
 end
 
+-- REGISTERED ONCE, AT FILE SCOPE. Not inside Install and not inside OnGameStart: this file is
+-- read once per session, so one registration here is one handler. Registering from inside
+-- another handler is how a mod ends up running the same sweep four times and degrading the
+-- save, and Install is called from OnGameStart.
+Events.OnTick.Add(watchClimbs)
+
 Events.OnGameStart.Add(function()
     if Wounds.Install() then
-        SR.Log("WOUND ready -- healing costs a dressing; broken glass costs blood; window-open hook catches crossings the sweep misses")
+        SR.Log(string.format(
+            "WOUND ready -- healing costs a dressing; every window crossing costs blood "
+            .. "(climb watcher every %d ms, both directions); a cut bleeds %.2f per sweep "
+            .. "until a Bandage completes, bound %d sweeps",
+            CLIMB_TICK_MS, BLEED_PER_SWEEP, BLEED_MAX_SWEEPS))
     end
 end)

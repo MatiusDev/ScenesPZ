@@ -293,6 +293,444 @@ function Move.GoAndDo(zombie, point, task, opts)
     return tasks, true
 end
 
+-- WHICH OPENING TO HEAD FOR --------------------------------------------------------------
+--
+-- REPORTED, twice, in these words:
+--   "el NPC se atasca demasiado para salir de una casa y seguirme, sigue sin poder saltar
+--    muros y vallas"
+--   "Los NPC que logran llegar hasta mi, rodean todo los edificios, misma razon por la cual
+--    le cuesta salir de los edificios rapido."
+--
+-- WHAT THE TELEMETRY SAID, AND WHY IT REDIRECTED THE FIX. Two sessions of `blocked by` counts
+-- came back 10 solid, 6 clear, 2 locked, 2 hop, 0 door. Sixteen of twenty jams are things no
+-- fence-climb and no door-toggle can touch, and the round that added ClimbFence/ToggleDoor to
+-- the watchdog proved it: ClimbFence fired ONCE in a full session and ToggleDoor never.
+-- `clear` is the loudest number on that list -- it means Move.WhatBlocks walked the straight
+-- line, found nothing, and the NPC was stuck anyway. WhatBlocks is blind to that case BY
+-- CONSTRUCTION: the obstacle was not on the straight line, because the NPC was never going to
+-- travel in a straight line. It was going around a building.
+--
+-- THE THING WE ALREADY HAD AND WERE NOT USING. Bandits knows how to cross a window. Its
+-- collision handler, on bumping one:
+--   vendor/Bandits/mods/Bandits/42.20/media/lua/client/BanditUpdate.lua:683-686
+--     elseif object:canClimbThrough(bandit) then
+--         ClimbThroughWindowState.instance():setParams(bandit, object)
+--         bandit:changeState(ClimbThroughWindowState.instance())
+-- and for a SHUT window, four lines above, it queues its own open:
+--   vendor/Bandits/mods/Bandits/42.20/media/lua/client/BanditUpdate.lua:677-680
+--     elseif not object:isPermaLocked() and not BanditBrain.HasTaskType(brain, "OpenWindow")
+--         local task = {action="OpenWindow", anim="WindowOpen", time=25, ...}
+--
+-- So the crossing machinery exists, works, and is upstream's to maintain. What was missing is
+-- that NOTHING EVER ROUTED THE NPC TO AN OPENING. The engine pathfinder solves "get to the
+-- player" by walking around the house, because around IS a valid path and it has no reason to
+-- prefer a window over it. One fact, three symptoms: slow to leave, circling buildings, and
+-- looking like it cannot use openings at all.
+--
+-- THIS FUNCTION IS ROUTE SELECTION AND NOTHING ELSE. It picks the opening and hands back a
+-- square to stand on. It does not climb, does not smash, does not queue, does not touch
+-- ClimbThroughWindowState, and does not write a single field anywhere. Bandits' own bump
+-- handler does the crossing once the NPC is standing there. Extend, never replace.
+
+--- What kind of crossing the caller is being pointed at. `break` is REPORTED, never queued --
+--- see the tier table below.
+Move.OPEN_DOOR   = "door"
+Move.OPEN_WINDOW = "window"
+Move.OPEN_BREAK  = "break"
+
+-- THE ORDER, AS THE USER SPECIFIED IT, and how four spoken tiers became four numbers:
+--
+--   "Entering: door first (locked or not) -> next EXTERIOR door -> nearest window -> break in."
+--
+-- Tier 1 and 2 are both DOORS, which is the "locked or not" part: a locked exterior door still
+-- beats every window, because it may be openable from the inside, because Bandits may resolve
+-- it on the bump, and because the user asked for it. Splitting locked into its own tier only
+-- decides which door wins when there are two, and an unlocked one should always win that.
+--
+-- "Next EXTERIOR door" is NOT a tier. It is this same query re-asked with the first door in
+-- `opts.exclude`. It has to work that way: this function holds no state (requirement 5), so
+-- the memory of "we already tried that one" belongs to the caller, which is the only place
+-- that knows whether the attempt actually failed. See the exclude note on the signature.
+local TIER_DOOR        = 1   -- exterior door, open or shut-and-unlocked
+local TIER_DOOR_LOCKED = 2   -- exterior door, shut and locked -- still beats any window
+local TIER_WINDOW      = 3   -- exterior window we can cross or that Bandits will open
+local TIER_BREAK       = 4   -- LAST RESORT: reported as a kind, never acted on here
+
+local TIER_KIND = {
+    Move.OPEN_DOOR,     -- [TIER_DOOR]
+    Move.OPEN_DOOR,     -- [TIER_DOOR_LOCKED]
+    Move.OPEN_WINDOW,   -- [TIER_WINDOW]
+    Move.OPEN_BREAK,    -- [TIER_BREAK]
+}
+
+--- Tiles. How far from the NPC we will look for a way through the shell.
+---
+--- THE ARITHMETIC, because this is the most expensive thing in the file. The scan is a disc,
+--- not a box: the loop runs over a 21 x 21 = 441 bounding box but only touches squares where
+--- dx*dx + dy*dy <= 100, which is pi * 10^2 ~= 314 grid lookups. The dx/dy test is pure Lua
+--- arithmetic and costs nothing, so 127 of the 441 never reach the engine at all.
+---
+--- WHY 10 AND NOT 8. `Loot.SEARCH` is 8 and that is deliberately one room. This is a whole
+--- house: from a back bedroom the front door can sit 12 tiles away, and the entire point is to
+--- find the exit on the PLAYER'S side rather than the nearest one. 10 covers a typical house
+--- and a facade seen from outside; larger buys little and multiplies the object scan.
+---
+--- THIS IS NOT A PER-SWEEP QUERY. 314 squares of `getObjects()` is fine on a stall and wrong
+--- several times a second. Ask it when the NPC is actually stuck.
+Move.OPENING_RADIUS = 10
+
+local function dist2d(ax, ay, bx, by)
+    local dx, dy = bx - ax, by - ay
+    return math.sqrt(dx * dx + dy * dy)
+end
+
+--- The square on the far side of an edge object.
+---
+--- Doors, windows and window frames are NORTH/WEST edge objects: they belong to the square
+--- whose north or west boundary they occupy. That is why the same wall reads differently on
+--- opposite facades -- a window in a house's NORTH wall lives on the INTERIOR tile, and a
+--- window in its SOUTH wall lives on the EXTERIOR tile, because that wall is the north edge of
+--- the tile outside. Every test below is written to be symmetric for exactly this reason; an
+--- earlier sketch that filtered candidate squares by `sq:getBuilding() == building` would have
+--- silently missed every south and east facade opening in the game.
+---
+--- `obj:getNorth()` on a door: server/BuildingObjects/ISWoodenWall.lua:110.
+--- Vanilla calls it generically on window objects too, in the function this file leans on:
+--- shared/Util/AdjacentFreeTileFinder.lua:435 (`privGetNorth`).
+--- `square:getAdjacentSquare(IsoDirections.N)`: shared/Util/AdjacentFreeTileFinder.lua:235,
+--- and `.W` at :252.
+local function otherSide(square, obj)
+    local ok, adj = pcall(function()
+        local dir = obj:getNorth() and IsoDirections.N or IsoDirections.W
+        return square:getAdjacentSquare(dir)
+    end)
+    if not ok then return nil end
+    return adj
+end
+
+--- Does this edge object cross the outer shell of `shell`, and can a person stand on both
+--- sides of it?
+---
+--- EXTERIORITY IS DECIDED BY GEOMETRY, ON PURPOSE. Exactly one side outdoors IS the definition
+--- of "this edge is the building's skin", and it needs no method we cannot read.
+--- `square:isOutside()`: client/ISUI/ISGeneratorInfoWindow.lua:49, and vanilla gates a whole
+--- action on it at shared/Farming/TimedActions/ISPlowAction.lua:158.
+--- (Upstream asks the simpler form of the same question at
+--- vendor/Bandits/mods/Bandits/42.20/media/lua/client/BanditUpdate.lua:912,
+--- `bandit:getSquare():isOutside()`. The line first written here was :941, which is a closing
+--- `end` -- I opened the file, saw it, and corrected it. A citation nobody can follow is R1
+--- theatre, exactly as the note above `classify` already says.)
+--- `square:getBuilding()`: client/ISUI/ISWorldObjectContextMenu.lua:1694 -- vanilla's own way
+--- of drawing a building boundary, and already how `Loot.FindContainer` bounds its scan.
+---
+--- The engine methods `isExterior()` and `isExteriorDoor(character)` were considered and are
+--- NOT called here. They appear ZERO times across the 2,680 Lua files in pzserver/media/, so
+--- nothing in this repository can tell us what they MEAN -- an in-game probe proved they are
+--- callable, which is a different claim. Using an unreadable method to decide the top tier of
+--- the ordering is the exact shape of mistake that cost this project two sessions on
+--- `isNPC()` and `getTarget()`. If they are ever wanted, they belong here as a confirming log
+--- line, not as the decider.
+---
+--- BOTH SIDES MUST BE STANDABLE, and this guard earns its keep on its own: it is what stops an
+--- NPC upstairs being routed out of a first-floor window. The square outside a first-floor
+--- window has no floor, so `canStand()` is false and the candidate never scores. Same guard
+--- rejects windows onto solid fill and onto the void at a map edge.
+--- `square:canStand()`: shared/Util/AdjacentFreeTileFinder.lua:67 and :381.
+local function crossesShell(square, obj, shell)
+    local other = otherSide(square, obj)
+    if not other then return false end
+
+    local ok, crosses = pcall(function()
+        if not square:canStand() then return false end
+        if not other:canStand() then return false end
+        if square:isOutside() == other:isOutside() then return false end
+        return square:getBuilding() == shell or other:getBuilding() == shell
+    end)
+    if not ok then return false end
+    return crosses == true
+end
+
+--- What tier this object is worth, and a phrase for the log. nil when it is not an opening.
+---
+--- Every predicate has a vanilla callsite, which is the bar R1 sets:
+---   instanceof(obj, "IsoDoor" / "IsoWindow" / "IsoWindowFrame" / "IsoThumpable")
+---                                    server/BuildRecipeCode/buildRecipeCode.lua:110
+---   thumpable:isDoor() / :isWindow()  server/BuildRecipeCode/buildRecipeCode.lua:110
+---   door:IsOpen()                     server/BuildRecipeCode/buildRecipeCode.lua:27
+---   door:isLocked()                   client/DebugUIs/AdminContextMenu.lua:80
+---   door:isBarricaded()               shared/Moveables/ISMoveableSpriteProps.lua:907
+---   obj:canClimbThrough(character)    client/ISUI/ISButtonPrompt.lua:817, :830, :840
+---                                     client/TimedActions/ISClimbThroughWindow.lua:6
+---   obj:getBarricadeForCharacter(c)   client/ISUI/ISButtonPrompt.lua:821
+---   window:isSmashed()                client/ISUI/ISButtonPrompt.lua:822
+--- The window branch is vanilla's own order of questions at ISButtonPrompt.lua:816-826: climb
+--- through if you can, otherwise the only thing left to offer is a smash.
+---
+--- KNOWN SOFT SPOT, written down rather than hidden. "window shut" assumes Bandits' OpenWindow
+--- will succeed on the bump, and that is only checked against `isPermaLocked()` upstream
+--- (BanditUpdate.lua:679) -- a getter that appears nowhere in pzserver/media/, so this file
+--- does not call it. If such a window turns out not to open, the NPC bumps and nothing
+--- happens, which is exactly today's behaviour and therefore no regression; the caller's
+--- `exclude` list is how it moves on. The `why` string says "shut" so the log can tell that
+--- case apart from a window that was already crossable.
+local function classifyOpening(obj, zombie)
+    local ok, tier, why = pcall(function()
+        local isDoor = instanceof(obj, "IsoDoor")
+            or (instanceof(obj, "IsoThumpable") and obj:isDoor() == true)
+
+        if isDoor then
+            if obj:isBarricaded() then return TIER_BREAK, "door barricaded" end
+            if obj:IsOpen() then return TIER_DOOR, "door already open" end
+            if obj:isLocked() then return TIER_DOOR_LOCKED, "door locked" end
+            return TIER_DOOR, "door shut, unlocked"
+        end
+
+        local isWindow = instanceof(obj, "IsoWindow")
+            or instanceof(obj, "IsoWindowFrame")
+            or (instanceof(obj, "IsoThumpable") and obj:isWindow() == true)
+        if not isWindow then return nil end
+
+        if obj:canClimbThrough(zombie) then return TIER_WINDOW, "window crossable now" end
+        if obj:getBarricadeForCharacter(zombie) then return TIER_BREAK, "window barricaded" end
+        if instanceof(obj, "IsoWindow") and not obj:IsOpen() and not obj:isSmashed() then
+            return TIER_WINDOW, "window shut"
+        end
+        return TIER_BREAK, "window will not open"
+    end)
+    if not ok then return nil end
+    return tier, why
+end
+
+--- Has the caller already tried and rejected this opening?
+---
+--- Reads `ox/oy/oz` when present and `x/y/z` otherwise, and the fallback is the whole point:
+--- a result table from this function carries BOTH -- `x,y,z` is the square to stand on and
+--- `ox,oy,oz` is the opening. A caller that pushes the result straight into its exclude list
+--- (the obvious thing to do) would otherwise be excluding the standing square, which is not
+--- the thing that failed and which can serve a second opening. Preferring `ox` makes the
+--- obvious call the correct one, and a hand-built `{x=,y=,z=}` still works.
+local function isExcluded(list, x, y, z)
+    if not list then return false end
+    for i = 1, #list do
+        local e = list[i]
+        if e then
+            local ex = e.ox or e.x
+            local ey = e.oy or e.y
+            local ez = e.oz or e.z
+            if ex == x and ey == y and ez == z then return true end
+        end
+    end
+    return false
+end
+
+--- The opening this NPC should head for to get from where it is to where it wants to be.
+---
+--- Returns nil, or a table:
+---   { x, y, z,          -- the square to STAND ON. Not the opening. See below.
+---     kind,             -- Move.OPEN_DOOR | Move.OPEN_WINDOW | Move.OPEN_BREAK
+---     why,              -- a phrase for console.txt: "door locked", "window shut", ...
+---     ox, oy, oz,       -- the opening's own square, for logging and for opts.exclude
+---     leaving }         -- true when the NPC is getting OUT, false when getting IN
+---
+--- `opts` is optional: `{ radius = Move.OPENING_RADIUS, exclude = { {x=,y=,z=}, ... } }`.
+--- `exclude` holds OPENING squares (ox, oy, oz) the caller has already tried and which did not
+--- work -- that, and only that, is how the user's "next EXTERIOR door" tier is reached. It is
+--- matched on the opening and not on the standing square, because one standing square can
+--- serve two openings.
+---
+--- IT REFUSES CHEAPLY, AND THAT IS HALF THE DESIGN.
+--- The gate is `zsq:getBuilding() == tsq:getBuilding()`, and it answers "there is no shell
+--- between these two points" for both of the common cases at once:
+---   * both outdoors  -> getBuilding() is nil on each, nil == nil, refused;
+---   * same building  -> the same IsoBuilding on each, refused.
+--- Only a genuine mismatch costs anything. When it does mismatch, `shell = zb or tb` picks the
+--- building whose skin must be crossed FIRST: the NPC's own when it is inside (it has to get
+--- out before anything else is true), the target's when it is not.
+---
+--- WHY THE COST IS "DISTANCE THERE PLUS DISTANCE ON", not distance to the opening. The user's
+--- rule for leaving is "the exterior door nearest the player", and a plain nearest-to-me score
+--- gives the opposite: the back door, two tiles away, followed by a walk around the whole
+--- house -- which is the reported symptom, reproduced by the fix meant to remove it. Summing
+--- both legs is the actual journey, and it returns the user's answer in his own case (back
+--- door 2 + 18 = 20 loses to front door 8 + 2 = 10) while also doing the right thing on the
+--- way in, where both legs matter.
+---
+--- ONE FLOOR ONLY. The scan runs at `floor(zombie:getZ())`. An NPC on a different floor from
+--- the shell it needs to cross gets nil and keeps using the pathfinder; stairs are not this
+--- function's job and guessing at them is how you get a companion off a balcony. The target's
+--- Z is deliberately NOT required to match, so an NPC outside can still be routed through the
+--- ground-floor door nearest a player who is upstairs.
+---
+--- WHAT THE CALLER MUST RE-CHECK AFTER ARRIVING -- R13, and the reason this is a pure query.
+--- This answers about the world as it is RIGHT NOW. By the time the NPC is standing on that
+--- square the door may have been opened, closed, locked or smashed by anyone, and the NPC may
+--- not even have arrived: a Bandits move task guarantees only that it ENDED. So:
+---   * ask again on arrival, do not cache the answer across a walk;
+---   * never queue a crossing action off this result -- there is nothing to queue, Bandits'
+---     bump handler owns the crossing and it re-evaluates the object itself;
+---   * `kind == Move.OPEN_BREAK` is a REPORT. Nothing here smashes anything. The caller decides
+---     whether breaking in is acceptable for this NPC, and it is last for a reason.
+---
+--- HOW THIS WIRES INTO Move.GoAndDo. The opening is the WALK leg and only the walk leg:
+---
+---   local opening = SR.Move.FindOpening(zombie, px, py, pz)
+---   local point   = opening or { x = px, y = py, z = pz }
+---   local tasks   = SR.Move.GoAndDo(zombie, point, arriveTask, { run = true })
+---
+--- GoAndDo returns the walk OR the action, never both, and re-measures from scratch every time
+--- the calling program re-runs -- which happens on an empty queue, and that free re-entry is
+--- the motor. Standing on the opening square is not the goal, so on the sweep where GoAndDo
+--- reports `arrived` the caller should simply drop the opening and aim at the real target
+--- again: the next step out of that square walks into the door or window, and Bandits crosses
+--- it. Do NOT put this behind a one-shot latch. `ScenesRelationsIdle.goGet` did exactly that
+--- on 2026-08-08 -- a `mood.wanting` flag whose whole purpose was to prevent a second call --
+--- and the behaviour died silently the moment its primitive started returning work in
+--- installments.
+function Move.FindOpening(zombie, tx, ty, tz, opts)
+    opts = opts or {}
+
+    local cell = getCell()
+    if not cell then return nil end
+
+    -- `character:getSquare()`: shared/Foraging/ISForageAction.lua:6.
+    local zsq = zombie:getSquare()
+    if not zsq then return nil end
+
+    local okTarget, tsq = pcall(function()
+        return cell:getGridSquare(math.floor(tx), math.floor(ty), math.floor(tz))
+    end)
+    if not okTarget or not tsq then return nil end
+
+    local okBuilding, zb, tb = pcall(function()
+        return zsq:getBuilding(), tsq:getBuilding()
+    end)
+    if not okBuilding then return nil end
+
+    -- No shell between us. Costs two engine calls and stops here, which is the common case.
+    if zb == tb then return nil end
+
+    local shell = zb or tb
+    local leaving = zb ~= nil
+
+    local radius = opts.radius or Move.OPENING_RADIUS
+    local r2 = radius * radius
+
+    local zx, zy = math.floor(zombie:getX()), math.floor(zombie:getY())
+    local z = math.floor(zombie:getZ())
+    local ftx, fty = math.floor(tx), math.floor(ty)
+
+    -- TOO FAR IN TO CHOOSE YET, and this guard is worth as much as the building gate.
+    --
+    -- ENTERING only. An NPC thirty tiles from the house has no business picking a door: the
+    -- facade nearest IT is very unlikely to be the facade nearest the target, the disc reaches
+    -- ten tiles so it would very likely find nothing anyway, and the walk it is already doing
+    -- brings it into range for free. Re-asking when it arrives costs nothing, because the
+    -- caller re-asks on every re-entry (see the GoAndDo note on the signature). Without this
+    -- the "no opening" line below fires on every sweep for every distant building, and a log
+    -- nobody can read is the same as no log.
+    --
+    -- radius * 2 = 20 tiles: far enough that the shell is plausibly in the disc, near enough
+    -- that the choice is about this building rather than about the street.
+    --
+    -- LEAVING is never distance-gated. The NPC is inside the shell, so the shell is within
+    -- `radius` by construction, and the whole complaint is that it is slow to get out.
+    if not leaving and dist2d(zx, zy, ftx, fty) > radius * 2 then return nil end
+
+    local bestTier, bestCost, bestSquare, bestObj, bestWhy
+
+    for dx = -radius, radius do
+        for dy = -radius, radius do
+            if dx * dx + dy * dy <= r2 then
+                local sq = cell:getGridSquare(zx + dx, zy + dy, z)
+                if sq and not isExcluded(opts.exclude, zx + dx, zy + dy, z) then
+                    local objects = sq:getObjects()
+                    if objects then
+                        for i = 0, objects:size() - 1 do
+                            local obj = objects:get(i)
+                            -- classifyOpening first: it rejects grass, walls and furniture on
+                            -- one or two instanceof calls, where crossesShell costs eight
+                            -- engine calls. Order matters at 314 squares.
+                            local tier, why = classifyOpening(obj, zombie)
+                            if tier and crossesShell(sq, obj, shell) then
+                                local cost = dist2d(zx, zy, zx + dx, zy + dy)
+                                    + dist2d(zx + dx, zy + dy, ftx, fty)
+                                if not bestTier or tier < bestTier
+                                    or (tier == bestTier and cost < bestCost) then
+                                    bestTier = tier
+                                    bestCost = cost
+                                    bestSquare = sq
+                                    bestObj = obj
+                                    bestWhy = why
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if not bestSquare then
+        -- Only reachable AFTER the building gate passed, so this is rare and worth a line:
+        -- it is the difference between "we never looked" and "we looked and there is no way
+        -- through within `radius`".
+        SR.Log(string.format("OPEN no opening within %d tiles -- %s building at %d,%d,%d",
+            radius, leaving and "leaving" or "entering", zx, zy, z))
+        return nil
+    end
+
+    -- WHERE TO STAND, AND WHY IT IS NOT THE OPENING'S OWN SQUARE. An NPC pathed onto a window
+    -- tile is an NPC stuck in the frame -- caps/npc-window-stuck.png and
+    -- caps/npc-window-stuck_2.png are that, twice.
+    -- `AdjacentFreeTileFinder.FindWindowOrDoor` (shared/Util/AdjacentFreeTileFinder.lua:231)
+    -- is the function vanilla wrote for this precise question: it takes the edge object, works
+    -- out which side is which from `getNorth()` (`privGetNorth`, :434) and refuses any square
+    -- you cannot stand on (`privTrySquareWindow`, :402).
+    --
+    -- IT PICKS THE NEAR SIDE BY ROOM, NOT BY DISTANCE, and I traced both branches of it
+    -- (north :234-:250, west :251-:268) rather than assuming it:
+    --   * leaving  -- the NPC is indoors, `playerSq:getRoom()` is that room, and only the
+    --     INDOOR side of the door matches it. We stop just inside the door, which is right:
+    --     the next step out of that square walks into it and Bandits opens it.
+    --   * entering -- the NPC is outdoors, `getRoom()` is nil there, and `nil == nil` matches
+    --     the OUTDOOR side. Same code, opposite answer, both correct.
+    -- The distance tie-break at :286 only chooses between equals.
+    --
+    -- FALLBACK, and it is not decoration: FindWindowOrDoor dereferences
+    -- `playerObj:getCurrentSquare():getRoom()` at :237 with no nil check, so an NPC caught
+    -- between squares throws rather than returns nil. `FindClosest` (:193) is the wall-aware
+    -- neighbour finder with no such dependency, and because its wall test refuses to cross the
+    -- opening it also lands on the near side.
+    local okStand, stand = pcall(function()
+        return AdjacentFreeTileFinder.FindWindowOrDoor(bestSquare, bestObj, zombie)
+    end)
+    if not okStand or not stand then
+        local okNear, near = pcall(function()
+            return AdjacentFreeTileFinder.FindClosest(bestSquare, zombie)
+        end)
+        stand = (okNear and near) or nil
+    end
+    if not stand then return nil end
+
+    local result = {
+        x = stand:getX(),
+        y = stand:getY(),
+        z = stand:getZ(),
+        kind = TIER_KIND[bestTier],
+        why = bestWhy,
+        ox = bestSquare:getX(),
+        oy = bestSquare:getY(),
+        oz = bestSquare:getZ(),
+        leaving = leaving,
+    }
+
+    SR.Log(string.format("OPEN %s via %s (%s) at %d,%d,%d -- stand %d,%d,%d, cost %.1f",
+        leaving and "leaving" or "entering", result.kind, tostring(result.why),
+        result.ox, result.oy, result.oz, result.x, result.y, result.z, bestCost))
+
+    return result
+end
+
 Events.OnGameStart.Add(function()
     SR.Log("MOVE ready -- one walk-then-act primitive, GoAndDo, shared across the mod")
 end)
