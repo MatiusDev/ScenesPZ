@@ -1249,49 +1249,49 @@ local function watchdog(zombie, brain, mood, name)
         local overcame = false
 
         if blocking == "hop" or blocking == "tall" then
-            -- THE ZAClimbFence TASK ACTION IS A PLACEHOLDER, AND IT HAS BEEN SINCE IT SHIPPED.
-            -- It nudges the NPC forward by 0.005 units per tick -- a toy implementation that
-            -- was commented out everywhere in BanditUpdate.lua across ALL builds. Slayer
-            -- abandoned it. The test session proved it: "hace la animación, pero nunca queda
-            -- en el otro lado del muro."
+            -- THE ENGINE METHODS climbOverFence/Wall DO NOT WORK ON IsoZombie.
+            -- Tested in two sessions: zero "climbed over" lines, zero probe logs.
+            -- The Java binding either rejects the call or is a no-op on zombies.
             --
-            -- WHAT THE PLAYER USES, AND IT WORKS. ISClimbOverFence:perform() calls
-            --   self.character:climbOverWall(dir)  -- tall
-            --   self.character:climbOverFence(dir) -- low
-            -- (pzserver/media/lua/client/TimedActions/ISClimbOverFence.lua:28-31). These are
-            -- Java methods on IsoGameCharacter -- the engine handles animation, state
-            -- transition AND position. IsoZombie extends IsoGameCharacter, so the binding
-            -- should accept it. pcalled: if the engine rejects an IsoZombie, the log gets one
-            -- line and the NPC falls back to "queue cleared" like before.
+            -- WHAT DOES WORK, AND IT IS THE WINDOW PATTERN. Bandits crosses windows
+            -- (BanditUpdate.lua:684-685) by calling setParams on the STATE SINGLETON,
+            -- then changing the zombie's state:
+            --   ClimbThroughWindowState.instance():setParams(bandit, object)
+            --   bandit:changeState(ClimbThroughWindowState.instance())
             --
-            -- The direction follows the same logic as getFacingDirection() at
-            -- ISClimbOverFence.lua:48-58: read IsoFlagType.HoppableN from the square, cross
-            -- opposite to where the character is relative to it.
+            -- For fences, Bandits' own code (line 574) calls changeState WITHOUT
+            -- setParams -- which is why it was commented out. The state has no
+            -- direction or object reference, so the animation plays but the NPC
+            -- never moves. We add the missing setParams here.
+            --
+            -- The fence object is on the obstacle square (task.x, task.y). Get the
+            -- first hoppable/tall-hoppable object on that square, same way Bandits'
+            -- own collision handler finds it (BanditUpdate.lua:544-598).
             local square = zombie:getCell():getGridSquare(task.x, task.y, task.z or zombie:getZ())
             if square then
-                local dir
-                if square:has(IsoFlagType.HoppableN) then
-                    dir = (zombie:getY() < square:getY()) and IsoDirections.S or IsoDirections.N
-                else
-                    dir = (zombie:getX() < square:getX()) and IsoDirections.E or IsoDirections.W
-                end
-                local okClimb = pcall(function()
-                    if blocking == "tall" then
-                        zombie:climbOverWall(dir)
-                    else
-                        zombie:climbOverFence(dir)
+                local objects = square:getObjects()
+                local fenceObj = nil
+                for j = 0, objects:size() - 1 do
+                    local obj = objects:get(j)
+                    if (blocking == "tall" and obj:isTallHoppable())
+                       or (blocking == "hop" and obj:isHoppable()) then
+                        fenceObj = obj
+                        break
                     end
-                end)
-                overcame = okClimb
-                if okClimb then
+                end
+                if fenceObj then
+                    local state = (blocking == "tall")
+                        and ClimbOverWallState.instance()
+                        or ClimbOverFenceState.instance()
+                    -- setParams BEFORE changeState -- this is what Bandits skips
+                    -- and why their fence climb never worked.
+                    pcall(function() state:setParams(zombie, fenceObj) end)
+                    pcall(function() zombie:changeState(state) end)
+                    overcame = true
                     SR.Log(string.format(
-                        "AUTO %s | stuck on %s for %d sweeps -- blocked by %s -- climbed over",
-                        name, signature, STUCK_SWEEPS, blocking))
-                elseif not engineProbeDone then
-                    engineProbeDone = true
-                    SR.Log(string.format(
-                        "AUTO %s | climbOver%s threw -- may not be callable on IsoZombie",
-                        name, blocking == "tall" and "Wall" or "Fence"))
+                        "AUTO %s | stuck on %s for %d sweeps -- blocked by %s -- changeState(%s)",
+                        name, signature, STUCK_SWEEPS, blocking,
+                        blocking == "tall" and "ClimbOverWall" or "ClimbOverFence"))
                 end
             end
 
