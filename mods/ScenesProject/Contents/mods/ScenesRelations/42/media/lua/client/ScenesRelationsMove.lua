@@ -142,7 +142,7 @@ local function classify(obj)
         -- A window that is both closed and not smashed is a passable obstacle: the NPC
         -- can try to open it, and if that fails, smash it. One that is open or smashed
         -- is already passable and the line is clear past it.
-        local isWindow = instanceOf(obj, "IsoWindow")
+        local isWindow = instanceof(obj, "IsoWindow")
             or (instanceof(obj, "IsoThumpable") and obj:isWindow() == true)
         if isWindow then
             if obj:IsOpen() or obj:isSmashed() then return nil end
