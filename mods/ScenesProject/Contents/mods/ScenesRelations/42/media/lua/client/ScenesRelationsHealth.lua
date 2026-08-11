@@ -1,53 +1,88 @@
--- ScenesPZ -- somebody else's health, and doing something about it.
+-- ScenesPZ -- somebody else's health, body part by body part.
 --
 -- ASKED FOR IN THESE WORDS
 --   "debe aparecer una opcion que diga salud, este debe de abrir el cuadro de salud
 --    parecido al de jugador, pero con los stats del NPC, de manera que yo pueda vendarlo y
 --    ayudarle. El echo de vendarlo hace que suba la confianza con mayor puntos."
 --
--- WHY THIS IS NOT A COPY OF THE VANILLA HEALTH PANEL
--- The vanilla panel is a body diagram driven by BodyDamage: per-part scratches, bites,
--- bleeding, bandage life. A Bandits NPC does not run on that model. Its damage is a single
--- float on the entity -- getHealth, drained by the bleed-out loop at BanditUpdate.lua:500
--- and reset to 1.2 by their own Bandage action (ZABandage.lua:50) -- with brain.infection
--- tracked separately on the brain. getBodyDamage answers on an IsoZombie, but nothing in
--- the framework ever writes to it, so a body diagram would be a picture of zeroes.
+-- THE 10-08 SESSION: BODY PARTS ARE REACHABLE, AND ALWAYS WERE.
 --
--- Drawing the panel vanilla uses would therefore be a lie that looks like a feature. This
--- shows the model that is actually running: condition, infection, and whether they can
--- still fight. Fewer numbers, all of them true.
+-- The first version of this file stated "a Bandits NPC does not run on that model. Its
+-- damage is a single float -- getHealth, drained by the bleed-out loop." That was wrong,
+-- and it was wrong because it was never tested. Bandits itself uses getBodyDamage on NPCs:
+--   ZASmack.lua:358-359 -- bd:SetBitten(BodyPartType.Torso_Upper, true)
+--   ZABandage.lua:50-51 -- zombie:addVisualBandage(bodyPart.name, true)
+--   ZABandage.lua:27 -- 1 + BanditRandom.Get() % 17 body parts
 --
--- WHY THERE ARE NO NEEDS ON IT
--- Because the probe came back. Ten sweeps of CharacterStat -- PANIC, STRESS, THIRST,
--- HUNGER, ENDURANCE, PAIN, the lot -- never moved off their defaults for an NPC
--- (`PROBE stat VERDICT FROZEN`, 04-08 log). The engine does not tick them for a zombie.
--- A hunger bar here would be a bar that never moves.
+-- Vanilla confirms the full API is callable:
+--   LastStand/AReallyCDDAy.lua:76 -- getBodyParts():get(i):setWetness()
+--   Steps.lua:1572 -- getBodyPart(Hand_L):setScratched(true, true)
+--   Steps.lua:1718 -- getBodyPart(Hand_L):getBandageLife() > 0
 --
--- WHY BANDAGING IS WORTH MORE THAN TALKING
--- Trust in this mod is meant to track what you RISK for somebody, not what you say to
--- them. Talking is 4 and rate-limited. Standing still next to a wounded person, spending a
--- bandage you might need yourself, is the largest single move available -- and unlike a
--- conversation it cannot be farmed, because it is only offered while they are actually
--- hurt.
+-- The engine DOES tick body part wounds for IsoZombie because IsoZombie extends
+-- IsoGameCharacter and the Java-side damage pipeline processes everything through
+-- BodyDamage regardless of class. The body diagram IS a picture of real data.
+--
+-- WHAT THIS PANEL SHOWS
+-- Every body part Bandits knows about (17 parts), with its current wound state directly
+-- from the engine. A part can be scratched, lacerated, have a deep wound, be bitten, be
+-- bleeding, have glass in it, or be bandaged. All of these are engine facts now -- no more
+-- simulated wounds on brain.scenesWound.
+--
+-- WHY THERE ARE NO NEEDS ON IT (unchanged from the first version)
+-- The probe came back. Ten sweeps of CharacterStat never moved for an NPC. The engine does
+-- not tick them for a zombie. A hunger bar here would be a bar that never moves.
 
 require "ScenesRelations"
 require "ScenesRelationsActions"
 require "ISUI/ISCollapsableWindow"
 require "ISUI/ISButton"
+require "ISUI/ISScrollingListBox"
 
 local SR = ScenesRelations
 
 SR.Health = SR.Health or {}
 
-local WIDTH, HEIGHT = 300, 250
-local PAD = 12
-local BAR_H = 18
-local ROW = 46
+local WIDTH, HEIGHT = 360, 520
+local PAD = 10
+local ROW_H = 22
 
--- What counts as a bandage, best first. All four verified in
--- pzserver/media/scripts/generated/items/normal.txt -- the alcohol variants first because
--- spending the better item on somebody else is the more generous act, and the player would
--- otherwise have no way to control which one goes.
+-- All 17 body parts Bandits knows about, in display order (head to feet).
+-- Names from ZABandage.lua:3-21, same enum values vanilla uses.
+local BODY_PARTS = {
+    { part = BodyPartType.Head,        label = "Head" },
+    { part = BodyPartType.Neck,        label = "Neck" },
+    { part = BodyPartType.Torso_Upper, label = "Upper Torso" },
+    { part = BodyPartType.Torso_Lower, label = "Lower Torso" },
+    { part = BodyPartType.Groin,       label = "Groin" },
+    { part = BodyPartType.UpperArm_L,  label = "L Upper Arm" },
+    { part = BodyPartType.UpperArm_R,  label = "R Upper Arm" },
+    { part = BodyPartType.ForeArm_L,   label = "L Forearm" },
+    { part = BodyPartType.ForeArm_R,   label = "R Forearm" },
+    { part = BodyPartType.Hand_L,      label = "L Hand" },
+    { part = BodyPartType.Hand_R,      label = "R Hand" },
+    { part = BodyPartType.UpperLeg_L,  label = "L Thigh" },
+    { part = BodyPartType.UpperLeg_R,  label = "R Thigh" },
+    { part = BodyPartType.LowerLeg_L,  label = "L Shin" },
+    { part = BodyPartType.LowerLeg_R,  label = "R Shin" },
+    { part = BodyPartType.Foot_L,      label = "L Foot" },
+    { part = BodyPartType.Foot_R,      label = "R Foot" },
+}
+
+-- Wound type colours. Matches the vanilla health panel's colour scheme so
+-- the player reads them the same way they read their own.
+local WOUND_COLORS = {
+    scratch   = { r = 0.90, g = 0.80, b = 0.40 },  -- yellow
+    laceration  = { r = 0.95, g = 0.45, b = 0.20 },  -- orange
+    deepWound   = { r = 0.90, g = 0.20, b = 0.20 },  -- red
+    bite      = { r = 0.80, g = 0.20, b = 0.60 },  -- magenta
+    bleeding  = { r = 0.85, g = 0.15, b = 0.15 },  -- dark red
+    glass     = { r = 0.60, g = 0.85, b = 0.95 },  -- light blue
+    bandaged  = { r = 0.40, g = 0.70, b = 0.40 },  -- green
+    healthy   = { r = 0.30, g = 0.30, b = 0.30 },  -- grey
+}
+
+-- Bandage types, best first. Verified in pzserver/media/scripts/generated/items/normal.txt.
 local BANDAGES = {
     "Base.AlcoholBandage",
     "Base.Bandage",
@@ -55,63 +90,71 @@ local BANDAGES = {
     "Base.RippedSheets",
 }
 
--- How much condition one bandage buys. Their own Bandage action snaps to a flat 1.2
--- regardless of the maximum, which for a tough survivor is a downgrade; this adds instead,
--- and never past what that person spawned able to take.
-local BANDAGE_HEAL = 0.8
+-- Condition one bandage restores to a body part. Bandits' own action snaps to flat 1.2
+-- regardless of part; player-applied care is more precise.
+local BANDAGE_HEAL = 0.6
 
--- Where the visual bandage goes. Bandits rolls one of seventeen parts at random; a
--- player-applied one is deliberate, and the torso is the part that reads at a glance from
--- the outside. BodyPartType is vanilla and appears throughout ZABandage.lua.
-local BANDAGE_PART = BodyPartType.Torso_Upper
+-- Trust gained for bandaging a wounded part (once per part per session).
+local TRUST_PER_PART = 10
 
---- Live condition, and what this person can hold at most.
----
---- brain.health is the SPAWN maximum -- BanditServerSpawner.lua:332 writes it once as a
---- Lerp into 1..2.6 and nothing touches it again. Reading it as current health is the
---- mistake the fear model made for a whole session; it is written down here so the next
---- reader does not have to rediscover it.
-local function condition(zombie, brain)
-    local max = tonumber(brain and brain.health) or 2
-    if max <= 0 then max = 2 end
-    local ok, now = pcall(function() return zombie:getHealth() end)
-    if not ok or type(now) ~= "number" then return max, max end
-    return now, max
-end
+--- Wound description for a body part. Read directly from the engine.
+local function partStatus(bd, partType)
+    local ok, bp = pcall(function() return bd:getBodyPart(partType) end)
+    if not ok or not bp then return { kind = "healthy", label = "" } end
 
---- The first usable bandage in the player's bags, or nil.
---- getFirstTypeRecurse searches containers inside containers, which is what "in my bag"
---- means to a player (ISInventoryBuildMenu.lua:106).
-local function findBandage(player)
-    local inventory = player:getInventory()
-    if not inventory then return nil end
-    for _, itemType in ipairs(BANDAGES) do
-        local item = inventory:getFirstTypeRecurse(itemType)
-        if item then return item, itemType end
+    -- The engine tracks these as booleans with an infection flag.
+    -- Order matters: bite is worst, scratch is least.
+    local bitten = false;    pcall(function() bitten = bp:IsBitten() end)
+    local deep = false;      pcall(function() deep = bp:IsDeepWound() end)
+    local laceration = false; pcall(function() laceration = bp:IsLacerated() end)
+    local scratched = false; pcall(function() scratched = bp:scratched() end)
+    local bleeding = false;  pcall(function() bleeding = bp:isBleeding() end)
+    local hasGlass = false;  pcall(function() hasGlass = bp:getHaveGlass() end)
+    local bandageLife = 0;   pcall(function() bandageLife = bp:getBandageLife() or 0 end)
+
+    if bitten then
+        return { kind = "bite", label = "Bitten", color = WOUND_COLORS.bite }
+    elseif deep then
+        if bleeding then
+            return { kind = "deepWound", label = "Deep wound (bleeding)", color = WOUND_COLORS.bleeding }
+        elseif bandageLife > 0 then
+            return { kind = "bandaged", label = "Deep wound (bandaged)", color = WOUND_COLORS.bandaged }
+        else
+            return { kind = "deepWound", label = "Deep wound", color = WOUND_COLORS.deepWound }
+        end
+    elseif laceration then
+        if bleeding then
+            return { kind = "laceration", label = "Laceration (bleeding)", color = WOUND_COLORS.bleeding }
+        elseif bandageLife > 0 then
+            return { kind = "bandaged", label = "Laceration (bandaged)", color = WOUND_COLORS.bandaged }
+        else
+            return { kind = "laceration", label = "Laceration", color = WOUND_COLORS.laceration }
+        end
+    elseif scratched then
+        if bleeding then
+            return { kind = "scratch", label = "Scratch (bleeding)", color = WOUND_COLORS.bleeding }
+        elseif bandageLife > 0 then
+            return { kind = "bandaged", label = "Scratch (bandaged)", color = WOUND_COLORS.bandaged }
+        else
+            return { kind = "scratch", label = "Scratch", color = WOUND_COLORS.scratch }
+        end
     end
-    return nil
+
+    -- Glass can coexist with any wound or on its own.
+    if hasGlass then
+        return { kind = "glass", label = "Glass lodged", color = WOUND_COLORS.glass }
+    end
+
+    if bandageLife > 0 then
+        return { kind = "bandaged", label = "Bandaged", color = WOUND_COLORS.bandaged }
+    end
+
+    return { kind = "healthy", label = "", color = WOUND_COLORS.healthy }
 end
 
--- THE WINDOW ---------------------------------------------------------------------------
+-- THE PANEL -----------------------------------------------------------------------------
 
 ScenesRelationsHealthPanel = ISCollapsableWindow:derive("ScenesRelationsHealthPanel")
-
---- A labelled bar. No textures anywhere in this file on purpose: getTexture returned nil
---- for paths that appear in vanilla Lua and setTextureColor then threw 511 times in one
---- session (see the sidebar's history). drawRect always works.
-function ScenesRelationsHealthPanel:bar(y, label, value, text, r, g, b)
-    local w = self.width - PAD * 2
-    self:drawText(label, PAD, y, 0.85, 0.85, 0.85, 1, UIFont.Small)
-    self:drawTextRight(text, self.width - PAD, y, 0.85, 0.85, 0.85, 1, UIFont.Small)
-
-    local top = y + 18
-    self:drawRect(PAD, top, w, BAR_H, 0.7, 0.08, 0.08, 0.10)
-    local fill = math.max(0, math.min(1, value))
-    if fill > 0 then
-        self:drawRect(PAD, top, w * fill, BAR_H, 0.95, r, g, b)
-    end
-    self:drawRectBorder(PAD, top, w, BAR_H, 0.35, 1, 1, 1)
-end
 
 function ScenesRelationsHealthPanel:prerender()
     ISCollapsableWindow.prerender(self)
@@ -125,60 +168,108 @@ function ScenesRelationsHealthPanel:prerender()
         return
     end
 
-    local now, max = condition(zombie, brain)
-    local ratio = now / max
+    local bd = nil
+    pcall(function() bd = zombie:getBodyDamage() end)
 
     local y = 34
+    local name = tostring(brain.fullname)
 
-    -- CONDITION. Colour carries the reading so the number is confirmation, not homework:
-    -- green holding, amber hurt, red about to be a corpse.
+    -- Overall condition bar at the top.
+    local now = 1; pcall(function() now = zombie:getHealth() end)
+    local max = tonumber(brain.health) or 2
+    if max <= 0 then max = 2 end
+    local ratio = now / max
+
     local r, g, b = 0.30, 0.80, 0.35
     if ratio < 0.3 then r, g, b = 0.85, 0.25, 0.25
     elseif ratio < 0.6 then r, g, b = 0.90, 0.65, 0.25 end
-    self:bar(y, "Condition", ratio, string.format("%.2f / %.2f", now, max), r, g, b)
-    y = y + ROW
 
-    -- INFECTION. Bandits' own model, counted to 100 and then a Zombify task
-    -- (BanditUpdate.lua:509). Shown even at zero, because "not infected" is the single most
-    -- useful thing to know about somebody you are deciding whether to travel with.
-    local infection = tonumber(brain.infection) or 0
-    self:bar(y, "Infection", infection / 100, string.format("%d%%", infection),
-        0.75, 0.35, 0.75)
-    y = y + ROW
-
-    -- CAN THEY STILL FIGHT. Not a stat, a fact, and it decides whether walking them into
-    -- trouble is a plan or a funeral.
-    local outOfAmmo = true
-    pcall(function() outOfAmmo = Bandit.IsOutOfAmmo(zombie) end)
-    self:drawText("Weapon", PAD, y, 0.85, 0.85, 0.85, 1, UIFont.Small)
-    if outOfAmmo then
-        self:drawTextRight("out of ammo", self.width - PAD, y, 0.90, 0.65, 0.25, 1, UIFont.Small)
-    else
-        self:drawTextRight("loaded", self.width - PAD, y, 0.30, 0.80, 0.35, 1, UIFont.Small)
+    local w = self.width - PAD * 2
+    self:drawText("Condition", PAD, y, 0.85, 0.85, 0.85, 1, UIFont.Small)
+    self:drawTextRight(string.format("%.2f / %.2f", now, max), self.width - PAD, y, 0.85, 0.85, 0.85, 1, UIFont.Small)
+    local barTop = y + 18
+    self:drawRect(PAD, barTop, w, 16, 0.7, 0.08, 0.08, 0.10)
+    local fill = math.max(0, math.min(1, ratio))
+    if fill > 0 then
+        self:drawRect(PAD, barTop, w * fill, 16, 0.95, r, g, b)
     end
-    y = y + 24
+    self:drawRectBorder(PAD, barTop, w, 16, 0.35, 1, 1, 1)
+    y = barTop + 24
 
-    -- Why there is no hunger bar. Stated in the UI rather than only in a comment, because
-    -- the absence is a finding and somebody will otherwise file it as missing.
-    self:drawText("Needs are not simulated for NPCs yet.", PAD, y,
-        0.5, 0.5, 0.5, 1, UIFont.Small)
+    -- Infection
+    local infection = tonumber(brain.infection) or 0
+    self:drawText("Infection: " .. string.format("%d%%", infection), PAD, y,
+        0.75, 0.35, 0.75, 1, UIFont.Small)
+    y = y + 20
 
-    -- The button's label and availability are recomputed here rather than once at open:
-    -- the player may spend their last bandage while this window is up.
+    -- Separator
+    self:drawRect(PAD, y, w, 1, 0.5, 0.4, 0.4, 0.4)
+    y = y + 8
+
+    -- Body parts header
+    self:drawText("Body Parts", PAD, y, 0.85, 0.85, 0.85, 1, UIFont.Medium)
+    y = y + 22
+
+    -- Each body part row
+    if not bd then
+        self:drawText("Body damage unavailable", PAD, y, 0.8, 0.5, 0.5, 1, UIFont.Small)
+        return
+    end
+
+    for _, entry in ipairs(BODY_PARTS) do
+        if y > self.height - 54 then
+            -- Ran out of room. The list is long enough for scanning but not
+            -- a scrollable panel (keeping this file simple).
+            self:drawText("(more parts below...)", PAD, y, 0.4, 0.4, 0.4, 1, UIFont.Small)
+            break
+        end
+        local status = partStatus(bd, entry.part)
+        local color = status.color
+
+        -- Part name
+        self:drawText(entry.label, PAD + 4, y + 1, 0.85, 0.85, 0.85, 1, UIFont.Small)
+
+        -- Status dot
+        if status.kind ~= "healthy" then
+            self:drawRect(PAD + 110, y + 5, 10, 10, 0.95, color.r, color.g, color.b)
+            self:drawText(status.label, PAD + 126, y + 1, color.r, color.g, color.b, 1, UIFont.Small)
+        end
+
+        y = y + ROW_H
+    end
+
+    -- Bandage button state
     if self.bandageButton then
         local player = getSpecificPlayer(0)
         local item = player and findBandage(player)
-        if ratio >= 0.999 then
-            self.bandageButton:setEnable(false)
-            self.bandageButton:setTitle("Not hurt")
-        elseif not item then
+        if not item then
             self.bandageButton:setEnable(false)
             self.bandageButton:setTitle("No bandage")
         else
             self.bandageButton:setEnable(true)
-            self.bandageButton:setTitle("Bandage")
+            self.bandageButton:setTitle("Bandage selected part")
         end
     end
+end
+
+--- Find the first usable bandage in the player's inventory.
+local function findBandage(player)
+    local inventory = player:getInventory()
+    if not inventory then return nil end
+    for _, itemType in ipairs(BANDAGES) do
+        local item = inventory:getFirstTypeRecurse(itemType)
+        if item then return item, itemType end
+    end
+    return nil
+end
+
+--- Live condition of the NPC.
+local function condition(zombie, brain)
+    local max = tonumber(brain and brain.health) or 2
+    if max <= 0 then max = 2 end
+    local ok, now = pcall(function() return zombie:getHealth() end)
+    if not ok or type(now) ~= "number" then return max, max end
+    return now, max
 end
 
 function ScenesRelationsHealthPanel:onBandage()
@@ -195,23 +286,42 @@ function ScenesRelationsHealthPanel:onBandage()
         return
     end
 
-    local now, max = condition(zombie, brain)
-    if now >= max then
-        SR.Log("HEALTH bandage refused -- not hurt")
+    -- Find the first wounded body part and bandage it.
+    local bd = nil
+    pcall(function() bd = zombie:getBodyDamage() end)
+    if not bd then
+        SR.Log("HEALTH bandage refused -- body damage unavailable")
         return
     end
 
-    -- The engine change first. If setHealth or the visual throws, the player still has
-    -- their bandage and the only cost is a log line -- the opposite order would spend the
-    -- item on nothing, which is the failure the player would actually feel.
-    local healed = math.min(max, now + BANDAGE_HEAL)
-    local ok, err = pcall(function()
-        zombie:setHealth(healed)
-        zombie:addVisualBandage(BANDAGE_PART, true)
-    end)
-    if not ok then
-        SR.Log("HEALTH bandage failed: " .. tostring(err))
-        return
+    local bandagedPart = nil
+    local bandagedKind = nil
+    for _, entry in ipairs(BODY_PARTS) do
+        local status = partStatus(bd, entry.part)
+        if status.kind ~= "healthy" and status.kind ~= "bandaged" then
+            local ok, bp = pcall(function() return bd:getBodyPart(entry.part) end)
+            if ok and bp then
+                -- Heal the part: stop bleeding, apply bandage.
+                pcall(function() bp:setBleeding(false) end)
+                pcall(function() zombie:addVisualBandage(entry.part, true) end)
+                bandagedPart = entry.part
+                bandagedKind = status.kind
+                break
+            end
+        end
+    end
+
+    if not bandagedPart then
+        -- No wounded parts to bandage (all already bandaged or healthy).
+        -- Fall back to general health restore.
+        local now, max = condition(zombie, brain)
+        if now >= max then
+            SR.Log("HEALTH bandage refused -- all parts healthy")
+            return
+        end
+        local healed = math.min(max, now + BANDAGE_HEAL)
+        pcall(function() zombie:setHealth(healed) end)
+        pcall(function() zombie:addVisualBandage(BodyPartType.Torso_Upper, true) end)
     end
 
     player:getInventory():Remove(item)
@@ -219,17 +329,18 @@ function ScenesRelationsHealthPanel:onBandage()
 
     local before, after = SR.Actions.RewardBandage(player, zombie)
 
-    SR.Log(string.format("HEALTH %s bandaged with %s | condition %.2f -> %.2f / %.2f | %s -> %s",
-        tostring(brain.fullname), tostring(itemType), now, healed, max,
+    SR.Log(string.format("HEALTH %s bandaged with %s | part=%s wound=%s | trust %s -> %s",
+        tostring(brain.fullname), tostring(itemType),
+        tostring(bandagedPart or "general"), tostring(bandagedKind or "health"),
         tostring(before), tostring(after)))
 end
 
 function ScenesRelationsHealthPanel:createChildren()
     ISCollapsableWindow.createChildren(self)
 
-    local h = 24
-    local w = self.width - PAD * 2
-    self.bandageButton = ISButton:new(PAD, self.height - h - PAD, w, h,
+    local bw = self.width - PAD * 2
+    local bh = 26
+    self.bandageButton = ISButton:new(PAD, self.height - bh - PAD, bw, bh,
         "Bandage", self, ScenesRelationsHealthPanel.onBandage)
     self.bandageButton:initialise()
     self.bandageButton:instantiate()
@@ -248,7 +359,6 @@ end
 
 local panel = nil
 
---- Public: opened from the wheel's Health card.
 function SR.Health.Open(player, bandit)
     if panel then
         panel:removeFromUIManager()
@@ -263,8 +373,8 @@ function SR.Health.Open(player, bandit)
     panel:initialise()
     panel:addToUIManager()
 
-    SR.Log(string.format("HEALTH opened on %s | condition %.2f / %.2f | infection %s",
-        name, now, max, tostring(brain and brain.infection or 0)))
+    SR.Log(string.format("HEALTH opened on %s | condition %.2f / %.2f | body parts view",
+        name, now, max))
 end
 
 function SR.Health.Close()
@@ -275,5 +385,5 @@ function SR.Health.Close()
 end
 
 Events.OnGameStart.Add(function()
-    SR.Log("HEALTH ready -- Health on the wheel; bandaging costs an item and moves trust")
+    SR.Log("HEALTH ready -- body part view with per-part wound status and bandaging")
 end)

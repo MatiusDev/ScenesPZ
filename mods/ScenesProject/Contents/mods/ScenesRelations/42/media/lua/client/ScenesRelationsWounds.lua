@@ -520,10 +520,30 @@ end
 --- Cut an NPC and log it. Shared by the sweep checker, the OpenWindow hook and the climb
 --- watcher so all three produce the same line, the same wound and the same cooldown.
 ---
---- EVERY CUT ALSO OPENS A BLEED, which is the second half of the request. The bleed is not
---- re-armed if one is already running: a person who is already bleeding and gets cut again
---- loses the condition twice but keeps ONE bleed, so the BLEED_MAX_SWEEPS bound cannot be
---- pushed out of reach by walking back and forth through the same frame.
+--- THE 10-08 SESSION: BODY PARTS ARE REACHABLE. The first version claimed they were not, and
+--- built its own bleeding on brain.scenesWound. Bandits already uses getBodyDamage on NPCs
+--- (ZASmack.lua:358-359) and addVisualBandage (ZABandage.lua:50-51). The engine's body part
+--- pipeline processes IsoZombie fully.
+---
+--- Now glass cuts use the engine's system: health reduction, glass lodged in a random body
+--- part, and bleeding on that part. The old wound.bleeding is kept as a fallback for cases
+--- where body parts are unreachable (cell unloaded mid-crossing, etc).
+---
+--- RANDOM DEEP SHARD. A low probability that glass goes deep enough to need tweezers
+--- (generateDeepShardWound). Borrowed from vanilla's own glass shard mechanic in
+--- ISRemoveGlass.lua and AReallyCDDAy.lua:85. Probability is deliberately low -- most
+--- crossings should be painful but not permanently debilitating.
+local GLASS_DEEP_SHARD_CHANCE = 0.05  -- 5% chance per cut
+
+-- Body parts glass can lodge in. Excludes head (glass in the eye is death) and neck
+-- (insta-bleed). Matches the plausible parts for "dragged my arm through a broken frame."
+local GLASS_PARTS = {
+    BodyPartType.Hand_L, BodyPartType.Hand_R,
+    BodyPartType.ForeArm_L, BodyPartType.ForeArm_R,
+    BodyPartType.UpperArm_L, BodyPartType.UpperArm_R,
+    BodyPartType.Torso_Upper, BodyPartType.Torso_Lower,
+}
+
 local function applyGlassCut(zombie, brain, mood, square, why)
     local max = tonumber(brain.health) or 2
     local ok, now = pcall(function() return zombie:getHealth() end)
@@ -535,8 +555,34 @@ local function applyGlassCut(zombie, brain, mood, square, why)
         SR.Log("WOUND could not cut " .. tostring(brain.fullname) .. " -- setHealth threw")
     end
 
+    -- Try the engine's body part system. If getBodyDamage throws (cell unload, rare),
+    -- fall back to our own wound.bleeding. The body part pipeline is the preferred path.
+    local partUsed, shardDeep = false, false
+    local bd = nil
+    pcall(function() bd = zombie:getBodyDamage() end)
+    if bd then
+        local partType = GLASS_PARTS[1 + (ZombRand and ZombRand(#GLASS_PARTS) or 0)]
+        local okBp, bp = pcall(function() return bd:getBodyPart(partType) end)
+        if okBp and bp then
+            pcall(function() bp:setBleeding(true) end)
+            pcall(function() bp:setHaveGlass(true) end)
+            -- Low chance of deep shard requiring removal
+            if ZombRand and ZombRand(100) < (GLASS_DEEP_SHARD_CHANCE * 100) then
+                pcall(function() bp:generateDeepShardWound() end)
+                shardDeep = true
+            end
+            partUsed = true
+        end
+    end
+
+    -- Keep our own wound record as the fallback and for the panel's backward compat.
     local wound = Wounds.Of(brain)
     wound.dressing = nil
+    if not partUsed and not wound.bleeding then
+        wound.bleeding = true
+        wound.bleedDay = SR.Today()
+        wound.bleedSweeps = 0
+    end
     mood.cutAt = CUT_COOLDOWN
 
     local said = pcall(function() Bandit.Say(zombie, "HIT") end)
@@ -544,18 +590,10 @@ local function applyGlassCut(zombie, brain, mood, square, why)
         SR.Log("WOUND Bandit.Say(HIT) threw for " .. tostring(brain.fullname))
     end
 
-    SR.Log(string.format("WOUND %s cut on broken glass at %d,%d | %.2f -> %.2f / %.2f | %s",
-        tostring(brain.fullname), square:getX(), square:getY(), now, hurt, max, why))
-
-    if not wound.bleeding then
-        wound.bleeding = true
-        wound.bleedDay = SR.Today()
-        wound.bleedSweeps = 0
-        SR.Log(string.format(
-            "WOUND %s is bleeding -- %.2f per sweep until a dressing goes on, bound %d sweeps",
-            tostring(brain.fullname), BLEED_PER_SWEEP, BLEED_MAX_SWEEPS))
-    end
-end
+    SR.Log(string.format(
+        "WOUND %s cut on broken glass at %d,%d | %.2f -> %.2f / %.2f | %s%s%s",
+        tostring(brain.fullname), square:getX(), square:getY(), now, hurt, max,
+        why, partUsed and " (body part)" or "", shardDeep and " deep-shard" or ""))
 
 --- Drain somebody who is bleeding, once per autonomy sweep.
 ---
