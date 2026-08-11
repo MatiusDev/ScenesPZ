@@ -7,129 +7,101 @@ muda a [`docs/TEST-LOG.md`](TEST-LOG.md) y desaparece de acá.
 
 ---
 
-## Corrida abierta: 10-08b — vidrios rotos y pánico (jumpscare)
+## Corrida abierta: 10-08c — WOUND + Pathfinding + ventanas
 
-**Dos fixes, los dos con logs nuevos para validar.** También están P14-P18 de la corrida
-anterior por si querés volver a probarlas.
+**Tres fixes nuevos, más los de corridas anteriores.** Si algo de acá falla, es un bug.
 
 ### Antes de arrancar
 
 1. `git pull`.
-2. En `console.txt` buscá `ASSERT ---- 30 ok, 0 FAILED ----`. Si alguna dice `FAIL`, pará.
-3. Apenas cargue, confirmá que estos módulos cargaron:
+2. Buscá `ASSERT ---- 30 ok, 0 FAILED ----`. Si dice `FAIL`, pará.
+3. Confirmá que estos módulos cargaron:
    ```
-   WOUND ready -- healing costs a dressing; broken glass costs blood; window-open hook catches crossings the sweep misses
+   PATHFINDING ready -- preemptive route check before move
+   WOUND ready -- healing costs a dressing; every window crossing costs blood (climb watcher every 200 ms, both directions)
    PANIC ready -- your own people no longer read as a horde; spike detector active (logs jumpscares)
    ```
-   Si alguno falta, el módulo no cargó.
 
 ---
 
-### P19 — vidrios rotos al cruzar una ventana
+### P22 — WOUND: solo daña si el NPC realmente cruzó
 
-**El fix:** ahora cuando un NPC abre una ventana, el hook verifica si el marco tenía vidrios
-rotos y aplica el corte en ese momento. Antes solo se detectaba si el NPC se quedaba parado en
-el marco durante un sweep (~6 segundos). El hook lo atrapa en el momento exacto de abrir.
+**El fix:** cuando el NPC trepa por una ventana con vidrios rotos, el daño SOLO se aplica
+si realmente llegó al otro lado. Si la trepada se cancela (hay un zombie, un jugador o un
+mueble bloqueando la salida), el NPC se queda en el mismo tile y NO recibe daño.
 
-1. Encontrá una ventana con vidrios rotos (casa abandonada, o rompela vos).
-2. Hacé que un compañero la abra y la cruce.
-3. Buscá en `console.txt`:
+1. Buscá una ventana con vidrios rotos.
+2. Poné un zombie o a vos mismo del otro lado para bloquear la salida.
+3. Hacé que el NPC intente cruzar.
+4. **Esperado:** el NPC intenta trepar, no puede, y **no recibe daño**. En el log NO debería
+   aparecer `WOUND ... cut on broken glass`.
+5. Ahora despejá el otro lado y hacé que cruce. **Esperado:** recibe daño normalmente.
+   En el log: `WOUND ... cut on broken glass at X,Y | window-climb` o `sweep`.
 
+### P23 — Pathfinding: elige trepar rejas en vez de rodear
+
+**El fix:** `ChooseRoute` ahora evalúa la línea directa entre el NPC y su destino ANTES
+de caminar. Si hay una reja (`hop`) o muro alto (`tall`) en el camino, rutea al NPC hacia
+la reja para treparla en vez de dejar que el motor la rodee.
+
+1. Buscá un área con rejas o muros entre vos y un compañero.
+2. Alejate al otro lado de la reja.
+3. **Esperado:** en el log deberías ver:
    ```
-   WOUND <nombre> cut on broken glass at X,Y | X.XX -> X.XX / X.XX | window-open
+   ROUTE <nombre> | blocked by hop at X,Y -- routing to fence crossing | stand X,Y,Z
    ```
+   El NPC debería caminar hacia la reja e intentar treparla.
+4. Si el NPC sigue rodeando, buscá en el log si siquiera apareció `ROUTE`. Si no aparece,
+   `WhatBlocks` no detectó la reja como obstáculo — puede ser que el motor haya encontrado
+   un camino que no cruza la reja en absoluto. Si aparece `ROUTE` pero el NPC no trepó,
+   el problema está en `GetAccessSquare` o en el bump handler.
 
-   - `window-open` = el hook lo agarró al abrir la ventana
-   - `sweep` = el checker del sweep lo detectó (el mecanismo viejo, sigue funcionando)
+### P24 — Tipos de ventana: abre las corredizas, rompe las fijas
 
-4. **Esperado:** el NPC recibe daño. La vida baja ~0.25. Si cruza varias ventanas seguidas
-   sin descanso, el cooldown (`CUT_COOLDOWN = 10` sweeps) evita que se destroce.
+**El fix:** cuando el NPC se traba en una ventana, primero intenta abrirla (`OpenWindow`).
+Si después de 8 sweeps (~48s) sigue trabado en la misma ventana, es porque no se puede
+abrir — entonces la rompe (`SmashWindow`).
 
-5. **Repetí entrando y saliendo** por la misma ventana. El daño debería aplicar en ambas
-   direcciones.
+1. Buscá una ventana corrediza (de las que se abren).
+2. Hacé que el NPC se trabe en ella.
+3. **Esperado:** en el log: `blocked by window -- queued OpenWindow`. El NPC la abre y cruza.
+4. Buscá una ventana fija (de las que no se abren, como las de baño).
+5. Hacé que el NPC se trabe en ella.
+6. **Esperado:** primero `queued OpenWindow`, luego (8 sweeps después) `open failed -- queued SmashWindow`. El NPC la rompe y cruza.
 
-6. Si ves `WOUND ... cut on broken glass ... sweep` pero NUNCA `window-open`, el hook no está
-   disparando — avisame.
+---
 
-### P20 — pánico por mirar a un NPC (jumpscare)
+### P19 — WOUND: vidrios al cruzar (verificado, retestar opcional)
 
-**El fix NO es un fix — es un detector.** El motor de PZ puede estar metiendo pánico
-directamente al jugador cuando un NPC amigo aparece cerca o en línea de visión, porque para
-el motor un NPC **es** un zombie (`IsoZombie`). Nuestra supresión controla la tasa de
-incremento y el stat, pero el motor puede saltárselos con un bump directo.
+Ya verificado en corridas anteriores. El climb watcher a 200ms detecta cuando el NPC
+entra en `ClimbThroughWindowState` y aplica daño al salir. Buscá en el log:
+```
+WOUND <nombre> cut on broken glass at X,Y | window-climb
+```
 
-El spike detector revisa cada ~6 segundos si el stat de pánico subió a pesar de que solo hay
-amigos cerca. Si lo detecta, lo loguea.
+### P20 — PANIC: jumpscare (verificado, retestar opcional)
 
-1. Jugá normal con un compañero cerca.
-2. Hacé que el compañero aparezca de repente frente a vos (que venga corriendo, que doble
-   una esquina, que abra una puerta y te lo encuentres de golpe).
-3. Buscá en `console.txt`:
+Detector confirmado: 3 spikes por sesión, stat max ~30. Buscá:
+```
+PANIC spike #1 detected | stat=X despite suppression active
+```
 
-   ```
-   PANIC spike #1 detected | stat=X despite suppression active | max seen this session=Y
-   ```
+### P14–P18 — follow, resistencia, rango (verificados)
 
-4. **Si aparece:** el jumpscare es real. El número `stat=X` me dice la magnitud. Mandame la
-   línea completa.
-
-5. **Si NO aparece en una sesión larga con varios encuentros cercanos:** el detector no está
-   capturando nada — puede ser que el spike sea más rápido que el sweep (el detector corre
-   cada ~6s, igual que el sweep) o que el motor no esté generando pánico por NPCs en esta
-   build. En cualquier caso, también es un dato.
-
-### P14–P18 — follow, resistencia, rango (de la corrida anterior)
-
-**Ya fueron verificadas en la corrida del 10-08.** Si querés volver a probarlas con los
-cambios nuevos, adelante. Lo que se confirmó:
-
-| Prueba | Veredicto corrida anterior |
+| Prueba | Veredicto |
 |---|---|
-| P14 — follow al trotar | ✅ `master running` aparece, locks activos |
-| P15 — no se queda pegado | ✅ cero `combat took the last follow`, locks protegen |
-| P16 — te sigue lejos | ✅ `found again at X tiles` × 4, pero se traba en obstáculos |
-| P17 — resistencia | ✅ ciclo winded→sit→rested confirmado |
-| P18 — telemetría | ✅ `chase over` 30+, `found again` 4, `caught up` 3 |
-
-### P21 — trepa rejas y abre puertas cuando se traba
-
-**El fix nuevo.** Antes el watchdog solo limpiaba la cola y el NPC volvía a trabarse en el
-mismo obstáculo. Ahora, cuando detecta el tipo de obstáculo, intenta superarlo:
-
-| Obstáculo | Acción |
-|---|---|
-| `hop` (reja baja) | `ClimbFence` con anim `ClimbFenceEnd` |
-| `tall` (reja alta) | `ClimbFence` con anim `ClimbFenceTall` |
-| `door` (puerta) | `ToggleDoor` — intenta abrirla |
-| `solid` / `locked` | solo limpia (no hay acción disponible) |
-
-Hay un cooldown de 8 sweeps por obstáculo para no reintentar infinitamente.
-
-1. Buscá una reja o valla donde un NPC se quede trabado.
-2. **Esperado:** en el log deberías ver:
-   ```
-   AUTO <nombre> | stuck on Move@X,Y for 2 sweeps -- blocked by hop -- queued ClimbFence(ClimbFenceEnd)
-   ```
-3. El NPC debería trepar la reja y continuar.
-4. Para puertas, buscá:
-   ```
-   AUTO <nombre> | stuck on Move@X,Y for 2 sweeps -- blocked by door -- toggled it
-   ```
-5. Si ves `ToggleDoor(zombie) threw`, la puerta no se pudo abrir desde Lua — avisame.
+| P14 — follow al trotar | ✅ |
+| P15 — no se queda pegado | ✅ |
+| P16 — te sigue lejos | ✅ |
+| P17 — resistencia | ✅ |
+| P18 — telemetría | ✅ |
 
 ---
 
 ## Qué NO hace falta que reportes
-
-Todo lo de [`TODO.md`](TODO.md) ya está anotado:
 
 - el loot no entra a la mochila;
 - juntan lapiceras y cucharas;
 - el compañero se congela frente a una ventana estando adentro;
 - el miedo cuenta zombis a través de paredes;
 - un NPC cerca te levanta del sofá (verificado: no alcanzable desde Lua).
-
-## Qué NO probar todavía
-
-Huida y reenganche con matemática de grupo. El modelo de miedo tiene un defecto conocido
-(no tiene línea de visión), y sale con el paso 5 del plan.
