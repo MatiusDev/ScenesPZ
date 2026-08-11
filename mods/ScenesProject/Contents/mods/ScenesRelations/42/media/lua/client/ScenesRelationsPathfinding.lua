@@ -102,10 +102,59 @@ function Pathfinding.ChooseRoute(zombie, tx, ty, tz, opts)
         return nil
     end
 
-    -- The remaining kinds -- BLOCK_DOOR, BLOCK_WINDOW, BLOCK_HOP, BLOCK_TALL -- are all
-    -- obstacles with a corresponding opening type. FindOpening already knows how to locate
-    -- each through its own classifyOpening + crossesShell
-    -- (Move.lua:487-513, Move.lua:450-462).
+    -- The remaining kinds -- BLOCK_DOOR, BLOCK_WINDOW -- are building openings.
+    -- FindOpening handles them: it finds the nearest door or window on the building shell
+    -- and returns the square to stand on next to it.
+    --
+    -- FENCES (BLOCK_HOP, BLOCK_TALL) are different: they are OUTDOOR obstacles, not building
+    -- shells, and FindOpening does not look for them. But we already know exactly where they
+    -- are -- WhatBlocks just gave us (bx, by, bz) -- and Bandits' own bump handler
+    -- (BanditUpdate.lua:571-577) already queues the climb state when an NPC walks into one.
+    -- So the route is: walk to the fence square, the engine triggers the climb.
+    --
+    -- "el NPC volvió a elegir dar toda la vuelta en vez de trepar por los muros altos"
+    -- happened because WhatBlocks returned BLOCK_HOP/BLOCK_TALL, ChooseRoute handed it to
+    -- FindOpening, FindOpening found no building opening (because the fence is not on a
+    -- building shell), returned nil, and the NPC walked around. The fence was detected,
+    -- classified correctly, and then discarded by the routing step.
+    if kind == SR.Move.BLOCK_HOP or kind == SR.Move.BLOCK_TALL then
+        -- Walk to the square just BEFORE the fence. GetAccessSquare finds a reachable
+        -- neighbour of the fence square -- the square the NPC actually stands on to
+        -- trigger the collision. The engine pathfinder can then walk the NPC directly
+        -- into the fence, where Bandits' bump handler takes over.
+        --
+        -- pcall'd: GetAccessSquare needs a GridSquare (Java object), and a cell unload
+        -- mid-sweep would throw.
+        local square = nil
+        if bx and by then
+            local okSq, sq = pcall(function()
+                return getCell():getGridSquare(bx, by, bz or zombie:getZ())
+            end)
+            if okSq and sq then
+                local okAcc, accSq = pcall(BanditUtils.GetAccessSquare, sq, zombie)
+                if okAcc and accSq then
+                    -- Walk to the accessible square next to the fence. The fence is on
+                    -- (bx, by), the standing square is where the NPC stops before
+                    -- the engine carries them over. Use the obstacle square for logging
+                    -- (ox, oy) and the standing square for the Move target (x, y).
+                    opening = {
+                        kind = (kind == SR.Move.BLOCK_TALL) and "tall" or "hop",
+                        x = accSq:getX(), y = accSq:getY(), z = bz or zombie:getZ(),
+                        ox = bx, oy = by, oz = bz,
+                        why = "fence crossing (engine bump handler)"
+                    }
+                end
+            end
+        end
+        if not opening then return nil end
+
+        SR.Log(string.format("ROUTE %s | blocked by %s at %d,%d -- routing to fence crossing | stand %d,%d,%d",
+            SR.KeyOf(zombie), tostring(kind), bx or 0, by or 0,
+            opening.x, opening.y, opening.z))
+        return opening
+    end
+
+    -- Building openings: delegate to FindOpening.
 
     -- Step 2: which opening to head for?
     -- Build the exclude list. opts.exclude takes precedence; if absent, fall back to
