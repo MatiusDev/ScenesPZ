@@ -1249,6 +1249,17 @@ local function watchdog(zombie, brain, mood, name)
         local overcame = false
 
         if blocking == "hop" or blocking == "tall" then
+            -- ARRIVAL INSTRUMENT. The 11-08 session produced 205 fence ROUTE lines
+            -- but only 4 climb attempts. The open question: did the NPC actually
+            -- reach the fence tile, or did the engine pathfinder route around it?
+            -- Logging the NPC's position vs the obstacle position answers this in
+            -- one play session instead of three of guessing.
+            local zx, zy = zombie:getX(), zombie:getY()
+            local fx, fy = task.x or zx, task.y or zy
+            local dx, dy = zx - fx, zy - fy
+            local distToFence = math.sqrt(dx * dx + dy * dy)
+            local arrived = distToFence < 0.8  -- within one tile
+
             -- Bandits' own fence handler (BanditUpdate.lua:574) calls changeState
             -- directly, without setParams — and it was commented out because the
             -- animation plays but the NPC never moves. The state has no direction.
@@ -1279,9 +1290,10 @@ local function watchdog(zombie, brain, mood, name)
                 pcall(function() zombie:changeState(state) end)
                 overcame = true
                 SR.Log(string.format(
-                    "AUTO %s | stuck on %s for %d sweeps -- blocked by %s -- changeState(%s)",
+                    "AUTO %s | stuck on %s for %d sweeps -- blocked by %s -- changeState(%s) | %.1f tiles from fence (%s)",
                     name, signature, STUCK_SWEEPS, blocking,
-                    blocking == "tall" and "ClimbOverWall" or "ClimbOverFence"))
+                    blocking == "tall" and "ClimbOverWall" or "ClimbOverFence",
+                    distToFence, arrived and "at fence" or "not at fence"))
             end
 
         elseif blocking == "window" then

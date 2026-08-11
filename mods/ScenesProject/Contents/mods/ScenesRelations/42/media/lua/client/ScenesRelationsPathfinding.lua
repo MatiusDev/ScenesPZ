@@ -102,48 +102,24 @@ function Pathfinding.ChooseRoute(zombie, tx, ty, tz, opts)
         return nil
     end
 
-    -- The remaining kinds -- BLOCK_DOOR, BLOCK_WINDOW -- are building openings.
-    -- FindOpening handles them: it finds the nearest door or window on the building shell
-    -- and returns the square to stand on next to it.
+    -- THE 11-08 SESSION: FENCES ARE A WATCHDOG JOB, NOT A PREEMPTIVE ONE.
     --
-    -- FENCES (BLOCK_HOP, BLOCK_TALL) are different: they are OUTDOOR obstacles, not building
-    -- shells, and FindOpening does not look for them. But we already know exactly where they
-    -- are -- WhatBlocks just gave us (bx, by, bz) -- and Bandits' own bump handler
-    -- (BanditUpdate.lua:571-577) already queues the climb state when an NPC walks into one.
-    -- So the route is: walk to the fence square, the engine triggers the climb.
+    -- The preemptive fence routing (walk to fence square, hope the bump handler fires)
+    -- produced 205 ROUTE lines vs 4 actual climb attempts — a 51:1 ratio of noise to
+    -- signal. The engine pathfinder does NOT walk into a fence square; it routes around
+    -- it. So the NPC never arrives at the fence, the bump handler never fires, and the
+    -- ROUTE becomes a walk-then-retry loop.
     --
-    -- "el NPC volvió a elegir dar toda la vuelta en vez de trepar por los muros altos"
-    -- happened because WhatBlocks returned BLOCK_HOP/BLOCK_TALL, ChooseRoute handed it to
-    -- FindOpening, FindOpening found no building opening (because the fence is not on a
-    -- building shell), returned nil, and the NPC walked around. The fence was detected,
-    -- classified correctly, and then discarded by the routing step.
-    local opening = nil
+    -- Meanwhile the watchdog (reactive) DID fire changeState(ClimbOverFence) 4 times
+    -- in the same session. The watchdog already has the climb logic, already fires
+    -- correctly, and already handles the obstacleAttempts cooldown. The preemptive
+    -- check was duplicating the watchdog's job with worse results.
+    --
+    -- So BLOCK_HOP and BLOCK_TALL are treated like BLOCK_SOLID here: let the engine
+    -- pathfinder decide, and let the watchdog catch the stall. This removes the routing
+    -- loop without changing climb behavior.
     if kind == SR.Move.BLOCK_HOP or kind == SR.Move.BLOCK_TALL then
-        -- Walk DIRECTLY to the fence square. The fence is an object ON the square, not
-        -- a wall AROUND it -- the engine can path there. When the NPC arrives, the
-        -- collision with the fence object triggers Bandits' bump handler
-        -- (BanditUpdate.lua:571-577), which queues the climb state.
-        --
-        -- The first version used GetAccessSquare to find a "standing square next to
-        -- the fence." The log proved this wrong: GetAccessSquare picks whichever free
-        -- neighbor is nearest by DistToProper, so it oscillates between different
-        -- squares each sweep. From the access square, the follow task's first step
-        -- goes AROUND the fence instead of into it, and the NPC walks the long way.
-        --
-        -- "se devolvía para caminar, luego volvía para intentar salta, y así se quedó"
-        -- is the oscillation. Walking to the fence square itself is the fix: the NPC
-        -- arrives at the fence, the collision triggers, and the climb happens.
-        opening = {
-            kind = (kind == SR.Move.BLOCK_TALL) and "tall" or "hop",
-            x = bx, y = by, z = bz or zombie:getZ(),
-            ox = bx, oy = by, oz = bz,
-            why = "fence square (bump handler on collision)"
-        }
-
-        SR.Log(string.format("ROUTE %s | blocked by %s at %d,%d -- routing to fence crossing | stand %d,%d,%d",
-            SR.KeyOf(zombie), tostring(kind), bx or 0, by or 0,
-            opening.x, opening.y, opening.z))
-        return opening
+        return nil
     end
 
     -- Building openings: delegate to FindOpening.
