@@ -119,28 +119,26 @@ function Pathfinding.ChooseRoute(zombie, tx, ty, tz, opts)
     -- classified correctly, and then discarded by the routing step.
     local opening = nil
     if kind == SR.Move.BLOCK_HOP or kind == SR.Move.BLOCK_TALL then
-        -- Walk to the square just BEFORE the fence. GetAccessSquare finds a reachable
-        -- neighbour of the fence square -- the square the NPC actually stands on to
-        -- trigger the collision. The engine pathfinder can then walk the NPC directly
-        -- into the fence, where Bandits' bump handler takes over.
+        -- Walk DIRECTLY to the fence square. The fence is an object ON the square, not
+        -- a wall AROUND it -- the engine can path there. When the NPC arrives, the
+        -- collision with the fence object triggers Bandits' bump handler
+        -- (BanditUpdate.lua:571-577), which queues the climb state.
         --
-        -- pcall'd: GetAccessSquare needs a GridSquare (Java object), and a cell unload
-        -- mid-sweep would throw.
-        local okSq, sq = pcall(function()
-            return getCell():getGridSquare(bx, by, bz or zombie:getZ())
-        end)
-        if okSq and sq then
-            local okAcc, accSq = pcall(BanditUtils.GetAccessSquare, sq, zombie)
-            if okAcc and accSq then
-                opening = {
-                    kind = (kind == SR.Move.BLOCK_TALL) and "tall" or "hop",
-                    x = accSq:getX(), y = accSq:getY(), z = bz or zombie:getZ(),
-                    ox = bx, oy = by, oz = bz,
-                    why = "fence crossing (engine bump handler)"
-                }
-            end
-        end
-        if not opening then return nil end
+        -- The first version used GetAccessSquare to find a "standing square next to
+        -- the fence." The log proved this wrong: GetAccessSquare picks whichever free
+        -- neighbor is nearest by DistToProper, so it oscillates between different
+        -- squares each sweep. From the access square, the follow task's first step
+        -- goes AROUND the fence instead of into it, and the NPC walks the long way.
+        --
+        -- "se devolvía para caminar, luego volvía para intentar salta, y así se quedó"
+        -- is the oscillation. Walking to the fence square itself is the fix: the NPC
+        -- arrives at the fence, the collision triggers, and the climb happens.
+        opening = {
+            kind = (kind == SR.Move.BLOCK_TALL) and "tall" or "hop",
+            x = bx, y = by, z = bz or zombie:getZ(),
+            ox = bx, oy = by, oz = bz,
+            why = "fence square (bump handler on collision)"
+        }
 
         SR.Log(string.format("ROUTE %s | blocked by %s at %d,%d -- routing to fence crossing | stand %d,%d,%d",
             SR.KeyOf(zombie), tostring(kind), bx or 0, by or 0,
