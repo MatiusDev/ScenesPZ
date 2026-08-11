@@ -577,4 +577,15 @@ another floor. A cross-floor stuck NPC used to be counted as `clear`. The 10-08 
   what created the limit cycle.
 - Recompute walk type and endurance from the ACTUAL target, never from the master.
 - Cap the candidate distance, skip crumbs laid from a vehicle, and clear the trail on death as
+
+---
+
+## Health panel — Spanish localization (10-08)
+
+**The body part panel is built and working in English.** Labels like "Head", "L Upper Arm",
+"Bitten", "Deep wound", "Glass lodged", "Bandage" need Spanish translations matching the
+vanilla game's terminology (`Cabeza`, `Brazo superior izq.`, `Mordido`, `Herida profunda`,
+`Vidrio incrustado`, `Vendado`).
+
+Not urgent — the panel is fully functional in English. Add to the next UI pass.
   well as on game start.
