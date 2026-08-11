@@ -468,22 +468,6 @@ Built by `banditize(zombie, bandit, clan, args)`, `server/BanditServerSpawner.lu
 - **Bandits' own locked tasks, complete list**, so nothing of ours ever unlocks one of theirs:
   Die (`client/BanditUpdate.lua:282`, `:1721`), Exhausted (`:439`), Zombify (`:476`), GetUp
   (`:2191`, `shared/ZombiePrograms/ZPCamper.lua:86`, `ZPRoadblock.lua:34`).
-- **`zombie:getBodyDamage()` on a bandit is callable and RETURNS `nil`.** There is no
-  per-body-part damage for an NPC — no `bitten()`, no `bleeding()`, no `haveGlass()`, none of it,
-  because there is no `BodyDamage` object to ask. Bandits calls `getBodyDamage` in eight places
-  and **every one of them is on an `IsoPlayer`**: `ZASmack.lua:358` is inside
-  `Bite(attacker, victim)` whose only caller is `Bite(bandit, player)` at `:608`;
-  `BanditUtils.lua:302`, `BanditPlayer.lua:137`, `BanditServerCommands.lua:277` and the five in
-  `PlayerDamageModel.lua` are the player too. Slayer reimplemented endurance on
-  `brain.endurance` rather than use the engine's — that was the clue.
-
-  **The trap that made this expensive:** an in-game probe printed
-  `PROBE needs | getBodyDamage ok=true value=-` and `ok=true` was read as confirmation. It is
-  not. The probe formats `tostring(ok and result or "-")`, so `value=-` means the result was
-  **nil**; `ok=true` only means it did not throw. A whole health panel was built on that line.
-  Same family as `getSeeNearbyCharacterDistance`: present on the compiled class, useless for
-  what it was asked. When probing, print the type, not just whether it threw.
-
 - **Crossing a window is a STATE CHANGE, not a task.** `ClimbThroughWindowState.instance()` +
   `bandit:changeState(...)` + `setBumpType("ClimbWindow")` (`client/BanditUpdate.lua:684-686`).
   There is no `ZAClimbWindow` in `shared/ZombieActions/` — all 47 files checked. Anything that
