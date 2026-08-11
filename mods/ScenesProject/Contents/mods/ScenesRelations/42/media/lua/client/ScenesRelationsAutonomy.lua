@@ -405,8 +405,9 @@ local MOVED_EPSILON = 0.6
 -- endurance, entonces descansaba y volvía a correr."
 local OBSTACLE_RETRY = 8
 
--- One-time probe, not per-NPC. If ToggleDoor throws on an IsoZombie, log it once and stop.
-local doorToggleProbed = false
+-- One-time probe. If an engine method throws on IsoZombie, log it once and stop.
+-- Shared by the door ToggleDoor probe and the fence climbOverFence/Wall probe.
+local engineProbeDone = false
 
 -- Only these can stall in a way clearing the queue would fix: every one of them completes
 -- by getting somewhere or interacting with something at a fixed spot, so an unchanged
@@ -1218,20 +1219,51 @@ local function watchdog(zombie, brain, mood, name)
         local overcame = false
 
         if blocking == "hop" or blocking == "tall" then
-            -- ZAClimbFence exists and is callable -- the action handler is live in Bandits
-            -- 42.20 even though the upstream code that queues it is commented out. The anim
-            -- differs: tall fences use ClimbFenceTall, low ones use ClimbFenceEnd.
-            -- LOCKED because unlockOurs (above) has already run, so our follow lock is gone,
-            -- but the task we are about to insert must survive the ClearTasks that runs next.
-            -- Upstream's own ClimbFence queues (commented out) also use lock=true.
-            local anim = (blocking == "tall") and "ClimbFenceTall" or "ClimbFenceEnd"
-            local climbTask = { action = "ClimbFence", anim = anim, lock = true,
-                x = task.x, y = task.y, z = task.z or zombie:getZ(), srGoal = SR.GOAL.FOLLOW }
-            Bandit.AddTaskFirst(zombie, climbTask)
-            overcame = true
-            SR.Log(string.format(
-                "AUTO %s | stuck on %s for %d sweeps -- blocked by %s -- queued ClimbFence(%s)",
-                name, signature, STUCK_SWEEPS, blocking, anim))
+            -- THE ZAClimbFence TASK ACTION IS A PLACEHOLDER, AND IT HAS BEEN SINCE IT SHIPPED.
+            -- It nudges the NPC forward by 0.005 units per tick -- a toy implementation that
+            -- was commented out everywhere in BanditUpdate.lua across ALL builds. Slayer
+            -- abandoned it. The test session proved it: "hace la animación, pero nunca queda
+            -- en el otro lado del muro."
+            --
+            -- WHAT THE PLAYER USES, AND IT WORKS. ISClimbOverFence:perform() calls
+            --   self.character:climbOverWall(dir)  -- tall
+            --   self.character:climbOverFence(dir) -- low
+            -- (pzserver/media/lua/client/TimedActions/ISClimbOverFence.lua:28-31). These are
+            -- Java methods on IsoGameCharacter -- the engine handles animation, state
+            -- transition AND position. IsoZombie extends IsoGameCharacter, so the binding
+            -- should accept it. pcalled: if the engine rejects an IsoZombie, the log gets one
+            -- line and the NPC falls back to "queue cleared" like before.
+            --
+            -- The direction follows the same logic as getFacingDirection() at
+            -- ISClimbOverFence.lua:48-58: read IsoFlagType.HoppableN from the square, cross
+            -- opposite to where the character is relative to it.
+            local square = zombie:getCell():getGridSquare(task.x, task.y, task.z or zombie:getZ())
+            if square then
+                local dir
+                if square:has(IsoFlagType.HoppableN) then
+                    dir = (zombie:getY() < square:getY()) and IsoDirections.S or IsoDirections.N
+                else
+                    dir = (zombie:getX() < square:getX()) and IsoDirections.E or IsoDirections.W
+                end
+                local okClimb = pcall(function()
+                    if blocking == "tall" then
+                        zombie:climbOverWall(dir)
+                    else
+                        zombie:climbOverFence(dir)
+                    end
+                end)
+                overcame = okClimb
+                if okClimb then
+                    SR.Log(string.format(
+                        "AUTO %s | stuck on %s for %d sweeps -- blocked by %s -- climbed over",
+                        name, signature, STUCK_SWEEPS, blocking))
+                elseif not engineProbeDone then
+                    engineProbeDone = true
+                    SR.Log(string.format(
+                        "AUTO %s | climbOver%s threw -- may not be callable on IsoZombie",
+                        name, blocking == "tall" and "Wall" or "Fence"))
+                end
+            end
 
         elseif blocking == "window" then
             -- TWO KINDS OF WINDOW, AND THE NPC FINDS OUT WHICH BY TRYING.
@@ -1284,11 +1316,11 @@ local function watchdog(zombie, brain, mood, name)
                         SR.Log(string.format(
                             "AUTO %s | stuck on %s for %d sweeps -- blocked by door -- toggled it",
                             name, signature, STUCK_SWEEPS))
-                    elseif not doorToggleProbed then
-                        doorToggleProbed = true
-                        SR.Log(string.format(
-                            "AUTO %s | ToggleDoor(zombie) threw -- door open via Lua may not work on IsoZombie",
-                            name))
+                elseif not engineProbeDone then
+                    engineProbeDone = true
+                    SR.Log(string.format(
+                        "AUTO %s | ToggleDoor(zombie) threw -- door open via Lua may not work on IsoZombie",
+                        name))
                     end
                 end
             end
