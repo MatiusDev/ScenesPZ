@@ -807,39 +807,38 @@ local function watchClimbs()
 
             if isClimb and not climbSeen[id] then
                 climbSeen[id] = true
+                -- REMEMBER THE SQUARE NOW, apply the cut when the climb ENDS.
+                -- The rising edge means they just started crossing. Applying the cut here
+                -- -- before they have reached the other side -- was interrupting the
+                -- animation and leaving the NPC on the same side of the window.
+                -- "le pasa de inmediato cuando va a pasar por la ventana y cancela la
+                -- animación y no pasa através de la ventana."
+                --
+                -- The square is sampled here because after the climb ends, the NPC is on
+                -- the other side and the window may no longer be reachable. The cut is
+                -- applied below on the FALLING edge, when isClimb goes false.
+                climbSeen[id] = { square = crossingGlassSquare(zombie) }
 
-                local brain = BanditBrain.Get(zombie)
-                local mood = brain and SR.Mood(zombie)
+            elseif not isClimb and climbSeen[id] then
+                -- THE FALLING EDGE. The climb just ended. If the square we remembered had
+                -- glass, cut them NOW -- after they have landed on the other side.
+                local entry = climbSeen[id]
+                climbSeen[id] = nil
 
-                -- Same three exclusions the sweep uses, for the same reasons stated there
-                -- (ScenesRelationsAutonomy.lua:1311-1316): somebody actively hostile is
-                -- Bandits' business, and somebody the caches still list after BanditRemove has
-                -- unmade them is nobody's.
-                if brain and mood and not brain.hostile and not brain.hostileP
-                   and (not SR.IsStillOurs or SR.IsStillOurs(zombie)) then
-                    local last = climbCutMs[id]
-                    local recent = last and (now - last) < CLIMB_RECUT_MS
-
-                    if not recent then
-                        -- mood.cutAt is deliberately NOT consulted here. That cooldown exists
-                        -- to stop the six-second sweep shredding somebody who is loitering in a
-                        -- frame; a rising edge is already once per crossing, and honouring a
-                        -- ten-sweep cooldown would mean an NPC who climbed out and straight
-                        -- back in got cut once. "Debe hacerle dano cada que entra o salga" is
-                        -- the requirement, and this is the line that delivers it.
-                        --
-                        -- applyGlassCut still SETS mood.cutAt, so the sweep will not add a
-                        -- second cut on top of this one.
-                        local square = crossingGlassSquare(zombie)
-                        if square then
-                            climbCutMs[id] = now
-                            applyGlassCut(zombie, brain, mood, square, "window-climb")
+                if entry.square then
+                    local brain = BanditBrain.Get(zombie)
+                    local mood = brain and SR.Mood(zombie)
+                    if brain and mood and not brain.hostile and not brain.hostileP
+                       and (not SR.IsStillOurs or SR.IsStillOurs(zombie)) then
+                        local last = climbCutMs[id]
+                        local nowMs = getTimestampMs()
+                        local recent = last and (nowMs - last) < CLIMB_RECUT_MS
+                        if not recent then
+                            climbCutMs[id] = nowMs
+                            applyGlassCut(zombie, brain, mood, entry.square, "window-climb")
                         end
                     end
                 end
-
-            elseif not isClimb and climbSeen[id] then
-                climbSeen[id] = nil
             end
         end
     end

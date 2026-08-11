@@ -1233,6 +1233,40 @@ local function watchdog(zombie, brain, mood, name)
                 "AUTO %s | stuck on %s for %d sweeps -- blocked by %s -- queued ClimbFence(%s)",
                 name, signature, STUCK_SWEEPS, blocking, anim))
 
+        elseif blocking == "window" then
+            -- TWO KINDS OF WINDOW, AND THE NPC FINDS OUT WHICH BY TRYING.
+            -- Sliding windows open (ToggleWindow), fixed windows must be smashed. The NPC
+            -- cannot know which is which without touching it, so it tries the least
+            -- destructive option first: OpenWindow on the first attempt, SmashWindow on
+            -- the retry if the open did not work.
+            --
+            -- The obstacleAttempts mechanism already records the first attempt and prevents
+            -- re-queuing for OBSTACLE_RETRY sweeps. If the NPC reaches this branch again
+            -- AFTER the cooldown, the open action completed but the NPC is STILL stuck at
+            -- the same window -- which means it is a fixed window that cannot be opened.
+            -- Second attempt: smash it.
+            local isRetry = lastAttempt and (sweepNumber - lastAttempt) >= OBSTACLE_RETRY
+            if isRetry then
+                local smashTask = { action = "SmashWindow", anim = "WindowSmash",
+                    lock = true, x = task.x, y = task.y, z = task.z or zombie:getZ(),
+                    srGoal = SR.GOAL.FOLLOW }
+                Bandit.AddTaskFirst(zombie, smashTask)
+                overcame = true
+                SR.Log(string.format(
+                    "AUTO %s | stuck on %s for %d sweeps -- blocked by window, open failed -- queued SmashWindow",
+                    name, signature, STUCK_SWEEPS))
+            else
+                -- First attempt: try to open it.
+                local openTask = { action = "OpenWindow", anim = "WindowOpen",
+                    lock = true, x = task.x, y = task.y, z = task.z or zombie:getZ(),
+                    srGoal = SR.GOAL.FOLLOW, time = 60 }
+                Bandit.AddTaskFirst(zombie, openTask)
+                overcame = true
+                SR.Log(string.format(
+                    "AUTO %s | stuck on %s for %d sweeps -- blocked by window -- queued OpenWindow",
+                    name, signature, STUCK_SWEEPS))
+            end
+
         elseif blocking == "door" then
             -- Try to open the door. getIsoDoor is Bandits API on IsoGridSquare
             -- (vendor/Bandits/42.20/BanditUtils.lua:490); vanilla uses getIsoDoor() on

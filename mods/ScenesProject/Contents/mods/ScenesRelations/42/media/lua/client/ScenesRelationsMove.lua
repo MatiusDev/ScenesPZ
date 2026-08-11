@@ -123,6 +123,7 @@ Move.BLOCK_DOOR   = "door"      -- shut, unlocked: openable
 Move.BLOCK_LOCKED = "locked"    -- shut and locked: this way is closed
 Move.BLOCK_HOP    = "hop"       -- a low fence: climbable
 Move.BLOCK_TALL   = "tall"      -- a tall fence: climbable, slower
+Move.BLOCK_WINDOW = "window"    -- a window: try open, then smash if it won't budge
 Move.BLOCK_SOLID  = "solid"     -- something we cannot act on, including a plain wall
 
 --- Classify one object. Returns a Move.BLOCK_* constant, or nil if it is not an obstacle.
@@ -136,6 +137,16 @@ local function classify(obj)
             if obj:isBarricaded() then return Move.BLOCK_SOLID end
             if obj:isLocked() then return Move.BLOCK_LOCKED end
             return Move.BLOCK_DOOR
+        end
+
+        -- A window that is both closed and not smashed is a passable obstacle: the NPC
+        -- can try to open it, and if that fails, smash it. One that is open or smashed
+        -- is already passable and the line is clear past it.
+        local isWindow = instanceOf(obj, "IsoWindow")
+            or (instanceof(obj, "IsoThumpable") and obj:isWindow() == true)
+        if isWindow then
+            if obj:IsOpen() or obj:isSmashed() then return nil end
+            return Move.BLOCK_WINDOW
         end
 
         if obj:isTallHoppable() then return Move.BLOCK_TALL end
