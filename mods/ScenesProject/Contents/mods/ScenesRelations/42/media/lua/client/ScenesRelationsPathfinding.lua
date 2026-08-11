@@ -117,6 +117,7 @@ function Pathfinding.ChooseRoute(zombie, tx, ty, tz, opts)
     -- FindOpening, FindOpening found no building opening (because the fence is not on a
     -- building shell), returned nil, and the NPC walked around. The fence was detected,
     -- classified correctly, and then discarded by the routing step.
+    local opening = nil
     if kind == SR.Move.BLOCK_HOP or kind == SR.Move.BLOCK_TALL then
         -- Walk to the square just BEFORE the fence. GetAccessSquare finds a reachable
         -- neighbour of the fence square -- the square the NPC actually stands on to
@@ -125,25 +126,18 @@ function Pathfinding.ChooseRoute(zombie, tx, ty, tz, opts)
         --
         -- pcall'd: GetAccessSquare needs a GridSquare (Java object), and a cell unload
         -- mid-sweep would throw.
-        local square = nil
-        if bx and by then
-            local okSq, sq = pcall(function()
-                return getCell():getGridSquare(bx, by, bz or zombie:getZ())
-            end)
-            if okSq and sq then
-                local okAcc, accSq = pcall(BanditUtils.GetAccessSquare, sq, zombie)
-                if okAcc and accSq then
-                    -- Walk to the accessible square next to the fence. The fence is on
-                    -- (bx, by), the standing square is where the NPC stops before
-                    -- the engine carries them over. Use the obstacle square for logging
-                    -- (ox, oy) and the standing square for the Move target (x, y).
-                    opening = {
-                        kind = (kind == SR.Move.BLOCK_TALL) and "tall" or "hop",
-                        x = accSq:getX(), y = accSq:getY(), z = bz or zombie:getZ(),
-                        ox = bx, oy = by, oz = bz,
-                        why = "fence crossing (engine bump handler)"
-                    }
-                end
+        local okSq, sq = pcall(function()
+            return getCell():getGridSquare(bx, by, bz or zombie:getZ())
+        end)
+        if okSq and sq then
+            local okAcc, accSq = pcall(BanditUtils.GetAccessSquare, sq, zombie)
+            if okAcc and accSq then
+                opening = {
+                    kind = (kind == SR.Move.BLOCK_TALL) and "tall" or "hop",
+                    x = accSq:getX(), y = accSq:getY(), z = bz or zombie:getZ(),
+                    ox = bx, oy = by, oz = bz,
+                    why = "fence crossing (engine bump handler)"
+                }
             end
         end
         if not opening then return nil end
