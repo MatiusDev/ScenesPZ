@@ -150,7 +150,7 @@ local function readPart(bd, partType)
 
     if bandaged then
         return { kind = "bandaged", label = "Bandaged", color = C.bandaged,
-            flags = {}, bp = bp }
+            bandaged = true, flags = {}, bp = bp }
     end
 
     return { kind = "healthy", label = "Healthy", color = C.healthy,
@@ -221,16 +221,14 @@ function ScenesRelationsHealthPanel:prerender()
     ly = ly + 16
 
     -- Wound infection (bacterial, not zombie virus) — per-body, check all parts
-    -- and body-level cold/food sickness
     local hasWoundInfection = false
-    local coldLevel, foodSick = 0, 0
+    local coldLevel = 0
     if bd then
         for _, entry in ipairs(BODY_PARTS) do
             local st = readPart(bd, entry.part)
             if st and st.infected then hasWoundInfection = true; break end
         end
         pcall(function() coldLevel = bd:getColdStrength() or 0 end)
-        pcall(function() foodSick = bd:getFoodSicknessLevel() or 0 end)
     end
     if hasWoundInfection then
         self:drawText("Wound infection: YES", lx, ly, C.infected.r, C.infected.g, C.infected.b, 1, UIFont.Small)
@@ -238,10 +236,6 @@ function ScenesRelationsHealthPanel:prerender()
     end
     if coldLevel > 0 then
         self:drawText(string.format("Cold: %.0f%%", coldLevel), lx, ly, 0.4, 0.6, 0.9, 1, UIFont.Small)
-        ly = ly + 16
-    end
-    if foodSick > 0 then
-        self:drawText(string.format("Food sickness: %.0f%%", foodSick), lx, ly, 0.6, 0.7, 0.3, 1, UIFont.Small)
         ly = ly + 16
     end
 
