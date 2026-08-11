@@ -18,3 +18,4 @@ mods/*/workshop.txt
 # Workshop mods downloaded for reference (steamcmd, not ours)
 vendor/
 openspec/
+.pz-review-stamp

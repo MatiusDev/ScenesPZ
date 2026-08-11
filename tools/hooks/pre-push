@@ -7,18 +7,19 @@
 # fix for that is not "remember to run the checks" -- it is that pushing without them is not
 # possible. Every mistake here costs a game restart on ANOTHER machine to detect.
 #
-# WHAT THIS GATES, AND WHAT IT DELIBERATELY DOES NOT.
-#   lint.sh   -- syntax, and every item id resolving against the 6386 the engine defines.
-#   audit.py  -- the mechanical half of a review: unpaired latches, vendor citations with no
-#                version folder, undefined globals (the nil-global trap that killed a whole
-#                behaviour on 08-08).
+# WHAT THIS GATES:
+#   check-review.sh  -- a pz-review stamp matching HEAD (the orchestrator writes it after a
+#                       PASS; if absent or stale, the push is blocked).
+#   lint.sh          -- syntax, and every item id resolving against the 6386 the engine defines.
+#   audit.py         -- the mechanical half of a review: unpaired latches, vendor citations with
+#                       no version folder, undefined globals, Lua 5.1 syntax violations.
 #
-# It does NOT gate pz-review. That is a call to a model, it needs judgement -- "does this loop
-# terminate", "does the caller have a re-entry motor" -- and a hook cannot ask those. Automate
-# the gate, not the review.
+# pz-review is not automated here -- it is a call to a model and needs judgement. The stamp
+# is the bridge: the orchestrator runs pz-review and stamps HEAD. The hook reads the stamp.
 #
 # Install:  ./tools/hooks/install.sh
 # Bypass:   only with a reason you would write in the commit message.
+#            git push --no-verify
 
 set -u
 
@@ -26,6 +27,12 @@ ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT" || exit 1
 
 fail=0
+
+echo "pre-push: check-review"
+if ! ./tools/hooks/check-review.sh; then
+    echo "pre-push: check-review FAILED" >&2
+    fail=1
+fi
 
 echo "pre-push: lint"
 if ! ./tools/lint.sh; then
