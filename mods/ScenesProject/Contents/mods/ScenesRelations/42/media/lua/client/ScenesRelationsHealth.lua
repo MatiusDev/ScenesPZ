@@ -65,7 +65,6 @@ local BODY_PARTS = {
 local C = {
     healthy   = { r = 0.30, g = 0.30, b = 0.30 },
     scratch   = { r = 0.90, g = 0.80, b = 0.40 },
-    laceration= { r = 0.95, g = 0.45, b = 0.20 },
     deepWound = { r = 0.90, g = 0.20, b = 0.20 },
     bite      = { r = 0.80, g = 0.20, b = 0.60 },
     bleeding  = { r = 0.85, g = 0.15, b = 0.15 },
@@ -85,13 +84,12 @@ local function readPart(bd, partType)
     local ok, bp = pcall(function() return bd:getBodyPart(partType) end)
     if not ok or not bp then return nil end
 
-    local bitten, deep, laceration, scratched, bleeding, hasGlass, bandageLife = false, false, false, false, false, false, 0
-    pcall(function() bitten = bp:IsBitten() end)
-    pcall(function() deep = bp:IsDeepWound() end)
-    pcall(function() laceration = bp:IsLacerated() end)
+    local bitten, deep, scratched, bleeding, hasGlass, bandageLife = false, false, false, false, false, 0
+    pcall(function() bitten = bp:bitten() end)
+    pcall(function() deep = bp:isDeepWounded() or bp:deepWounded() end)
     pcall(function() scratched = bp:scratched() end)
-    pcall(function() bleeding = bp:isBleeding() end)
-    pcall(function() hasGlass = bp:getHaveGlass() end)
+    pcall(function() bleeding = bp:bleeding() end)
+    pcall(function() hasGlass = bp:haveGlass() end)
     pcall(function() bandageLife = bp:getBandageLife() or 0 end)
 
     local bandaged = bandageLife > 0
@@ -102,9 +100,6 @@ local function readPart(bd, partType)
     elseif deep then
         return { kind = "deepWound", label = "Deep wound", color = C.deepWound,
             bleeding = bleeding, bandaged = bandaged, hasGlass = hasGlass, isDeep = true, bp = bp }
-    elseif laceration then
-        return { kind = "laceration", label = "Laceration", color = C.laceration,
-            bleeding = bleeding, bandaged = bandaged, hasGlass = hasGlass, isDeep = false, bp = bp }
     elseif scratched then
         return { kind = "scratch", label = "Scratch", color = C.scratch,
             bleeding = bleeding, bandaged = bandaged, hasGlass = hasGlass, isDeep = false, bp = bp }
@@ -329,8 +324,8 @@ function ScenesRelationsHealthPanel:onBandage()
     if not ok or not bp then return end
 
     -- Stop bleeding on this part, apply visual bandage.
-    -- The engine then handles gradual health recovery over time (vanilla mechanic).
-    pcall(function() bp:setBleeding(false) end)
+    -- vanilla uses setBleedingTime(0) to stop bleeding (ISHealthPanel:198).
+    pcall(function() bp:setBleedingTime(0) end)
     pcall(function() zombie:addVisualBandage(entry.part, true) end)
 
     player:getInventory():Remove(item)

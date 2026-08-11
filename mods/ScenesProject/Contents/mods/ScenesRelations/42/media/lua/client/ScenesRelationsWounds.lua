@@ -564,7 +564,7 @@ local function applyGlassCut(zombie, brain, mood, square, why)
         local partType = GLASS_PARTS[1 + (ZombRand and ZombRand(#GLASS_PARTS) or 0)]
         local okBp, bp = pcall(function() return bd:getBodyPart(partType) end)
         if okBp and bp then
-            pcall(function() bp:setBleeding(true) end)
+            pcall(function() bp:setBleedingTime(10) end)
             pcall(function() bp:setHaveGlass(true) end)
             -- Low chance of deep shard requiring removal
             if ZombRand and ZombRand(100) < (GLASS_DEEP_SHARD_CHANCE * 100) then
