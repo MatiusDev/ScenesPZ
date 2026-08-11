@@ -829,18 +829,28 @@ local function watchClimbs()
             local isClimb = isClimbingWindow(zombie)
 
             if isClimb and not climbSeen[id] then
-                -- RISING EDGE. Just started crossing. Remember where glass was.
-                climbSeen[id] = { square = crossingGlassSquare(zombie) }
+                -- RISING EDGE. Just started crossing. Remember where glass was AND
+                -- where the NPC is standing -- if the climb is cancelled (blocked by
+                -- a zombie, a player or an obstacle on the other side), the position
+                -- won't change and we skip the cut.
+                local bx, by = zombie:getX(), zombie:getY()
+                climbSeen[id] = { square = crossingGlassSquare(zombie),
+                                  sx = bx, sy = by }
 
             elseif not isClimb and climbSeen[id] then
-                -- FALLING EDGE. The engine released ClimbThroughWindowState -- the NPC
-                -- has landed on the other side. Apply the cut IMMEDIATELY.
-                -- No timeout, no delay: the falling edge IS the end of the crossing.
+                -- FALLING EDGE. The engine released ClimbThroughWindowState.
+                -- Only apply the cut if the NPC actually moved -- a cancelled climb
+                -- (blocked exit, stuck on furniture) leaves them on the same tile.
                 local entry = climbSeen[id]
                 climbSeen[id] = nil
 
                 if entry.square then
-                    doClimbCut(zombie, id, entry)
+                    local ex, ey = zombie:getX(), zombie:getY()
+                    local dx, dy = ex - (entry.sx or ex), ey - (entry.sy or ey)
+                    local moved = (dx * dx + dy * dy) > 0.09  -- 0.3^2, ~one third of a tile
+                    if moved then
+                        doClimbCut(zombie, id, entry)
+                    end
                 end
             end
         end
