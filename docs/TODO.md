@@ -588,4 +588,23 @@ vanilla game's terminology (`Cabeza`, `Brazo superior izq.`, `Mordido`, `Herida 
 `Vidrio incrustado`, `Vendado`).
 
 Not urgent — the panel is fully functional in English. Add to the next UI pass.
+
+---
+
+## NPC reanimation — killed NPCs should stand up as zombies (10-08)
+
+**Reported:** an NPC killed by a zombie stays dead. It should stand back up after the
+sandbox-configured reanimation delay, exactly as a player corpse does.
+
+**What exists:** Bandits has `ZAZombify.lua` (task action) and `brain.infection` (0→100).
+At 100%, BanditUpdate.lua queues `{action="Zombify", anim="Faint", lock=true, time=200}`.
+The handler exists, the task is queued, but the animation may not transition to a reanimated
+zombie state. The user has never seen a killed NPC stand back up.
+
+**What to check first:** does an NPC killed outright by a zombie accumulate infection, or
+does infection only rise on a bite that was survived? If the latter, the fix is a death hook,
+not a tuning change.
+
+**Why it matters:** a survivor who dies and stays a corpse is a prop. One who gets up is a
+consequence, and it is what makes losing somebody land.
   well as on game start.

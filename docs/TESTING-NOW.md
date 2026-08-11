@@ -7,7 +7,10 @@ muda a [`docs/TEST-LOG.md`](TEST-LOG.md) y desaparece de acá.
 
 ---
 
-## Corrida abierta: 10-08c — WOUND + Pathfinding + ventanas
+## Corrida abierta: 10-08d — Health panel + body parts + WOUND engine API
+
+**Health panel rediseñado con partes del cuerpo. WOUND usa API real del motor.**
+P22-P24 de la corrida anterior siguen vigentes.
 
 **Tres fixes nuevos, más los de corridas anteriores.** Si algo de acá falla, es un bug.
 
@@ -95,6 +98,20 @@ PANIC spike #1 detected | stat=X despite suppression active
 | P16 — te sigue lejos | ✅ |
 | P17 — resistencia | ✅ |
 | P18 — telemetría | ✅ |
+
+---
+
+### P25 — Panel de salud con partes del cuerpo
+
+**El panel nuevo.** Abrí la rueda sobre un NPC → Health. Deberías ver:
+- **Izquierda**: 17 partes del cuerpo con puntos de colores (gris=sano, color=herida)
+- **Derecha**: detalles de la parte seleccionada
+- **Botón**: venda la parte seleccionada
+
+1. Click en una parte → panel derecho muestra tipo de herida
+2. Si tiene bleeding/glass/burn/fracture/infection → aparece en la lista
+3. "Zombie virus: X%" muestra la infección
+4. Vendaje gasta una venda y aplica vendaje visual
 
 ---
 
