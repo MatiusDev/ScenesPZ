@@ -1042,6 +1042,36 @@ local function assertFollow(zombie, master, dist, free, lock)
     releaseMove(zombie, brain)
     Bandit.ClearTasks(zombie)
 
+    -- PREEMPTIVE ROUTING. Before walking directly to the master, check whether the
+    -- straight line is blocked by an actionable obstacle. If it is, route through the
+    -- best opening first -- walk there, then start the follow from that square. Bandits'
+    -- own bump handler does the crossing.
+    --
+    -- The watchdog (below, in the sweep) still fires reactively on a stall; this catches
+    -- the case before the NPC walks into the wall at all. Same function, two moments:
+    -- before the walk (here) and after a confirmed stall (the watchdog).
+    if SR.Pathfinding and SR.Pathfinding.ChooseRoute then
+        local opening = SR.Pathfinding.ChooseRoute(zombie,
+            master:getX(), master:getY(), master:getZ())
+        if opening then
+            local legDist = BanditUtils.DistTo(zombie:getX(), zombie:getY(),
+                opening.x + 0.5, opening.y + 0.5)
+            local legTime = math.max(120, math.floor(legDist * 60) + 60)
+
+            -- Match the watchdog's own routing: a locked ROUTE Move that walks to the
+            -- standing square next to the opening. The ROUTE is queued before the follow,
+            -- so it runs first. Locked so ManageCombat cannot steal it mid-route; the
+            -- follow behind it is locked by the caller's own `lock` parameter as before.
+            -- Uses Walk regardless of the follow's walkType -- a positioning leg is not
+            -- a chase (see the watchdog at Autonomy.lua:1423-1427 for the same choice).
+            Bandit.AddTask(zombie, SR.Own(SR.GOAL.ROUTE, {
+                action = "Move", walkType = "Walk", lock = true,
+                x = opening.x, y = opening.y, z = opening.z,
+                time = legTime,
+            }))
+        end
+    end
+
     local ours = SR.Own(SR.GOAL.FOLLOW, task)
     if lock then ours.lock = true end
     Bandit.AddTask(zombie, ours)
