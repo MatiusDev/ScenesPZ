@@ -755,6 +755,18 @@ local CLIMB_TICK_MS = 200
 -- why "within a session" is doing real work in that sentence.
 local CLIMB_RECUT_MS = 600
 
+-- Maximum time (ms) the climb state is allowed to persist before forcing the cut.
+-- A window climb takes about 1 second from changeState() to the visible landing.
+-- ClimbThroughWindowState can remain active for seconds after the animation ends
+-- while the engine finalizes position transitions, causing the cut to be delayed.
+-- 1500 ms gives the animation a generous 500 ms buffer beyond the expected duration
+-- while cutting the delay from "however many seconds the engine takes" to 1.5 s.
+--
+-- Sample at 200 ms = 7-8 ticks of grace, which is 2-3 more than the 5 ticks a
+-- crossing occupies (1000 / 200 = 5). The extra headroom handles a slow frame,
+-- not a stuck state -- the recut floor already guards against double-firing.
+local CLIMB_TIMEOUT_MS = 1500
+
 -- BOTH OF THESE ARE FILE-LOCALS AND NEITHER IS A FIELD ON SR.Mood, and the second one is a bug
 -- that was written and then caught before it shipped. SR.Mood lives on the entity's modData,
 -- which is SAVED (shared/ScenesRelations.lua:202-207 -- and its own comment says posture is
@@ -783,6 +795,25 @@ local climbCutMs = {}
 
 local lastClimbMs = 0
 
+-- Shared cut-application extracted so both the falling-edge path and the
+-- timeout path produce the same guard check, recut floor and log line.
+-- Called with the closured zombie, the bandit id and the entry table.
+local function doClimbCut(zombie, id, entry)
+    local brain = BanditBrain.Get(zombie)
+    local mood = brain and SR.Mood(zombie)
+    if not brain or not mood then return end
+    if brain.hostile or brain.hostileP then return end
+    if SR.IsStillOurs and not SR.IsStillOurs(zombie) then return end
+
+    local last = climbCutMs[id]
+    local nowMs = getTimestampMs()
+    local recent = last and (nowMs - last) < CLIMB_RECUT_MS
+    if not recent then
+        climbCutMs[id] = nowMs
+        applyGlassCut(zombie, brain, mood, entry.square, "window-climb")
+    end
+end
+
 local function watchClimbs()
     local now = getTimestampMs()
     if now - lastClimbMs < CLIMB_TICK_MS then return end
@@ -806,38 +837,32 @@ local function watchClimbs()
             local isClimb = isClimbingWindow(zombie)
 
             if isClimb and not climbSeen[id] then
-                climbSeen[id] = true
-                -- REMEMBER THE SQUARE NOW, apply the cut when the climb ENDS.
-                -- The rising edge means they just started crossing. Applying the cut here
-                -- -- before they have reached the other side -- was interrupting the
-                -- animation and leaving the NPC on the same side of the window.
-                -- "le pasa de inmediato cuando va a pasar por la ventana y cancela la
-                -- animación y no pasa através de la ventana."
-                --
-                -- The square is sampled here because after the climb ends, the NPC is on
-                -- the other side and the window may no longer be reachable. The cut is
-                -- applied below on the FALLING edge, when isClimb goes false.
-                climbSeen[id] = { square = crossingGlassSquare(zombie) }
+                -- RISING EDGE. Just started crossing. Remember where glass was
+                -- and when the climb began so we can enforce a timeout below.
+                climbSeen[id] = { square = crossingGlassSquare(zombie), startedAt = now }
+
+            elseif isClimb and climbSeen[id] then
+                -- STILL CLIMBING. ClimbThroughWindowState can outlive the
+                -- visible animation by seconds while the engine finishes
+                -- position transitions. If the state has been active past
+                -- CLIMB_TIMEOUT_MS the NPC has already crossed -- apply the
+                -- cut now instead of waiting for the engine to release it.
+                local entry = climbSeen[id]
+                if now - entry.startedAt > CLIMB_TIMEOUT_MS then
+                    climbSeen[id] = nil
+                    if entry.square then
+                        doClimbCut(zombie, id, entry)
+                    end
+                end
 
             elseif not isClimb and climbSeen[id] then
-                -- THE FALLING EDGE. The climb just ended. If the square we remembered had
-                -- glass, cut them NOW -- after they have landed on the other side.
+                -- FALLING EDGE. The engine released the state before the
+                -- timeout fired -- normal fast path.
                 local entry = climbSeen[id]
                 climbSeen[id] = nil
 
                 if entry.square then
-                    local brain = BanditBrain.Get(zombie)
-                    local mood = brain and SR.Mood(zombie)
-                    if brain and mood and not brain.hostile and not brain.hostileP
-                       and (not SR.IsStillOurs or SR.IsStillOurs(zombie)) then
-                        local last = climbCutMs[id]
-                        local nowMs = getTimestampMs()
-                        local recent = last and (nowMs - last) < CLIMB_RECUT_MS
-                        if not recent then
-                            climbCutMs[id] = nowMs
-                            applyGlassCut(zombie, brain, mood, entry.square, "window-climb")
-                        end
-                    end
+                    doClimbCut(zombie, id, entry)
                 end
             end
         end
