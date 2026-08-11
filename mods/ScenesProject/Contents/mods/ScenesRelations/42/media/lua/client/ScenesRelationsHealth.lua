@@ -94,9 +94,6 @@ local BANDAGES = {
 -- regardless of part; player-applied care is more precise.
 local BANDAGE_HEAL = 0.6
 
--- Trust gained for bandaging a wounded part (once per part per session).
-local TRUST_PER_PART = 10
-
 --- Wound description for a body part. Read directly from the engine.
 local function partStatus(bd, partType)
     local ok, bp = pcall(function() return bd:getBodyPart(partType) end)
@@ -150,6 +147,26 @@ local function partStatus(bd, partType)
     end
 
     return { kind = "healthy", label = "", color = WOUND_COLORS.healthy }
+end
+
+--- Find the first usable bandage in the player's inventory.
+local function findBandage(player)
+    local inventory = player:getInventory()
+    if not inventory then return nil end
+    for _, itemType in ipairs(BANDAGES) do
+        local item = inventory:getFirstTypeRecurse(itemType)
+        if item then return item, itemType end
+    end
+    return nil
+end
+
+--- Live condition of the NPC.
+local function condition(zombie, brain)
+    local max = tonumber(brain and brain.health) or 2
+    if max <= 0 then max = 2 end
+    local ok, now = pcall(function() return zombie:getHealth() end)
+    if not ok or type(now) ~= "number" then return max, max end
+    return now, max
 end
 
 -- THE PANEL -----------------------------------------------------------------------------
@@ -250,26 +267,6 @@ function ScenesRelationsHealthPanel:prerender()
             self.bandageButton:setTitle("Bandage selected part")
         end
     end
-end
-
---- Find the first usable bandage in the player's inventory.
-local function findBandage(player)
-    local inventory = player:getInventory()
-    if not inventory then return nil end
-    for _, itemType in ipairs(BANDAGES) do
-        local item = inventory:getFirstTypeRecurse(itemType)
-        if item then return item, itemType end
-    end
-    return nil
-end
-
---- Live condition of the NPC.
-local function condition(zombie, brain)
-    local max = tonumber(brain and brain.health) or 2
-    if max <= 0 then max = 2 end
-    local ok, now = pcall(function() return zombie:getHealth() end)
-    if not ok or type(now) ~= "number" then return max, max end
-    return now, max
 end
 
 function ScenesRelationsHealthPanel:onBandage()

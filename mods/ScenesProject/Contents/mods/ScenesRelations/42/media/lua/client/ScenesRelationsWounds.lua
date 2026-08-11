@@ -594,6 +594,7 @@ local function applyGlassCut(zombie, brain, mood, square, why)
         "WOUND %s cut on broken glass at %d,%d | %.2f -> %.2f / %.2f | %s%s%s",
         tostring(brain.fullname), square:getX(), square:getY(), now, hurt, max,
         why, partUsed and " (body part)" or "", shardDeep and " deep-shard" or ""))
+end
 
 --- Drain somebody who is bleeding, once per autonomy sweep.
 ---
