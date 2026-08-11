@@ -759,14 +759,6 @@ local CLIMB_RECUT_MS = 600
 -- A window climb takes about 1 second from changeState() to the visible landing.
 -- ClimbThroughWindowState can remain active for seconds after the animation ends
 -- while the engine finalizes position transitions, causing the cut to be delayed.
--- 1500 ms gives the animation a generous 500 ms buffer beyond the expected duration
--- while cutting the delay from "however many seconds the engine takes" to 1.5 s.
---
--- Sample at 200 ms = 7-8 ticks of grace, which is 2-3 more than the 5 ticks a
--- crossing occupies (1000 / 200 = 5). The extra headroom handles a slow frame,
--- not a stuck state -- the recut floor already guards against double-firing.
-local CLIMB_TIMEOUT_MS = 1500
-
 -- BOTH OF THESE ARE FILE-LOCALS AND NEITHER IS A FIELD ON SR.Mood, and the second one is a bug
 -- that was written and then caught before it shipped. SR.Mood lives on the entity's modData,
 -- which is SAVED (shared/ScenesRelations.lua:202-207 -- and its own comment says posture is
@@ -837,27 +829,13 @@ local function watchClimbs()
             local isClimb = isClimbingWindow(zombie)
 
             if isClimb and not climbSeen[id] then
-                -- RISING EDGE. Just started crossing. Remember where glass was
-                -- and when the climb began so we can enforce a timeout below.
-                climbSeen[id] = { square = crossingGlassSquare(zombie), startedAt = now }
-
-            elseif isClimb and climbSeen[id] then
-                -- STILL CLIMBING. ClimbThroughWindowState can outlive the
-                -- visible animation by seconds while the engine finishes
-                -- position transitions. If the state has been active past
-                -- CLIMB_TIMEOUT_MS the NPC has already crossed -- apply the
-                -- cut now instead of waiting for the engine to release it.
-                local entry = climbSeen[id]
-                if now - entry.startedAt > CLIMB_TIMEOUT_MS then
-                    climbSeen[id] = nil
-                    if entry.square then
-                        doClimbCut(zombie, id, entry)
-                    end
-                end
+                -- RISING EDGE. Just started crossing. Remember where glass was.
+                climbSeen[id] = { square = crossingGlassSquare(zombie) }
 
             elseif not isClimb and climbSeen[id] then
-                -- FALLING EDGE. The engine released the state before the
-                -- timeout fired -- normal fast path.
+                -- FALLING EDGE. The engine released ClimbThroughWindowState -- the NPC
+                -- has landed on the other side. Apply the cut IMMEDIATELY.
+                -- No timeout, no delay: the falling edge IS the end of the crossing.
                 local entry = climbSeen[id]
                 climbSeen[id] = nil
 
