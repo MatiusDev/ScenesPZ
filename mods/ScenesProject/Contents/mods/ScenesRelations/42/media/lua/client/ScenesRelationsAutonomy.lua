@@ -1249,18 +1249,15 @@ local function watchdog(zombie, brain, mood, name)
         local overcame = false
 
         if blocking == "hop" or blocking == "tall" then
-            -- THE ENGINE METHODS climbOverFence/Wall TAKE A DIRECTION, NOT AN OBJECT.
-            -- JavaDoc confirms: ClimbOverFenceState.setParams(IsoGameCharacter, IsoDirections)
-            -- and ClimbOverWallState.setParams(IsoGameCharacter, IsoDirections).
-            -- The previous code passed the fence object, which is silently wrong.
+            -- Bandits' own fence handler (BanditUpdate.lua:574) calls changeState
+            -- directly, without setParams — and it was commented out because the
+            -- animation plays but the NPC never moves. The state has no direction.
             --
-            -- The direction follows getFacingDirection() from ISClimbOverFence.lua:48-58:
-            -- read IsoFlagType.HoppableN from the square. Cross opposite to where the
-            -- character is relative to the square.
-            --
-            -- AND climbOverFence(dir)/climbOverWall(dir) ARE available on IsoGameCharacter
-            -- (JavaDoc shows both on the class, not just IsoPlayer). The previous test
-            -- that "proved" they didn't work may have been passing the wrong type.
+            -- JavaDoc confirms setParams exists on both states:
+            --   ClimbOverFenceState.setParams(IsoGameCharacter, IsoDirections)
+            --   ClimbOverWallState.setParams(IsoGameCharacter, IsoDirections)
+            -- It is the SAME pattern as windows, where setParams+changeState works.
+            -- Unverified on IsoZombie via Lua binding — pcalled with one-time probe.
             local square = zombie:getCell():getGridSquare(task.x, task.y, task.z or zombie:getZ())
             if square then
                 local dir
@@ -1269,28 +1266,23 @@ local function watchdog(zombie, brain, mood, name)
                 else
                     dir = (zombie:getX() < square:getX()) and IsoDirections.E or IsoDirections.W
                 end
-                -- Try the engine method first (what the player uses).
-                -- Then fall back to setParams+changeState (what Bandits does for windows).
-                local okClimb = pcall(function()
-                    if blocking == "tall" then
-                        zombie:climbOverWall(dir)
-                    else
-                        zombie:climbOverFence(dir)
-                    end
-                end)
-                if not okClimb then
-                    -- Engine method rejected. Try the Bandits pattern with direction.
-                    local state = (blocking == "tall")
-                        and ClimbOverWallState.instance()
-                        or ClimbOverFenceState.instance()
-                    pcall(function() state:setParams(zombie, dir) end)
-                    pcall(function() zombie:changeState(state) end)
+                local state = (blocking == "tall")
+                    and ClimbOverWallState.instance()
+                    or ClimbOverFenceState.instance()
+                local okParam = pcall(function() state:setParams(zombie, dir) end)
+                if not okParam and not engineProbeDone then
+                    engineProbeDone = true
+                    SR.Log(string.format(
+                        "AUTO %s | setParams on %s threw -- fence climb may not work on IsoZombie",
+                        name, blocking == "tall" and "ClimbOverWallState" or "ClimbOverFenceState"))
                 end
+                pcall(function() zombie:changeState(state) end)
                 overcame = true
                 SR.Log(string.format(
-                    "AUTO %s | stuck on %s for %d sweeps -- blocked by %s -- %s",
+                    "AUTO %s | stuck on %s for %d sweeps -- blocked by %s -- changeState(%s)",
                     name, signature, STUCK_SWEEPS, blocking,
-                    okClimb and "climbed over" or "changeState (setParams with direction)"))
+                    blocking == "tall" and "ClimbOverWall" or "ClimbOverFence"))
+            end
 
         elseif blocking == "window" then
             -- TWO KINDS OF WINDOW, AND THE NPC FINDS OUT WHICH BY TRYING.
