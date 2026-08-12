@@ -152,6 +152,20 @@ So, when writing a brief:
 - **Quality still wins over cost.** The user was explicit: *"si no se puede mejorar el consumo
   no hay problema, debemos priorizar calidad."* Cut waste, never cut verification.
 
+7. **After every round of test feedback, the orchestrator rewrites `docs/TESTING-NOW.md` and
+   appends to `docs/TEST-LOG.md`.** The user tests on another machine and reports what passed and
+   what broke. Those two files are the only record of what the gaming PC saw, and they are how
+   the next session knows what to fix without the user having to repeat themselves.
+
+   `TESTING-NOW.md` is the open round — rewritten whole, in Spanish, with exactly the tests the
+   user should run next. A closed test moves to `TEST-LOG.md` (append-only) with its verdict and
+   the evidence. Never leave a stale round in TESTING-NOW.md with old P numbers — a test from two
+   rounds ago with a verdict appended is a document that lies.
+
+   This is the orchestrator's job, not a sub-agent's. Sub-agents do not touch these files. The
+   orchestrator does it inline (one write, one append) after the user reports test results and
+   before beginning the next round of fixes.
+
 Before building NPC behavior, `pz-lua` and `pz-research` read `docs/BANDITS-API.md` first.
 It is a lookup table, not background reading — the point is to answer "does this already
 exist?" in one file instead of re-deriving it from 22,458 lines every session.

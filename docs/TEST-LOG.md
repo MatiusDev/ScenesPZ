@@ -431,3 +431,53 @@ WARNING por constante muerta, sin crashes ni regresiones).
 **Review:** PASS, 1 SUGGESTION (umbral del detector bajado a >0).
 
 **Pruebas:** P19–P20 en `TESTING-NOW.md`. P14–P18 también listadas como referencia.
+
+---
+
+## Corrida 11-08a: Health panel body parts + climb engine fix
+
+**Inicio:** 2026-08-11. Tres cambios principales:
+
+1. **Health panel** — `ScenesRelationsHealth.lua`: silueta de 17 partes del cuerpo coloreadas
+   por estado de herida (gris=sano, rojo=herido). Click en parte → detalle de heridas con
+   nombres en inglés. Tracking propio en `brain.scenesWound.bodyParts` — `getBodyDamage()` es
+   nil en IsoZombie.
+
+2. **Per-part wound tracking** — `ScenesRelationsWounds.lua`: cortes de vidrio asignan parte
+   aleatoria (GLASS_PARTS: manos, brazos, torso — excluye cabeza y cuello). Vendaje limpia
+   sangrado por parte.
+
+3. **Climb engine fix** — `ScenesRelationsAutonomy.lua`: reemplazado `changeState(ClimbOverFenceState)`
+   por `zombie:climbOverFence(dir)` / `climbOverWall(dir)` — métodos del motor que usa el jugador.
+
+**Review:** SAFE TO COMMIT, 1 WARNING (métodos no verificados en IsoZombie, wrappeados en pcall).
+
+**Pruebas:** P19, P20, P22, P24, P25 en `TESTING-NOW.md`.
+
+### Resultados de la corrida 11-08 (reporte del usuario)
+
+| Prueba | Veredicto | Evidencia |
+|---|---|---|
+| P19 (vidrio al cruzar) | ❌ Daño antes de terminar animación | Daño se aplica antes de cruzar. Si jugador bloquea, igual recibe daño |
+| P20 (jumpscare) | ❌ Sigue ocurriendo | Al iniciar juego con compañero y al girar hacia NPC fuera de vista |
+| P22 (trepar muro) | ❌ No trepa muros altos | Pathfinding corto no funciona. Largo sí. NPC no se buguea ni devuelve |
+| P24 (ventana fija) | ❌ NPC trabado sin romper | Zombie dentro de casa golpeando ventana. NPC apuntando sin SmashWindow |
+| P25 (health panel) | ✅ Panel hermoso, 8 mejoras pedidas | Nombres en inglés, menú derecho, congelar NPC, auto-close, animación vendaje |
+
+---
+
+## Corrida 11-08b: P19 glass timing + P24 window smash + P22 climb probes + P25 health UX + P20 panic
+
+**Inicio:** 2026-08-11 (misma sesión). Fixes inmediatos sobre el feedback:
+
+| Fix | Archivo | Qué cambió |
+|---|---|---|
+| P19 | Wounds.lua | Umbral de movimiento 0.3→0.8 tiles. NPC debe cruzar de verdad |
+| P24 | Autonomy.lua | Watchdog detecta combate en ventana y queuea SmashWindow |
+| P22 | Autonomy.lua | Sondas una-vez por método: climbOverFence y climbOverWall |
+| P25.5-8 | Health.lua | Inglés, menú derecho, NPC congelado, auto-close, timer 3s |
+| P20 | Panic.lua | Init eager en tick 1 + re-check con cooldown 1s cuando panic>0 |
+
+**Review:** SAFE TO COMMIT (0 bloqueantes, 3 sugerencias para P19/P24/P25, 0 para P20).
+
+**Pruebas pendientes:** P19-P25 en `TESTING-NOW.md` actualizado.

@@ -7,12 +7,9 @@ muda a [`docs/TEST-LOG.md`](TEST-LOG.md) y desaparece de acá.
 
 ---
 
-## Corrida abierta: 10-08d — Health panel + body parts + WOUND engine API
+## Corrida abierta: 11-08b — P19 glass timing, P24 window smash, P20 panic, P25 health UX
 
-**Health panel rediseñado con partes del cuerpo. WOUND usa API real del motor.**
-P22-P24 de la corrida anterior siguen vigentes.
-
-**Tres fixes nuevos, más los de corridas anteriores.** Si algo de acá falla, es un bug.
+**Fixes del feedback de la corrida 11-08a.** Si algo de acá falla, es un bug nuevo.
 
 ### Antes de arrancar
 
@@ -20,98 +17,88 @@ P22-P24 de la corrida anterior siguen vigentes.
 2. Buscá `ASSERT ---- 30 ok, 0 FAILED ----`. Si dice `FAIL`, pará.
 3. Confirmá que estos módulos cargaron:
    ```
+   HEALTH ready -- 17-part body display, condition bar, bandage action
+   WOUND ready -- every window crossing costs blood (climb watcher every 200 ms)
+   PANIC ready -- spike detector active; suppression starts on tick 1 (no game-start gap)
    PATHFINDING ready -- preemptive route check before move
-   WOUND ready -- healing costs a dressing; every window crossing costs blood (climb watcher every 200 ms, both directions)
-   PANIC ready -- your own people no longer read as a horde; spike detector active (logs jumpscares)
    ```
 
 ---
 
-### P22 — WOUND: solo daña si el NPC realmente cruzó
+### P19 — WOUND: daño de vidrio solo al cruzar de verdad
 
-**El fix:** cuando el NPC trepa por una ventana con vidrios rotos, el daño SOLO se aplica
-si realmente llegó al otro lado. Si la trepada se cancela (hay un zombie, un jugador o un
-mueble bloqueando la salida), el NPC se queda en el mismo tile y NO recibe daño.
+**El fix:** el umbral de movimiento para aplicar daño subió de 0.3 a 0.8 tiles. Si el NPC
+no se movió al menos 0.8 tiles desde donde empezó la trepada, no recibe daño. Un jugador,
+zombie o mueble bloqueando la salida impide ese movimiento → sin daño.
 
 1. Buscá una ventana con vidrios rotos.
-2. Poné un zombie o a vos mismo del otro lado para bloquear la salida.
+2. Ponete del otro lado para bloquear la salida.
 3. Hacé que el NPC intente cruzar.
-4. **Esperado:** el NPC intenta trepar, no puede, y **no recibe daño**. En el log NO debería
-   aparecer `WOUND ... cut on broken glass`.
+4. **Esperado:** el NPC intenta trepar, no puede cruzar, y **no recibe daño**. En el log
+   NO debe aparecer `WOUND ... cut on broken glass`.
 5. Ahora despejá el otro lado y hacé que cruce. **Esperado:** recibe daño normalmente.
-   En el log: `WOUND ... cut on broken glass at X,Y | window-climb` o `sweep`.
-
-### P23 — Pathfinding: elige trepar rejas en vez de rodear
-
-**El fix:** `ChooseRoute` ahora evalúa la línea directa entre el NPC y su destino ANTES
-de caminar. Si hay una reja (`hop`) o muro alto (`tall`) en el camino, rutea al NPC hacia
-la reja para treparla en vez de dejar que el motor la rodee.
-
-1. Buscá un área con rejas o muros entre vos y un compañero.
-2. Alejate al otro lado de la reja.
-3. **Esperado:** en el log deberías ver:
-   ```
-   ROUTE <nombre> | blocked by hop at X,Y -- routing to fence crossing | stand X,Y,Z
-   ```
-   El NPC debería caminar hacia la reja e intentar treparla.
-4. Si el NPC sigue rodeando, buscá en el log si siquiera apareció `ROUTE`. Si no aparece,
-   `WhatBlocks` no detectó la reja como obstáculo — puede ser que el motor haya encontrado
-   un camino que no cruza la reja en absoluto. Si aparece `ROUTE` pero el NPC no trepó,
-   el problema está en `GetAccessSquare` o en el bump handler.
-
-### P24 — Tipos de ventana: abre las corredizas, rompe las fijas
-
-**El fix:** cuando el NPC se traba en una ventana, primero intenta abrirla (`OpenWindow`).
-Si después de 8 sweeps (~48s) sigue trabado en la misma ventana, es porque no se puede
-abrir — entonces la rompe (`SmashWindow`).
-
-1. Buscá una ventana corrediza (de las que se abren).
-2. Hacé que el NPC se trabe en ella.
-3. **Esperado:** en el log: `blocked by window -- queued OpenWindow`. El NPC la abre y cruza.
-4. Buscá una ventana fija (de las que no se abren, como las de baño).
-5. Hacé que el NPC se trabe en ella.
-6. **Esperado:** primero `queued OpenWindow`, luego (8 sweeps después) `open failed -- queued SmashWindow`. El NPC la rompe y cruza.
+   En el log: `WOUND ... cut on broken glass at X,Y | window-climb`.
 
 ---
 
-### P19 — WOUND: vidrios al cruzar (verificado, retestar opcional)
+### P20 — PANIC: sin jumpscare al iniciar juego ni al girar hacia un NPC
 
-Ya verificado en corridas anteriores. El climb watcher a 200ms detecta cuando el NPC
-entra en `ClimbThroughWindowState` y aplica daño al salir. Buscá en el log:
-```
-WOUND <nombre> cut on broken glass at X,Y | window-climb
-```
+**El fix:** la supresión de pánico ahora arranca en el primer tick (antes tardaba ~6s hasta
+que corriera el sweep). Además, si el pánico se dispara y el área solo tiene aliados, se
+re-chequea al instante (cooldown 1s) en vez de esperar al siguiente sweep.
 
-### P20 — PANIC: jumpscare (verificado, retestar opcional)
-
-Detector confirmado: 3 spikes por sesión, stat max ~30. Buscá:
-```
-PANIC spike #1 detected | stat=X despite suppression active
-```
-
-### P14–P18 — follow, resistencia, rango (verificados)
-
-| Prueba | Veredicto |
-|---|---|
-| P14 — follow al trotar | ✅ |
-| P15 — no se queda pegado | ✅ |
-| P16 — te sigue lejos | ✅ |
-| P17 — resistencia | ✅ |
-| P18 — telemetría | ✅ |
+1. Iniciá una partida con un compañero al lado.
+2. **Esperado:** no debe aparecer el moodle de pánico ni el sonido de jumpscare.
+3. Alejate del NPC, girá la cámara para no verlo, y volvé a mirarlo de repente.
+4. **Esperado:** sin jumpscare. El NPC es un aliado, no un zombie.
+5. Buscá en el log: si aparece `PANIC spike`, es que el motor metió pánico Java-side
+   y nuestro sistema lo detectó. No debería haber spikes nuevos.
 
 ---
 
-### P25 — Panel de salud con partes del cuerpo
+### P22 — Climb: el NPC trepa rejas y muros altos
 
-**El panel nuevo.** Abrí la rueda sobre un NPC → Health. Deberías ver:
-- **Izquierda**: 17 partes del cuerpo con puntos de colores (gris=sano, color=herida)
-- **Derecha**: detalles de la parte seleccionada
-- **Botón**: venda la parte seleccionada
+**El fix:** el watchdog ahora usa `zombie:climbOverFence(dir)` y `zombie:climbOverWall(dir)`
+— los métodos del motor que usa el jugador. Cada método tiene su propia sonda one-time:
+si falla en IsoZombie, se loguea una sola vez.
 
-1. Click en una parte → panel derecho muestra tipo de herida
-2. Si tiene bleeding/glass/burn/fracture/infection → aparece en la lista
-3. "Zombie virus: X%" muestra la infección
-4. Vendaje gasta una venda y aplica vendaje visual
+1. Buscá una reja entre vos y un compañero. Alejate al otro lado.
+2. **Esperado:** el NPC debe caminar hacia la reja e intentar treparla. En el log:
+   `engine climb climbOverFence`.
+3. Buscá un muro alto (tall fence). Repetí.
+4. **Esperado:** en el log: `engine climb climbOverWall`.
+5. Si el NPC no trepa, buscá en el log si apareció `climbOverFence threw` o
+   `climbOverWall threw` — si sale, el método no es llamable en IsoZombie.
+
+---
+
+### P24 — Ventana fija: el NPC la rompe para atacar
+
+**El fix:** cuando el NPC está en combate (Smack/Push) trabado en una ventana, el watchdog
+ahora detecta `blocked by window` y queuea `SmashWindow` directamente (sin esperar
+OpenWindow ni el cooldown de 8 sweeps).
+
+1. Buscá una casa con un zombie adentro y una ventana fija (de baño, por ejemplo).
+2. Llevá un compañero cerca. El zombie debería golpear la ventana.
+3. **Esperado:** el NPC camina hacia la ventana, apunta al zombie, y al detectar que
+   está bloqueado por `window`, queuea `SmashWindow`. Rompe la ventana y ataca.
+4. En el log: `blocked by window -- combat, queued SmashWindow`.
+
+---
+
+### P25 — Health panel: menú derecho, congelar NPC, auto-close, animación de vendaje
+
+**El fix:** cuatro mejoras de UX sobre el panel de salud.
+
+1. **Nombres en inglés:** click en parte herida → los textos dicen "Laceration",
+   "Scratched", "Deep Wound", etc. (no "laceración" en español).
+2. **Menú derecho:** hover sobre el texto de herida → click derecho → "Bandage"
+   (si necesitás venda y tenés una) o "Change bandage" (si la venda está sucia).
+3. **NPC congelado:** al abrir Health el NPC se congela (`Bandit.ForceStationary`).
+   No debería moverse mientras lo examinás.
+4. **Auto-close:** si te movés más de 0.5 tiles con el menú abierto, se cierra solo.
+5. **Animación de vendaje:** al clickear Bandage, aparece "Bandaging... 3s" con un
+   timer. Si cerrás el menú antes de que termine, se cancela (no gasta la venda).
 
 ---
 
