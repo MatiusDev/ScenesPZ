@@ -126,15 +126,16 @@ function Pathfinding.ChooseRoute(zombie, tx, ty, tz, opts)
         if not square then return nil end
 
         -- Determine crossing direction from fence flags.
-        -- HoppableN means the fence runs north-south; NPC crosses west/east.
-        -- Default (HoppableW or unmarked) means east-west fence; cross north/south.
+        -- Vanilla ISClimbOverFence:getFacingDirection() (pzserver/.../ISClimbOverFence.lua:48-58):
+        --   HoppableN → fence runs east-west → cross north/south (Y axis)
+        --   Default/HoppableW → fence runs north-south → cross east/west (X axis)
         local landX, landY
         if square:has(IsoFlagType.HoppableN) then
-            landX = (zx < bx) and (bx + 1.5) or (bx - 0.5)
-            landY = by + 0.5
-        else
             landX = bx + 0.5
             landY = (zy < by) and (by + 1.5) or (by - 0.5)
+        else
+            landX = (zx < bx) and (bx + 1.5) or (bx - 0.5)
+            landY = by + 0.5
         end
 
         -- Climb route: NPC → landing (through fence) → target

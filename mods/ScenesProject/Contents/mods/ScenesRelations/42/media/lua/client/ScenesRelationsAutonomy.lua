@@ -1313,14 +1313,19 @@ local function watchdog(zombie, brain, mood, name)
                     zombie:setBumpType("ClimbFenceEnd")
                 end
 
-                -- Landing tile: one full tile ahead in the facing direction.
-                local fd = zombie:getForwardDirection()
-                local landingX = zombie:getX() + fd:getX() * 1.0
-                local landingY = zombie:getY() + fd:getY() * 1.0
+                -- Landing tile: centre of the fence square + one full tile in the
+                -- facing direction. Anchored to the SQUARE, not the NPC: if the NPC
+                -- is behind the square centre, adding 1.0 from the NPC position lands
+                -- them on the same fence tile. The square centre + 1.0 reliably produces
+                -- the adjacent tile, matching vanilla climbOverFence(dir)'s behaviour.
+                local landingX = square:getX() + 0.5 + fd:getX() * 1.0
+                local landingY = square:getY() + 0.5 + fd:getY() * 1.0
                 local landingZ = zombie:getZ()
 
-                -- Stored on mood so the sweep (below) teleports after ~1.5s.
-                mood.climbTarget = { x = landingX, y = landingY, z = landingZ, ticks = 0 }
+                -- Stored on mood so the sweep (below) teleports after ~12s.
+                -- Preserve the pre-climb collidable state for restoration.
+                mood.climbTarget = { x = landingX, y = landingY, z = landingZ, ticks = 0,
+                                     wasCollidable = zombie:isCollidable() }
                 overcame = true
 
                 SR.Log(string.format(
@@ -2002,7 +2007,7 @@ local function sweep()
                     -- then teleports the NPC to the landing tile in a single setX/setY/setZ
                     -- jump. ZASleep.lua (Bandits) confirms setX/setY/setZ work on IsoZombie.
                     --
-                    -- 15 sweeps at ~6s each = ~90 seconds total. That is far longer than any
+                    -- 2 sweeps at ~6s each = ~12s. That is generous for a fence crossing,
                     -- fence crossing animation, but the sweep is the cheapest clock we have.
                     -- A faster cadence (OnTick) would be 360x more expensive for one delayed
                     -- action. If the animation completes sooner, the engine handles it;
@@ -2014,7 +2019,9 @@ local function sweep()
                             zombie:setX(tx)
                             zombie:setY(ty)
                             zombie:setZ(tz)
-                            zombie:setCollidable(true)
+                            -- Restore the collidable state the NPC had before the climb,
+                            -- not unconditionally true: they may have been non-collidable.
+                            zombie:setCollidable(mood.climbTarget.wasCollidable ~= false)
                             SR.Log(string.format(
                                 "AUTO %s | climb teleport to %.1f,%.1f,%d after %d sweeps",
                                 name, tx, ty, tz, mood.climbTarget.ticks))
