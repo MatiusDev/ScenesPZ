@@ -62,6 +62,23 @@ local C = {
     part_bandaged = { r = 0.28, g = 0.65, b = 0.38 },
 }
 
+-- English wound labels, always. getText returns the localised string -- Spanish on a Spanish
+-- client -- and the user wants English because the names match what the player panel shows.
+-- Stored by the field name on the body part state table so the display loop does not branch.
+local WOUND_LABELS = {
+    scratches  = "Scratched",
+    cuts       = "Laceration",
+    deepWounds = "Deep Wound",
+    bites      = "Bite",
+    bleeding   = "Bleeding",
+    fractures  = "Fracture",
+    bandaged   = "Bandaged",
+}
+
+-- Bandaging animation: each prerender frame decrements this counter. At 60 fps,
+-- 180 frames = ~3 seconds; at 30 fps = ~6 seconds. Both are in the right ballpark.
+local BANDAGE_ANIM_FRAMES = 180
+
 -- Body part region definitions relative to the silhouette origin (silX, silY). Each entry is
 -- { x, y, w, h } in pixels within the 160x280 silhouette box.
 local PART_REGIONS = {
@@ -206,11 +223,78 @@ function ScenesRelationsHealthPanel:onMouseDown(x, y)
     return ISCollapsableWindow.onMouseDown(self, x, y)
 end
 
+function ScenesRelationsHealthPanel:onRightMouseUp(x, y)
+    if not selectedPart or not self._woundRows or not self._woundX then
+        return ISCollapsableWindow.onRightMouseUp(self, x, y)
+    end
+
+    local rowH = 16
+    local hitRow = nil
+    for _, row in ipairs(self._woundRows) do
+        if x >= self._woundX and x <= self._woundX + 200
+           and y >= row.y and y < row.y + rowH then
+            hitRow = row
+            break
+        end
+    end
+    if not hitRow then
+        return ISCollapsableWindow.onRightMouseUp(self, x, y)
+    end
+
+    local player = getSpecificPlayer(0)
+    local zombie = self.bandit
+    if not player or not zombie then return end
+
+    local brain = BanditBrain.Get(zombie)
+    if not brain then return end
+
+    local context = ISContextMenu.get(player:getPlayerNum(),
+        self:getAbsoluteX() + x, self:getAbsoluteY() + y)
+    if not context then return end
+
+    if not self._bandaging then
+        local needsOk, needs = pcall(SR.Wounds.NeedsDressing, zombie, brain)
+        local item = findBandage(player)
+        if needsOk and needs and item then
+            context:addOption("Bandage", self, ScenesRelationsHealthPanel.onBandage)
+        end
+    end
+
+    local wound = brain.scenesWound
+    if wound and wound.dressing
+       and (wound.dressing == "dirty" or wound.dressing == "improvised") then
+        context:addOption("Change bandage", self, ScenesRelationsHealthPanel.onBandage)
+    end
+
+    return true
+end
+
 function ScenesRelationsHealthPanel:prerender()
     self:drawRect(0, 0, self.width, self.height, self.backgroundColor.a,
         self.backgroundColor.r, self.backgroundColor.g, self.backgroundColor.b)
 
     ISCollapsableWindow.prerender(self)
+
+    -- P25.7 Auto-close if the player moved more than half a tile since opening.
+    if self._openedX then
+        local player = getSpecificPlayer(0)
+        if player then
+            local px, py = player:getX(), player:getY()
+            if math.abs(px - self._openedX) > 0.5 or math.abs(py - self._openedY) > 0.5 then
+                SR.Health.Close()
+                return
+            end
+        end
+    end
+
+    -- P25.8 Bandaging timer. Frames counted in prerender; each frame is one decrement.
+    if self._bandaging then
+        self._bandaging = self._bandaging - 1
+        if self._bandaging <= 0 then
+            self:doBandage()
+            self._bandaging = nil
+        end
+    end
 
     local zombie = self.bandit
     if not zombie then return end
@@ -313,48 +397,41 @@ function ScenesRelationsHealthPanel:prerender()
 
         local state = parts[selectedPart]
         if state then
+            self._woundRows = {}  -- clear each frame; filled below for right-click hit-test
             local hasWound = false
-            if state.scratches > 0 then
-                self:drawText("- " .. getText("IGUI_health_Scratched"),
-                    rx, ry, C.part_scratch.r, C.part_scratch.g, C.part_scratch.b, 1, UIFont.Small)
-                ry = ry + 16; hasWound = true
-            end
-            if state.cuts > 0 then
-                self:drawText("- " .. getText("IGUI_health_Cut"),
-                    rx, ry, C.part_cut.r, C.part_cut.g, C.part_cut.b, 1, UIFont.Small)
-                ry = ry + 16; hasWound = true
-            end
-            if state.deepWounds > 0 then
-                self:drawText("- " .. getText("IGUI_health_DeepWound"),
-                    rx, ry, C.part_deep.r, C.part_deep.g, C.part_deep.b, 1, UIFont.Small)
-                ry = ry + 16; hasWound = true
-            end
-            if state.bites > 0 then
-                self:drawText("- " .. getText("IGUI_health_Bitten"),
-                    rx, ry, C.part_deep.r, C.part_deep.g, C.part_deep.b, 1, UIFont.Small)
-                ry = ry + 16; hasWound = true
+            local fields = { "scratches", "cuts", "deepWounds", "bites", "fractures", "bandaged" }
+            local colours = { C.part_scratch, C.part_cut, C.part_deep, C.part_deep,
+                              C.part_fracture, C.part_bandaged }
+            for i, field in ipairs(fields) do
+                local v = state[field]
+                if (field == "bandaged" and v) or (type(v) == "number" and v > 0) then
+                    local label = WOUND_LABELS[field]
+                    if label then
+                        self:drawText("- " .. label, rx, ry, colours[i].r, colours[i].g,
+                            colours[i].b, 1, UIFont.Small)
+                        self._woundRows[#self._woundRows + 1] = { y = ry, label = label,
+                            field = field }
+                        ry = ry + 16; hasWound = true
+                    end
+                end
             end
             if state.bleeding then
-                self:drawText("- " .. getText("IGUI_health_Bleeding"),
+                self:drawText("- " .. WOUND_LABELS.bleeding,
                     rx, ry, C.bleeding.r, C.bleeding.g, C.bleeding.b, 1, UIFont.Small)
-                ry = ry + 16; hasWound = true
-            end
-            if state.fractures > 0 then
-                self:drawText("- " .. getText("IGUI_health_Fracture"),
-                    rx, ry, C.part_fracture.r, C.part_fracture.g, C.part_fracture.b, 1, UIFont.Small)
-                ry = ry + 16; hasWound = true
-            end
-            if state.bandaged then
-                self:drawText("- " .. getText("IGUI_health_Bandaged"),
-                    rx, ry, C.part_bandaged.r, C.part_bandaged.g, C.part_bandaged.b, 1, UIFont.Small)
+                self._woundRows[#self._woundRows + 1] = { y = ry, label = "Bleeding",
+                    field = "bleeding" }
                 ry = ry + 16; hasWound = true
             end
             if not hasWound then
                 self:drawText("Healthy", rx, ry, 0.5, 0.8, 0.5, 1, UIFont.Small)
             end
         else
+            self._woundRows = {}
             self:drawText("Healthy", rx, ry, 0.5, 0.8, 0.5, 1, UIFont.Small)
         end
+
+        -- Store the right-column x and current ry for right-click hit-testing.
+        self._woundX, self._woundRY = rx, ry
     end
 
     -- === Shared footnote ===
@@ -366,7 +443,16 @@ function ScenesRelationsHealthPanel:prerender()
         PAD, footY, C.dim.r, C.dim.g, C.dim.b, 1, UIFont.Small)
 
     -- === Bandage button state ===
-    if self.bandageButton then
+    if self._bandaging then
+        if self.bandageButton then
+            self.bandageButton:setEnable(false)
+            self.bandageButton:setVisible(false)
+        end
+        local remaining = math.ceil(self._bandaging / 60)
+        self:drawText(string.format("Bandaging... %ds", remaining),
+            PAD, self.height - 22, 0.8, 0.7, 0.5, 1, UIFont.Medium)
+    elseif self.bandageButton then
+        self.bandageButton:setVisible(true)
         local player = getSpecificPlayer(0)
         local item = player and findBandage(player)
         if not (needsOk and needs) then
@@ -383,6 +469,19 @@ function ScenesRelationsHealthPanel:prerender()
 end
 
 function ScenesRelationsHealthPanel:onBandage()
+    -- P25.8 Start the bandaging timer. The actual heal happens in doBandage after the
+    -- animation timer expires. If the panel closes before the timer finishes, the bandage
+    -- is cancelled -- the item is not spent.
+    self._bandaging = BANDAGE_ANIM_FRAMES
+    local player = getSpecificPlayer(0)
+    if player then
+        player:playSound("FirstAidApplyBandage")
+    end
+    SR.Log("HEALTH bandaging started on " .. tostring(self.bandit and BanditBrain.Get(self.bandit).fullname or "?")
+        .. " | " .. BANDAGE_ANIM_FRAMES .. " frames")
+end
+
+function ScenesRelationsHealthPanel:doBandage()
     local player = getSpecificPlayer(0)
     local zombie = self.bandit
     if not player or not zombie then return end
@@ -467,10 +566,34 @@ function SR.Health.Open(player, bandit)
     panel = ScenesRelationsHealthPanel:new(bandit, name)
     panel:initialise()
     panel:addToUIManager()
+
+    -- P25.6 Freeze the NPC while they are being examined.
+    local setStationary = pcall(function() Bandit.ForceStationary(bandit, true) end)
+    if not setStationary then
+        SR.Log("HEALTH could not freeze " .. name .. " -- ForceStationary threw")
+    end
+
+    -- P25.7 Store player position so prerender can auto-close on movement.
+    if player then
+        panel._openedX, panel._openedY = player:getX(), player:getY()
+    end
 end
 
 function SR.Health.Close()
-    if panel then panel:removeFromUIManager(); panel = nil end
+    if panel then
+        -- P25.6 Release the NPC.
+        if panel.bandit then
+            pcall(function() Bandit.ForceStationary(panel.bandit, false) end)
+        end
+        -- P25.8 Cancelling the panel before the timer finishes means the bandage is
+        -- cancelled -- the item was never spent and the heal never applied.
+        if panel._bandaging then
+            SR.Log("HEALTH bandaging cancelled -- panel closed before timer expired")
+        end
+        panel._bandaging = nil
+        panel:removeFromUIManager()
+        panel = nil
+    end
     selectedPart = nil
 end
 

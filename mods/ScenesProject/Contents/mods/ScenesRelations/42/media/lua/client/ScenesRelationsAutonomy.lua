@@ -405,9 +405,11 @@ local MOVED_EPSILON = 0.6
 -- endurance, entonces descansaba y volvía a correr."
 local OBSTACLE_RETRY = 8
 
--- One-time probe. If an engine method throws on IsoZombie, log it once and stop.
--- Shared by the door ToggleDoor probe and the fence climbOverFence/Wall probe.
+-- One-time probes. If an engine method throws on IsoZombie, log it once and stop.
+-- Per-method rather than shared, so a throw in climbOverFence doesn't silence climbOverWall.
 local engineProbeDone = false
+local climbFenceProbeDone = false
+local climbWallProbeDone = false
 
 -- Only these can stall in a way clearing the queue would fix: every one of them completes
 -- by getting somewhere or interacting with something at a fixed spot, so an unchanged
@@ -1134,8 +1136,9 @@ end
 local function watchdog(zombie, brain, mood, name)
     local task = headTask(brain)
     local signature = headSignature(task)
+    local isCombat = task and (task.action == "Smack" or task.action == "Push")
 
-    if not signature or not STALLABLE[task.action] then
+    if not signature or (not STALLABLE[task.action] and not isCombat) then
         mood.taskSig, mood.taskTicks = nil, 0
         return false
     end
@@ -1187,10 +1190,12 @@ local function watchdog(zombie, brain, mood, name)
     -- seconds forever, because the NPC is still stuck next time. Diagnostics that can disable the
     -- fix they are diagnosing are worse than no diagnostics.
     local blocking = "unknown"
+    local bx, by  -- blocker square, needed when a combat task (Smack/Push) is stuck at a window
     if SR.Move and SR.Move.WhatBlocks and task.x and task.y then
-        local okWhy, kind = pcall(SR.Move.WhatBlocks, zombie,
+        local okWhy, kind, blx, bly = pcall(SR.Move.WhatBlocks, zombie,
             task.x, task.y, task.z or zombie:getZ())
         blocking = okWhy and tostring(kind or "clear") or "probe threw"
+        bx, by = blx, bly
     end
 
     -- THE WATCHDOG IS THE SAFETY NET, AND A LOCK MAKES IT A NO-OP.
@@ -1248,7 +1253,20 @@ local function watchdog(zombie, brain, mood, name)
     if not lastAttempt or (sweepNumber - lastAttempt) >= OBSTACLE_RETRY then
         local overcame = false
 
-        if blocking == "hop" or blocking == "tall" then
+        -- COMBAT AT A WINDOW: the NPC is swinging/pushing at a zombie behind glass.
+        -- The watchdog never fires on Smack/Push under the normal STALLABLE gate,
+        -- but the NPC is stuck nonetheless — the weapon can't reach through a window.
+        if isCombat and blocking == "window" then
+            local smashTask = { action = "SmashWindow", anim = "WindowSmash",
+                lock = true, x = bx or task.x, y = by or task.y, z = task.z or zombie:getZ(),
+                srGoal = SR.GOAL.FOLLOW }
+            Bandit.AddTaskFirst(zombie, smashTask)
+            overcame = true
+            SR.Log(string.format(
+                "AUTO %s | stuck on %s for %d sweeps -- fighting through window -- queued SmashWindow at %d,%d",
+                name, signature, STUCK_SWEEPS, bx or task.x, by or task.y))
+
+        elseif blocking == "hop" or blocking == "tall" then
             -- ARRIVAL INSTRUMENT. The 11-08 session produced 205 fence ROUTE lines
             -- but only 4 climb attempts. The open question: did the NPC actually
             -- reach the fence tile, or did the engine pathfinder route around it?
@@ -1282,9 +1300,21 @@ local function watchdog(zombie, brain, mood, name)
                 end
                 zombie:faceDirection(dir)
                 if blocking == "tall" then
-                    pcall(function() zombie:climbOverWall(dir) end)
+                    local okClimb, errClimb = pcall(function() zombie:climbOverWall(dir) end)
+                    if not okClimb and not climbWallProbeDone then
+                        climbWallProbeDone = true
+                        SR.Log(string.format(
+                            "AUTO %s | engine:climbOverWall threw -- %s -- IsoZombie may not support it",
+                            name, tostring(errClimb)))
+                    end
                 else
-                    pcall(function() zombie:climbOverFence(dir) end)
+                    local okClimb, errClimb = pcall(function() zombie:climbOverFence(dir) end)
+                    if not okClimb and not climbFenceProbeDone then
+                        climbFenceProbeDone = true
+                        SR.Log(string.format(
+                            "AUTO %s | engine:climbOverFence threw -- %s -- IsoZombie may not support it",
+                            name, tostring(errClimb)))
+                    end
                 end
                 overcame = true
                 SR.Log(string.format(

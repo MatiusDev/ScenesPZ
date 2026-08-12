@@ -968,8 +968,8 @@ local function watchClimbs()
 
                 if entry.square then
                     local ex, ey = zombie:getX(), zombie:getY()
-                    local dx, dy = ex - (entry.sx or ex), ey - (entry.sy or ey)
-                    local moved = (dx * dx + dy * dy) > 0.09  -- 0.3^2, ~one third of a tile
+                    local dx, dy = ex - (entry.sx ~= nil and entry.sx or ex), ey - (entry.sy ~= nil and entry.sy or ey)
+                    local moved = (dx * dx + dy * dy) > 0.64  -- 0.8^2, arrived at the other square
                     if moved then
                         doClimbCut(zombie, id, entry)
                     end
