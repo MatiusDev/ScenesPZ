@@ -102,23 +102,72 @@ function Pathfinding.ChooseRoute(zombie, tx, ty, tz, opts)
         return nil
     end
 
-    -- THE 11-08 SESSION: FENCES ARE A WATCHDOG JOB, NOT A PREEMPTIVE ONE.
+    -- THE 12-08 SESSION: EVALUATE WHETHER CLIMBING IS SHORTER THAN GOING AROUND.
     --
-    -- The preemptive fence routing (walk to fence square, hope the bump handler fires)
-    -- produced 205 ROUTE lines vs 4 actual climb attempts — a 51:1 ratio of noise to
-    -- signal. The engine pathfinder does NOT walk into a fence square; it routes around
-    -- it. So the NPC never arrives at the fence, the bump handler never fires, and the
-    -- ROUTE becomes a walk-then-retry loop.
+    -- The old approach (11-08) returned nil for fences unconditionally, letting the
+    -- engine pathfinder route around every time. That works for long paths but fails
+    -- for short ones: a fence 3 tiles ahead, with the player 8 tiles beyond it, has
+    -- the engine routing 30+ tiles around the building when a climb would take 8.
     --
-    -- Meanwhile the watchdog (reactive) DID fire changeState(ClimbOverFence) 4 times
-    -- in the same session. The watchdog already has the climb logic, already fires
-    -- correctly, and already handles the obstacleAttempts cooldown. The preemptive
-    -- check was duplicating the watchdog's job with worse results.
+    -- Now we estimate both routes and pick the shorter one. The climb route is:
+    --   NPC → fence tile → landing tile → target
+    -- The around estimate assumes the engine pathfinder takes at most 2.5× the
+    -- straight-line distance (generous — most building detours are 1.3–1.8×, but
+    -- blocked backtrack routes can hit 3×). If climbing is clearly shorter, return
+    -- a fence-crossing opening so the caller routes THROUGH instead of around.
     --
-    -- So BLOCK_HOP and BLOCK_TALL are treated like BLOCK_SOLID here: let the engine
-    -- pathfinder decide, and let the watchdog catch the stall. This removes the routing
-    -- loop without changing climb behavior.
+    -- The actual crossing is the watchdog's job — we only decide WHETHER to climb,
+    -- packaged as an opening the caller can queue a ROUTE Move toward.
     if kind == SR.Move.BLOCK_HOP or kind == SR.Move.BLOCK_TALL then
+        if not bx or not by then return nil end
+
+        local zx, zy = zombie:getX(), zombie:getY()
+        local square = zombie:getCell():getGridSquare(bx, by, bz or zombie:getZ())
+        if not square then return nil end
+
+        -- Determine crossing direction from fence flags.
+        -- HoppableN means the fence runs north-south; NPC crosses west/east.
+        -- Default (HoppableW or unmarked) means east-west fence; cross north/south.
+        local landX, landY
+        if square:has(IsoFlagType.HoppableN) then
+            landX = (zx < bx) and (bx + 1.5) or (bx - 0.5)
+            landY = by + 0.5
+        else
+            landX = bx + 0.5
+            landY = (zy < by) and (by + 1.5) or (by - 0.5)
+        end
+
+        -- Climb route: NPC → landing (through fence) → target
+        local climbDist = BanditUtils.DistTo(zx, zy, landX, landY)
+                       + BanditUtils.DistTo(landX, landY, tx, ty)
+
+        -- Around estimate: the straight distance inflated by the detour factor.
+        -- 2.5 is deliberately generous so the engine pathfinder's route wins when
+        -- the difference is marginal — climbing has a 12s teleport delay.
+        local straightDist = BanditUtils.DistTo(zx, zy, tx, ty)
+        local aroundEstimate = straightDist * 2.5
+
+        if climbDist < aroundEstimate then
+            -- Climbing is the shorter path. Synthesise a fence-crossing opening.
+            -- The caller queues a ROUTE Move to the fence square; Bandits' bump
+            -- handler and our watchdog do the actual crossing.
+            local opening = {
+                kind = (kind == SR.Move.BLOCK_TALL) and "tall-fence" or "hop-fence",
+                x = bx, y = by, z = bz or zombie:getZ(),
+                ox = bx, oy = by, oz = bz or zombie:getZ(),
+                why = string.format("%.1f < %.1f (around est.)", climbDist, aroundEstimate),
+            }
+            SR.Log(string.format(
+                "ROUTE %s | blocked by %s at %d,%d,%d -- climb route %.1f < around est. %.1f (%.1f straight) | landing %.1f,%.1f",
+                SR.KeyOf(zombie), tostring(kind), bx, by, bz or 0,
+                climbDist, aroundEstimate, straightDist, landX, landY))
+            return opening
+        end
+
+        SR.Log(string.format(
+            "ROUTE %s | blocked by %s at %d,%d,%d -- climb route %.1f >= around est. %.1f (%.1f straight) -- around is shorter, declined",
+            SR.KeyOf(zombie), tostring(kind), bx, by, bz or 0,
+            climbDist, aroundEstimate, straightDist))
         return nil
     end
 
