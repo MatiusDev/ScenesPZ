@@ -111,10 +111,10 @@ function Pathfinding.ChooseRoute(zombie, tx, ty, tz, opts)
     --
     -- Now we estimate both routes and pick the shorter one. The climb route is:
     --   NPC → fence tile → landing tile → target
-    -- The around estimate assumes the engine pathfinder takes at most 2.5× the
-    -- straight-line distance (generous — most building detours are 1.3–1.8×, but
-    -- blocked backtrack routes can hit 3×). If climbing is clearly shorter, return
-    -- a fence-crossing opening so the caller routes THROUGH instead of around.
+    -- The around estimate assumes the engine pathfinder takes at most 1.3× the
+    -- straight-line distance. 1.3 is deliberately tight — climb is the PREFERRED
+    -- first option (replicate the player's action). Only when going around is
+    -- legitimately shorter does the engine pathfinder win.
     --
     -- The actual crossing is the watchdog's job — we only decide WHETHER to climb,
     -- packaged as an opening the caller can queue a ROUTE Move toward.
@@ -146,7 +146,7 @@ function Pathfinding.ChooseRoute(zombie, tx, ty, tz, opts)
         -- 2.5 is deliberately generous so the engine pathfinder's route wins when
         -- the difference is marginal — climbing has a 12s teleport delay.
         local straightDist = BanditUtils.DistTo(zx, zy, tx, ty)
-        local aroundEstimate = straightDist * 2.5
+        local aroundEstimate = straightDist * 1.3
 
         if climbDist < aroundEstimate then
             -- Climbing is the shorter path. Synthesise a fence-crossing opening.

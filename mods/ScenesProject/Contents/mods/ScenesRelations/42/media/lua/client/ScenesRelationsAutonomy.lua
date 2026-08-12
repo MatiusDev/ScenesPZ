@@ -1204,12 +1204,12 @@ local function watchdog(zombie, brain, mood, name)
     -- seconds forever, because the NPC is still stuck next time. Diagnostics that can disable the
     -- fix they are diagnosing are worse than no diagnostics.
     local blocking = "unknown"
-    local bx, by  -- blocker square, needed when a combat task (Smack/Push) is stuck at a window
+    local bx, by, bz  -- blocker square from WhatBlocks
     if SR.Move and SR.Move.WhatBlocks and task.x and task.y then
-        local okWhy, kind, blx, bly = pcall(SR.Move.WhatBlocks, zombie,
+        local okWhy, kind, blx, bly, blz = pcall(SR.Move.WhatBlocks, zombie,
             task.x, task.y, task.z or zombie:getZ())
         blocking = okWhy and tostring(kind or "clear") or "probe threw"
-        bx, by = blx, bly
+        bx, by, bz = blx, bly, blz
     end
 
     -- THE WATCHDOG IS THE SAFETY NET, AND A LOCK MAKES IT A NO-OP.
@@ -1262,7 +1262,7 @@ local function watchdog(zombie, brain, mood, name)
     -- would otherwise loop forever. The cooldown key includes the square so a different
     -- obstacle on a different tile gets its own fresh attempt.
     local obstacleKey = string.format("%d.%d.%d.%s",
-        task.x or 0, task.y or 0, task.z or zombie:getZ(), blocking)
+        bx or task.x or 0, by or task.y or 0, task.z or zombie:getZ(), blocking)
     local lastAttempt = mood.obstacleAttempts and mood.obstacleAttempts[obstacleKey]
     if not lastAttempt or (sweepNumber - lastAttempt) >= OBSTACLE_RETRY then
         local overcame = false
@@ -1281,7 +1281,23 @@ local function watchdog(zombie, brain, mood, name)
                 name, signature, STUCK_SWEEPS, bx or task.x, by or task.y))
 
         elseif blocking == "hop" or blocking == "tall" then
-            -- FENCE/WALL CLIMB — hybrid: engine state for animation, teleport for movement.
+            -- GUARD: the NPC must actually be near the fence. Without this, a
+            -- stationary follow (master not moving, NPC standing still) can
+            -- trigger "blocked by hop" when the NPC is across the map from
+            -- any fence — WhatBlocks scanned the straight line and found a
+            -- fence somewhere on it, but the NPC never reached it.
+            local fx = bx or task.x
+            local fy = by or task.y
+            if not fx or not fy then
+                overcame = false
+            else
+                local distToBlocker = BanditUtils.DistTo(zombie:getX(), zombie:getY(), fx, fy)
+                if distToBlocker > 2.0 then
+                    -- Fence is on the straight line but too far away — the NPC
+                    -- hasn't walked into it yet. Don't climb.
+                    overcame = false
+                else
+                    -- FENCE/WALL CLIMB — hybrid: engine state for animation, teleport for movement.
             --
             -- Research (12-08): climbOverFence/Wall DON'T WORK on IsoZombie. Bandits'
             -- changeState(ClimbOverFenceState) plays the animation but the engine never
@@ -1293,7 +1309,13 @@ local function watchdog(zombie, brain, mood, name)
             -- This approach keeps the engine state for the VISUAL animation and handles
             -- the MOVEMENT ourselves with a single teleport after the animation duration.
             -- ZASleep.lua confirms setX/setY/setZ work on IsoZombie for full repositioning.
-            local square = zombie:getCell():getGridSquare(task.x, task.y, task.z or zombie:getZ())
+            -- Use the BLOCKER square (bx,by from WhatBlocks), not task.x,task.y:
+            -- for a follow Move, task.x,task.y is the MASTER's position — climbing
+            -- there would teleport the NPC to the player instead of across the fence.
+            local fx = bx or task.x
+            local fy = by or task.y
+            local fz = bz or task.z or zombie:getZ()
+            local square = zombie:getCell():getGridSquare(fx, fy, fz)
             if square then
                 local dir
                 if square:has(IsoFlagType.HoppableN) then
@@ -1335,6 +1357,8 @@ local function watchdog(zombie, brain, mood, name)
                     blocking == "tall" and "ClimbFenceTall+teleport" or "ClimbOverFence+ClimbFenceEnd+teleport",
                     landingX, landingY))
             end  -- if square then
+                end  -- distToBlocker > 2.0
+            end  -- fx/fy guard
 
         elseif blocking == "window" then
             -- TWO KINDS OF WINDOW, AND THE NPC FINDS OUT WHICH BY TRYING.
