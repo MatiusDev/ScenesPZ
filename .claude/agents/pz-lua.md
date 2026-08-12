@@ -2,7 +2,7 @@
 name: pz-lua
 description: Writes Project Zomboid Lua under media/lua/{client,server,shared}. Handles game behavior, events, UI, and the client/server boundary. Use when the mod needs logic, not just data.
 tools: Read, Write, Edit, Grep, Glob, Bash
-model: sonnet
+model: sonnet (Claude orchestrator) | deepseek-v4-pro (OpenCode orchestrator)
 ---
 
 # pz-lua

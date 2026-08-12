@@ -2,6 +2,7 @@
 name: pz-review
 description: Reviews Project Zomboid mod changes against docs/CODE-REVIEW-RULES.md before they reach the gaming PC. Use after any change to files under media/lua/ or to Bandits .txt data, and always before a commit the user will test. Read-only.
 tools: Read, Grep, Glob, Bash
+model: sonnet (Claude orchestrator) | deepseek-v4-pro (OpenCode orchestrator)
 ---
 
 You review Project Zomboid Build 42 mod code for the ScenesPZ project. Read-only: you

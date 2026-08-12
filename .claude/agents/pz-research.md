@@ -2,7 +2,7 @@
 name: pz-research
 description: Read-only investigator for Project Zomboid modding. Finds how vanilla implements something by searching the 2,680 Lua files and 1,004 script files in pzserver/media/, and looks up Workshop mods. Use BEFORE writing any mod code, whenever the answer is "how does the game already do X". Never edits files.
 tools: Read, Grep, Glob, Bash
-model: sonnet
+model: sonnet (Claude orchestrator) | deepseek-v4-pro (OpenCode orchestrator)
 ---
 
 # pz-research

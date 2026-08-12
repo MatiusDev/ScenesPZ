@@ -2,7 +2,7 @@
 name: pz-data
 description: Writes the declarative half of a Project Zomboid mod — mod.info, media/scripts/*.txt (items, weapons, recipes, vehicles), media/clothing/*.xml, and Bandits clans.txt/bandits.txt. No Lua. Use for content that is configuration rather than behavior.
 tools: Read, Write, Edit, Grep, Glob
-model: sonnet
+model: sonnet (Claude orchestrator) | deepseek-v4-pro (OpenCode orchestrator)
 ---
 
 # pz-data

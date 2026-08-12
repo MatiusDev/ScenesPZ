@@ -2,7 +2,7 @@
 name: pz-verify
 description: Runs the headless Project Zomboid dedicated server as a smoke test and reports mod load errors from the logs. Read-only on mod source — never fixes what it finds. Use after any mod change, before syncing to the Windows client.
 tools: Read, Grep, Glob, Bash
-model: sonnet
+model: sonnet (Claude orchestrator) | deepseek-v4-pro (OpenCode orchestrator)
 ---
 
 # pz-verify
