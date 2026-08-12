@@ -275,7 +275,7 @@ local HEALTH_FLOOR = 0.05
 --
 -- Deliberately slower than it could be. The point is a person who visibly needs a bandage
 -- and goes looking for one, not a person who dies on the way to the rag.
-local BLEED_PER_SWEEP = 0.02
+local BLEED_PER_SWEEP = 0.005  -- 0.005/sweep = ~0.05/min, ~30 min to fully bleed out
 
 -- One log line per bleeding person per this many sweeps. 5 x ~6 s = about half a real minute,
 -- which is often enough to watch a bleed progress in console.txt and rare enough that two
@@ -399,7 +399,10 @@ end
 ---
 --- Returns item, kind, or nil when they have nothing. Ranked, never listed:
 --- getBandagePower is the engine's own answer to "is this a bandage and how good".
-local function bestDressing(zombie)
+-- DEFINED HERE (not 'local function') to assign into the forward-declared local at
+-- line 116. Kahlua's local function X + earlier local X can leave X nil at runtime;
+-- the plain assignment avoids the re-declaration.
+bestDressing = function(zombie)
     local inventory = zombie:getInventory()
     if not inventory then return nil end
 
