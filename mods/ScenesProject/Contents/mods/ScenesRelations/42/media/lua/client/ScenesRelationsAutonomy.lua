@@ -405,6 +405,10 @@ local MOVED_EPSILON = 0.6
 -- endurance, entonces descansaba y volvía a correr."
 local OBSTACLE_RETRY = 8
 
+-- Sweeps before smashing a window that OpenWindow could not open. Much shorter
+-- than the global retry: the player sees a frozen NPC staring at glass.
+local WINDOW_RETRY = 3
+
 -- One-time probes. If an engine method throws on IsoZombie, log it once and stop.
 local engineProbeDone = false
 
@@ -1361,18 +1365,13 @@ local function watchdog(zombie, brain, mood, name)
             end  -- fx/fy guard
 
         elseif blocking == "window" then
-            -- TWO KINDS OF WINDOW, AND THE NPC FINDS OUT WHICH BY TRYING.
-            -- Sliding windows open (ToggleWindow), fixed windows must be smashed. The NPC
-            -- cannot know which is which without touching it, so it tries the least
-            -- destructive option first: OpenWindow on the first attempt, SmashWindow on
-            -- the retry if the open did not work.
-            --
-            -- The obstacleAttempts mechanism already records the first attempt and prevents
-            -- re-queuing for OBSTACLE_RETRY sweeps. If the NPC reaches this branch again
-            -- AFTER the cooldown, the open action completed but the NPC is STILL stuck at
-            -- the same window -- which means it is a fixed window that cannot be opened.
-            -- Second attempt: smash it.
-            local isRetry = lastAttempt and (sweepNumber - lastAttempt) >= OBSTACLE_RETRY
+            -- TWO KINDS OF WINDOW: sliding (open) vs fixed (smash only). The NPC
+            -- discovers which by trying. First attempt: OpenWindow. If the NPC is
+            -- still stuck WINDOW_RETRY sweeps later, the open didn't work — smash.
+            -- WINDOW_RETRY (3 sweeps, ~18s) is shorter than the global OBSTACLE_RETRY
+            -- because the user sees a frozen NPC and 48s feels broken.
+            local winRetry = mood.obstacleAttempts and mood.obstacleAttempts[obstacleKey]
+            local isRetry = winRetry and (sweepNumber - winRetry) >= WINDOW_RETRY
             if isRetry then
                 local smashTask = { action = "SmashWindow", anim = "WindowSmash",
                     lock = true, x = task.x, y = task.y, z = task.z or zombie:getZ(),

@@ -265,16 +265,10 @@ local HEALTH_FLOOR = 0.05
 
 -- Condition lost per autonomy sweep while bleeding.
 --
--- THE ARITHMETIC. CheckGlass is called once per NPC per sweep from ScenesRelationsAutonomy,
--- and that sweep is EveryOneMinute -- one IN-GAME minute, about six real seconds
--- (ScenesRelationsAutonomy.lua:1870, and the header above it states the six). So 0.02 per
--- sweep is about 0.2 of condition per real minute. From a healthy 2.0 that is
--- (2.0 - 0.7) / 0.02 = 65 sweeps, roughly six and a half real minutes, before they reach
--- 0.7 and Bandits' own drain joins in (ManageHealth,
--- vendor/Bandits/mods/Bandits/42.20/media/lua/client/BanditUpdate.lua:456 and :465).
---
--- Deliberately slower than it could be. The point is a person who visibly needs a bandage
--- and goes looking for one, not a person who dies on the way to the rag.
+-- THE ARITHMETIC. CheckGlass is called once per NPC per sweep (~6 real seconds).
+-- 0.005 per sweep is ~0.05 per real minute, ~30 real minutes to fully bleed out
+-- from max health. Deliberately slow: the point is a person who visibly needs a
+-- bandage and goes looking for one, not a person who dies on the way.
 local BLEED_PER_SWEEP = 0.005  -- 0.005/sweep = ~0.05/min, ~30 min to fully bleed out
 
 -- One log line per bleeding person per this many sweeps. 5 x ~6 s = about half a real minute,

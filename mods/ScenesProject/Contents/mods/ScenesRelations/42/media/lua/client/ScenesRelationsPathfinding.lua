@@ -143,8 +143,8 @@ function Pathfinding.ChooseRoute(zombie, tx, ty, tz, opts)
                        + BanditUtils.DistTo(landX, landY, tx, ty)
 
         -- Around estimate: the straight distance inflated by the detour factor.
-        -- 2.5 is deliberately generous so the engine pathfinder's route wins when
-        -- the difference is marginal — climbing has a 12s teleport delay.
+        -- 1.3 is deliberately tight — climb is the PREFERRED first option.
+        -- The engine pathfinder only wins when going around is clearly shorter.
         local straightDist = BanditUtils.DistTo(zx, zy, tx, ty)
         local aroundEstimate = straightDist * 1.3
 
