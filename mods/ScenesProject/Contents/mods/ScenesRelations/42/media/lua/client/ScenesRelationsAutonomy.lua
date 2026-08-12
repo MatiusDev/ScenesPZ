@@ -406,10 +406,7 @@ local MOVED_EPSILON = 0.6
 local OBSTACLE_RETRY = 8
 
 -- One-time probes. If an engine method throws on IsoZombie, log it once and stop.
--- Per-method rather than shared, so a throw in climbOverFence doesn't silence climbOverWall.
 local engineProbeDone = false
-local climbFenceProbeDone = false
-local climbWallProbeDone = false
 
 -- Only these can stall in a way clearing the queue would fix: every one of them completes
 -- by getting somewhere or interacting with something at a fixed spot, so an unchanged
@@ -995,7 +992,7 @@ end
 --- (Bandit.lua:361-367). So the worst case is one wasted third of a second. unlockOurs still
 --- exists and is still called, because the guarantee we rely on there is OURS to keep, not
 --- theirs to keep for us.
-local function assertFollow(zombie, master, dist, free, lock)
+local function assertFollow(zombie, master, dist, free, lock, disengage)
     local brain = BanditBrain.Get(zombie)
     local endurance = tonumber(brain and brain.endurance) or 1
 
@@ -1043,6 +1040,23 @@ local function assertFollow(zombie, master, dist, free, lock)
     unlockOurs(brain)
     releaseMove(zombie, brain)
     Bandit.ClearTasks(zombie)
+
+    -- PUSH THE NEAREST ZOMBIE BEFORE FOLLOWING when the master is leaving. A follow queued
+    -- into the empty space after a clear still loses to ManageCombat's Smack on the very next
+    -- tick because Combat runs inside GenerateTask before the program can re-assert. A Push is
+    -- one fast frame that shoves whatever is in front, clears the melee range, and lets the
+    -- follow start without an immediate combat override.
+    if disengage and BanditZombie and BanditZombie.CacheLightZ
+       and BanditUtils.GetClosestZombieLocation then
+        local z = BanditUtils.GetClosestZombieLocation(zombie, { levelDiff = 0 })
+        if z and z.dist and z.dist < 2 and z.id then
+            Bandit.AddTask(zombie, SR.Own(SR.GOAL.FIGHT, {
+                action = "Push", anim = "Shove", sound = "AttackShove",
+                time = 60, endurance = -0.05,
+                eid = z.id, x = z.x, y = z.y, z = z.z,
+            }))
+        end
+    end
 
     -- PREEMPTIVE ROUTING. Before walking directly to the master, check whether the
     -- straight line is blocked by an actionable obstacle. If it is, route through the
@@ -1267,29 +1281,18 @@ local function watchdog(zombie, brain, mood, name)
                 name, signature, STUCK_SWEEPS, bx or task.x, by or task.y))
 
         elseif blocking == "hop" or blocking == "tall" then
-            -- ARRIVAL INSTRUMENT. The 11-08 session produced 205 fence ROUTE lines
-            -- but only 4 climb attempts. The open question: did the NPC actually
-            -- reach the fence tile, or did the engine pathfinder route around it?
-            -- Logging the NPC's position vs the obstacle position answers this in
-            -- one play session instead of three of guessing.
-            local zx, zy = zombie:getX(), zombie:getY()
-            local fx, fy = task.x or zx, task.y or zy
-            local dx, dy = zx - fx, zy - fy
-            local distToFence = math.sqrt(dx * dx + dy * dy)
-            local arrived = distToFence < 0.8  -- within one tile
-
-            -- 11-08 FINDING: changeState(ClimbOverFenceState) plays the animation
-            -- but the NPC never moves. The engine's climb movement is driven by
-            -- the Java methods climbOverFence(dir) / climbOverWall(dir) — the SAME
-            -- methods ISClimbOverFence:perform() calls for the player. Direct
-            -- state injection skips the Java-side movement logic.
+            -- FENCE/WALL CLIMB — hybrid: engine state for animation, teleport for movement.
             --
-            -- Bandits' own fence handler (BanditUpdate.lua:574) uses changeState
-            -- without setParams and has the same defect — the task-based ClimbFence
-            -- action at :577 was commented out. The BANDITS-API (doc line 473) notes
-            -- crossing is a state change, not a task, for windows — a pattern that
-            -- works there but not for fences because ClimbThroughWindowState.setParams
-            -- takes a window object providing full position context.
+            -- Research (12-08): climbOverFence/Wall DON'T WORK on IsoZombie. Bandits'
+            -- changeState(ClimbOverFenceState) plays the animation but the engine never
+            -- completes the tile transition because ClimbOverFenceState.execute() runs in
+            -- Java and does not move IsoZombie objects. The original ZAClimbFence.lua
+            -- (commented out in Bandits) worked around this by nudging the NPC 0.005
+            -- units/frame via setX/setY — same concept, but incremental nudges are janky.
+            --
+            -- This approach keeps the engine state for the VISUAL animation and handles
+            -- the MOVEMENT ourselves with a single teleport after the animation duration.
+            -- ZASleep.lua confirms setX/setY/setZ work on IsoZombie for full repositioning.
             local square = zombie:getCell():getGridSquare(task.x, task.y, task.z or zombie:getZ())
             if square then
                 local dir
@@ -1298,31 +1301,34 @@ local function watchdog(zombie, brain, mood, name)
                 else
                     dir = (zombie:getX() < square:getX()) and IsoDirections.E or IsoDirections.W
                 end
+
                 zombie:faceDirection(dir)
+
+                -- Start the engine state + bump animation (visual only).
                 if blocking == "tall" then
-                    local okClimb, errClimb = pcall(function() zombie:climbOverWall(dir) end)
-                    if not okClimb and not climbWallProbeDone then
-                        climbWallProbeDone = true
-                        SR.Log(string.format(
-                            "AUTO %s | engine:climbOverWall threw -- %s -- IsoZombie may not support it",
-                            name, tostring(errClimb)))
-                    end
+                    zombie:setBumpType("ClimbFenceTall")
+                    zombie:setCollidable(false)
                 else
-                    local okClimb, errClimb = pcall(function() zombie:climbOverFence(dir) end)
-                    if not okClimb and not climbFenceProbeDone then
-                        climbFenceProbeDone = true
-                        SR.Log(string.format(
-                            "AUTO %s | engine:climbOverFence threw -- %s -- IsoZombie may not support it",
-                            name, tostring(errClimb)))
-                    end
+                    zombie:changeState(ClimbOverFenceState.instance())
+                    zombie:setBumpType("ClimbFenceEnd")
                 end
+
+                -- Landing tile: one full tile ahead in the facing direction.
+                local fd = zombie:getForwardDirection()
+                local landingX = zombie:getX() + fd:getX() * 1.0
+                local landingY = zombie:getY() + fd:getY() * 1.0
+                local landingZ = zombie:getZ()
+
+                -- Stored on mood so the sweep (below) teleports after ~1.5s.
+                mood.climbTarget = { x = landingX, y = landingY, z = landingZ, ticks = 0 }
                 overcame = true
+
                 SR.Log(string.format(
-                    "AUTO %s | stuck on %s for %d sweeps -- blocked by %s -- engine climb %s | %.1f tiles from fence (%s)",
+                    "AUTO %s | stuck on %s for %d sweeps -- blocked by %s -- climb hybrid %s | landing %.1f,%.1f",
                     name, signature, STUCK_SWEEPS, blocking,
-                    blocking == "tall" and "climbOverWall" or "climbOverFence",
-                    distToFence, arrived and "at fence" or "not at fence"))
-            end
+                    blocking == "tall" and "ClimbFenceTall+teleport" or "ClimbOverFence+ClimbFenceEnd+teleport",
+                    landingX, landingY))
+            end  -- if square then
 
         elseif blocking == "window" then
             -- TWO KINDS OF WINDOW, AND THE NPC FINDS OUT WHICH BY TRYING.
@@ -1933,7 +1939,7 @@ local function sweep()
                         -- master is leaving and ManageCombat would otherwise wipe this follow
                         -- in the same frame and replace it with a swing -- see assertFollow.
                         local walkType, downgraded, followTask =
-                            assertFollow(zombie, player, masterDist, false, true)
+                            assertFollow(zombie, player, masterDist, false, true, true)
                         mood.followTask = followTask
                         mood.taskSig, mood.taskTicks = nil, 0
                         if before ~= Autonomy.OBEY or census then
@@ -1987,6 +1993,32 @@ local function sweep()
                             -- Only when nothing escalated, so the watchdog can never clear a
                             -- queue that was deliberately rebuilt one sweep ago.
                             watchdog(zombie, brain, mood, name)
+                        end
+                    end
+
+                    -- CLIMB TELEPORT TICKER. The watchdog queues a climb state + animation
+                    -- (above) and stores the landing tile on mood.climbTarget. This counter
+                    -- fires once per sweep (~6s) until the animation has had time to play,
+                    -- then teleports the NPC to the landing tile in a single setX/setY/setZ
+                    -- jump. ZASleep.lua (Bandits) confirms setX/setY/setZ work on IsoZombie.
+                    --
+                    -- 15 sweeps at ~6s each = ~90 seconds total. That is far longer than any
+                    -- fence crossing animation, but the sweep is the cheapest clock we have.
+                    -- A faster cadence (OnTick) would be 360x more expensive for one delayed
+                    -- action. If the animation completes sooner, the engine handles it;
+                    -- the teleport is the SAFETY NET for the case where it does not.
+                    if mood.climbTarget then
+                        mood.climbTarget.ticks = mood.climbTarget.ticks + 1
+                        if mood.climbTarget.ticks >= 2 then  -- ~12s, animation should be done
+                            local tx, ty, tz = mood.climbTarget.x, mood.climbTarget.y, mood.climbTarget.z
+                            zombie:setX(tx)
+                            zombie:setY(ty)
+                            zombie:setZ(tz)
+                            zombie:setCollidable(true)
+                            SR.Log(string.format(
+                                "AUTO %s | climb teleport to %.1f,%.1f,%d after %d sweeps",
+                                name, tx, ty, tz, mood.climbTarget.ticks))
+                            mood.climbTarget = nil
                         end
                     end
 
@@ -2357,7 +2389,8 @@ local function fastFollow()
 
                             if not chasing then
                                 local walkType, downgraded, followTask =
-                                    assertFollow(zombie, player, dist, true, leaving)
+                                    assertFollow(zombie, player, dist, true, leaving,
+                                        sprinting or fleeing)
                                 -- Overwrites whatever the slow sweep left. Correct: the check
                                 -- that reads it only ever asks about the MOST RECENT follow,
                                 -- and an older one it never got to judge is not evidence of
