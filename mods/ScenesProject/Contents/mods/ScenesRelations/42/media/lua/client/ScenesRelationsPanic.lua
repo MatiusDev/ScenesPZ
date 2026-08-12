@@ -205,9 +205,44 @@ Events.EveryOneMinute.Add(sweep)
 --- this change is that it must never have a frame in which it is visible.
 local appliedSuppression = nil
 
+-- Cooldown (ms) between onlyFriendsNear re-checks inside the per-tick path. Without it,
+-- a player surrounded by real zombies would run onlyFriendsNear (walking the full cache)
+-- every single frame, which is exactly the OnTick-DO-NOT the comment above warns about.
+-- 1000 ms = ~60 frames at 60fps, so at worst one cache walk per second when hostiles are
+-- present and panic is non-zero. That is still 6x more frequent than the sweep, but the
+-- sweep fires unconditionally; this only fires when a spike actually happened.
+local FRIENDLY_RECHECK_MS = 1000
+local lastFriendlyRecheck = 0
+
 local function applyCachedBody(player)
     local bodyDamage = player:getBodyDamage()
     if not bodyDamage then return end
+
+    -- Eagerly initialise on the first tick. `sweep` runs on EveryOneMinute (~6 s);
+    -- without this the entire first six seconds of a session have no suppression at all,
+    -- which is exactly when a companion spawns beside you and the engine triggers a
+    -- jumpscare before anything has had time to decide the area is safe.
+    if originalIncrease == nil then
+        originalIncrease = bodyDamage:getPanicIncreaseValue()
+    end
+
+    -- SELF-CORRECTING RE-CHECK. `friendlyCache` is set by `sweep` every ~6 seconds, but
+    -- the world can change faster than that: a companion walking into range, a hostile
+    -- dying, or the player turning to face an NPC that was behind them. When panic fires
+    -- (the stat is non-zero) and we think the area is NOT friendly, ask again instead of
+    -- letting the flash remain visible until the next sweep.
+    if not friendlyCache then
+        local panicVal = player:getStats():get(CharacterStat.PANIC)
+        if panicVal and panicVal > 0 then
+            local now = getTimestampMs()
+            if now - lastFriendlyRecheck > FRIENDLY_RECHECK_MS then
+                lastFriendlyRecheck = now
+                if onlyFriendsNear(player) then
+                    friendlyCache = true
+                end
+            end
+        end
+    end
 
     if friendlyCache then
         if appliedSuppression ~= true then
@@ -234,8 +269,10 @@ local fastPathDead = false
 
 local function applyCached(player)
     if fastPathDead then return end
-    if not player or originalIncrease == nil then return end
+    if not player then return end
 
+    -- Eager init moved into applyCachedBody -- the guard is gone so suppression
+    -- starts on the very first tick, not six seconds later when sweep runs.
     local ok, err = pcall(applyCachedBody, player)
 
     if not ok then
