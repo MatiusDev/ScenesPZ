@@ -163,6 +163,9 @@ local function isWorthTaking(item)
         if fluid and not fluid:isEmpty() and not fluid:isPoisonous() and not fluid:isTainted() then
             return true
         end
+        local power = 0
+        local okPower = pcall(function() power = item:getBandagePower() or 0 end)
+        if okPower and power > 0 then return true end
         return false
     end)
     return ok and worth == true

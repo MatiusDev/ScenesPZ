@@ -112,6 +112,9 @@ local SR = ScenesRelations
 SR.Wounds = SR.Wounds or {}
 local Wounds = SR.Wounds
 
+-- Forward-declared for NeedsDressing (above its definition site at 368).
+local bestDressing
+
 -- Health restored, as a fraction of what that person can hold. Their own action snaps to a
 -- flat 1.2, which for a tough survivor is a downgrade and for a frail one is a full heal --
 -- a fraction treats everybody as themselves.
@@ -325,7 +328,11 @@ local BLEED_MAX_SWEEPS = 100
 --- clear is suppressed by the latch itself is the defect this project has paid for four times.
 function Wounds.NeedsDressing(zombie, brain)
     local wound = brain.scenesWound
-    if wound and wound.bleeding then return true end
+    if wound and wound.bleeding then
+        local item, _ = bestDressing(zombie)
+        if not item then return false end
+        return true
+    end
 
     local ok, now = pcall(function() return zombie:getHealth() end)
     if not ok or type(now) ~= "number" then return false end
@@ -429,6 +436,23 @@ local function scenesBandageComplete(zombie, task)
     local name = tostring(brain.fullname)
     local wound = Wounds.Of(brain)
 
+    local max = tonumber(brain.health) or 2
+    local before = max
+    pcall(function() before = zombie:getHealth() end)
+
+    local item, kind = bestDressing(zombie)
+
+    if not item then
+        SR.Log(string.format("WOUND %s has no bandage -- cannot dress", name))
+        return true
+    end
+
+    if kind == "dirty" and not takesRisks(brain) then
+        SR.Log(string.format("WOUND %s rejected dirty %s -- cautious", name,
+            tostring(item:getFullType())))
+        return true
+    end
+
     -- THE ONLY PLACE A BLEED IS EVER CLEARED. Not by time, not by health recovering, not by
     -- the sweep giving up on them -- the request was "solo se puede curar vendandose" and this
     -- is that sentence in code. The one other writer is the BLEED_MAX_SWEEPS bound in
@@ -442,25 +466,6 @@ local function scenesBandageComplete(zombie, task)
         wound.bleeding, wound.bleedDay, wound.bleedSweeps = nil, nil, nil
         Wounds.ClearBodyBleeding(brain)
         SR.Log(string.format("WOUND %s stopped bleeding -- a dressing went on", name))
-    end
-
-    local max = tonumber(brain.health) or 2
-    local before = max
-    pcall(function() before = zombie:getHealth() end)
-
-    local item, kind = bestDressing(zombie)
-
-    -- Nothing to hand. Rather than the framework's free full heal, they tear up what they
-    -- are wearing: enough to stop the bleeding, dirty, and something they will want to
-    -- replace. Nobody bleeds to death with a shirt on.
-    if not item then
-        kind = "improvised"
-    elseif kind == "dirty" and not takesRisks(brain) then
-        -- Cautious people do not tie filth onto an open wound when filth is all they have.
-        -- They improvise from clean clothing instead: worse at stopping blood, better at
-        -- not killing them.
-        kind = "improvised"
-        item = nil
     end
 
     local restore = (RESTORE[kind] or 0.4) * max
@@ -955,22 +960,22 @@ local function watchClimbs()
                 -- where the NPC is standing -- if the climb is cancelled (blocked by
                 -- a zombie, a player or an obstacle on the other side), the position
                 -- won't change and we skip the cut.
-                local bx, by = zombie:getX(), zombie:getY()
                 climbSeen[id] = { square = crossingGlassSquare(zombie),
-                                  sx = bx, sy = by }
+                                  startSquare = zombie:getCurrentSquare() }
 
             elseif not isClimb and climbSeen[id] then
                 -- FALLING EDGE. The engine released ClimbThroughWindowState.
-                -- Only apply the cut if the NPC actually moved -- a cancelled climb
-                -- (blocked exit, stuck on furniture) leaves them on the same tile.
+                -- Only apply the cut if the NPC actually crossed to a different square.
+                -- The 0.8 tile movement check (P19) fired on blocked climbs because the
+                -- NPC can move along the window without crossing it. A square identity
+                -- check is ungameable: same square means the climb did not complete.
                 local entry = climbSeen[id]
                 climbSeen[id] = nil
 
                 if entry.square then
-                    local ex, ey = zombie:getX(), zombie:getY()
-                    local dx, dy = ex - (entry.sx ~= nil and entry.sx or ex), ey - (entry.sy ~= nil and entry.sy or ey)
-                    local moved = (dx * dx + dy * dy) > 0.64  -- 0.8^2, arrived at the other square
-                    if moved then
+                    local nowSquare = zombie:getCurrentSquare()
+                    local crossed = nowSquare ~= entry.startSquare
+                    if crossed then
                         doClimbCut(zombie, id, entry)
                     end
                 end
