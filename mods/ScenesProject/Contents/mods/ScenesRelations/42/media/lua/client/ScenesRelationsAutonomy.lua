@@ -1260,15 +1260,18 @@ local function watchdog(zombie, brain, mood, name)
             local distToFence = math.sqrt(dx * dx + dy * dy)
             local arrived = distToFence < 0.8  -- within one tile
 
-            -- Bandits' own fence handler (BanditUpdate.lua:574) calls changeState
-            -- directly, without setParams — and it was commented out because the
-            -- animation plays but the NPC never moves. The state has no direction.
+            -- 11-08 FINDING: changeState(ClimbOverFenceState) plays the animation
+            -- but the NPC never moves. The engine's climb movement is driven by
+            -- the Java methods climbOverFence(dir) / climbOverWall(dir) — the SAME
+            -- methods ISClimbOverFence:perform() calls for the player. Direct
+            -- state injection skips the Java-side movement logic.
             --
-            -- JavaDoc confirms setParams exists on both states:
-            --   ClimbOverFenceState.setParams(IsoGameCharacter, IsoDirections)
-            --   ClimbOverWallState.setParams(IsoGameCharacter, IsoDirections)
-            -- It is the SAME pattern as windows, where setParams+changeState works.
-            -- Unverified on IsoZombie via Lua binding — pcalled with one-time probe.
+            -- Bandits' own fence handler (BanditUpdate.lua:574) uses changeState
+            -- without setParams and has the same defect — the task-based ClimbFence
+            -- action at :577 was commented out. The BANDITS-API (doc line 473) notes
+            -- crossing is a state change, not a task, for windows — a pattern that
+            -- works there but not for fences because ClimbThroughWindowState.setParams
+            -- takes a window object providing full position context.
             local square = zombie:getCell():getGridSquare(task.x, task.y, task.z or zombie:getZ())
             if square then
                 local dir
@@ -1277,22 +1280,17 @@ local function watchdog(zombie, brain, mood, name)
                 else
                     dir = (zombie:getX() < square:getX()) and IsoDirections.E or IsoDirections.W
                 end
-                local state = (blocking == "tall")
-                    and ClimbOverWallState.instance()
-                    or ClimbOverFenceState.instance()
-                local okParam = pcall(function() state:setParams(zombie, dir) end)
-                if not okParam and not engineProbeDone then
-                    engineProbeDone = true
-                    SR.Log(string.format(
-                        "AUTO %s | setParams on %s threw -- fence climb may not work on IsoZombie",
-                        name, blocking == "tall" and "ClimbOverWallState" or "ClimbOverFenceState"))
+                zombie:faceDirection(dir)
+                if blocking == "tall" then
+                    pcall(function() zombie:climbOverWall(dir) end)
+                else
+                    pcall(function() zombie:climbOverFence(dir) end)
                 end
-                pcall(function() zombie:changeState(state) end)
                 overcame = true
                 SR.Log(string.format(
-                    "AUTO %s | stuck on %s for %d sweeps -- blocked by %s -- changeState(%s) | %.1f tiles from fence (%s)",
+                    "AUTO %s | stuck on %s for %d sweeps -- blocked by %s -- engine climb %s | %.1f tiles from fence (%s)",
                     name, signature, STUCK_SWEEPS, blocking,
-                    blocking == "tall" and "ClimbOverWall" or "ClimbOverFence",
+                    blocking == "tall" and "climbOverWall" or "climbOverFence",
                     distToFence, arrived and "at fence" or "not at fence"))
             end
 

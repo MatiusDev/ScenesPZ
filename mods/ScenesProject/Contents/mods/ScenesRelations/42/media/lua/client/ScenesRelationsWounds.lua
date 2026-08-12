@@ -144,15 +144,87 @@ local CUT_COOLDOWN = 10
 ---   bleedSweeps  autonomy sweeps this person has spent bleeding IN RANGE. The bound is
 ---                counted in sweeps precisely because it is the same motor that does the
 ---                draining, so the two can never disagree about how long this has gone on.
+---   bodyParts    per-body-part wound state, keyed by BodyPartType index (0-16):
+---                { scratches = 0, cuts = 0, deepWounds = 0, bites = 0,
+---                  bleeding = false, fractures = 0, health = 100, bandaged = false }
+---                ADDITIVE -- the global fields above still drive the AI decisions; this
+---                table exists so the health panel can colour body parts and list wounds.
 ---
 --- Older brains were saved with only the first two fields. Every read below is nil-safe on
 --- purpose so a save from before this change loads as "not bleeding" rather than throwing.
 function Wounds.Of(brain)
     if not brain.scenesWound then
         brain.scenesWound = { dressing = nil, day = nil,
-                              bleeding = nil, bleedDay = nil, bleedSweeps = nil }
+                              bleeding = nil, bleedDay = nil, bleedSweeps = nil,
+                              bodyParts = {} }
+    elseif not brain.scenesWound.bodyParts then
+        brain.scenesWound.bodyParts = {}
     end
     return brain.scenesWound
+end
+
+--- All 17 BodyPartType indices that glass can lodge in or that combat can wound. Excludes
+--- Head (glass in the eye is death) and Neck (insta-bleed) for glass, but kept in the set for
+--- combat wounds. Ordered as the engine defines them.
+local ALL_BODY_PARTS = {
+    BodyPartType.Hand_L, BodyPartType.Hand_R,
+    BodyPartType.ForeArm_L, BodyPartType.ForeArm_R,
+    BodyPartType.UpperArm_L, BodyPartType.UpperArm_R,
+    BodyPartType.Torso_Upper, BodyPartType.Torso_Lower,
+    BodyPartType.Head, BodyPartType.Neck,
+    BodyPartType.Groin,
+    BodyPartType.UpperLeg_L, BodyPartType.UpperLeg_R,
+    BodyPartType.LowerLeg_L, BodyPartType.LowerLeg_R,
+    BodyPartType.Foot_L, BodyPartType.Foot_R,
+}
+
+--- Ensure a body part entry exists in our tracking and return it. The wound table lives on
+--- the brain and is the same one Wounds.Of returns -- this is a convenience, not a second
+--- store.
+local function ensurePart(wound, partType)
+    local parts = wound.bodyParts
+    if not parts[partType] then
+        parts[partType] = { scratches = 0, cuts = 0, deepWounds = 0, bites = 0,
+                            bleeding = false, fractures = 0, health = 100, bandaged = false }
+    end
+    return parts[partType]
+end
+
+--- Record a wound on a specific body part in our own per-part tracking. The engine exposes
+--- no per-part wound data for IsoZombie, so this is the sole source of truth for the health
+--- panel's body part display.
+local function recordWound(wound, partType, kind)
+    local p = ensurePart(wound, partType)
+    if kind == "cut" then p.cuts = p.cuts + 1; p.bleeding = true
+    elseif kind == "scratch" then p.scratches = p.scratches + 1
+    elseif kind == "deep" then p.deepWounds = p.deepWounds + 1; p.bleeding = true
+    elseif kind == "bite" then p.bites = p.bites + 1; p.bleeding = true
+    elseif kind == "fracture" then p.fractures = p.fractures + 1
+    end
+end
+
+--- Clear bleeding on all body parts (called when a bandage completes). The global wound
+--- fields are cleared separately; this only touches the per-part table.
+function Wounds.ClearBodyBleeding(brain)
+    local wound = brain and brain.scenesWound
+    if not wound or not wound.bodyParts then return end
+    for _, p in pairs(wound.bodyParts) do
+        if p.bleeding then p.bleeding = false end
+    end
+end
+
+--- Mark all wounded body parts as bandaged. Called when a dressing goes on -- the NPC just
+--- finished wrapping themselves, so every wounded part got attention.
+function Wounds.MarkBodyBandaged(brain, kind)
+    local wound = brain and brain.scenesWound
+    if not wound or not wound.bodyParts then return end
+    for pt, p in pairs(wound.bodyParts) do
+        if p.scratches > 0 or p.cuts > 0 or p.deepWounds > 0 or p.bites > 0
+           or p.fractures > 0 or p.bleeding then
+            p.bandaged = true
+            p.bleeding = false
+        end
+    end
 end
 
 -- Absolute health at which Bandits starts draining somebody. Not a ratio: their bleed test is
@@ -368,6 +440,7 @@ local function scenesBandageComplete(zombie, task)
     -- still bandaged and must not go on bleeding because our arithmetic failed.
     if wound.bleeding then
         wound.bleeding, wound.bleedDay, wound.bleedSweeps = nil, nil, nil
+        Wounds.ClearBodyBleeding(brain)
         SR.Log(string.format("WOUND %s stopped bleeding -- a dressing went on", name))
     end
 
@@ -416,6 +489,7 @@ local function scenesBandageComplete(zombie, task)
 
     wound.dressing = kind
     wound.day = SR.Today()
+    Wounds.MarkBodyBandaged(brain, kind)
 
     SR.Log(string.format("WOUND %s dressed with %s | %.2f -> %.2f / %.2f | risky=%s",
         name, kind, before, healed, max, tostring(takesRisks(brain))))
@@ -556,7 +630,8 @@ local function applyGlassCut(zombie, brain, mood, square, why)
     end
 
     -- Try the engine's body part system. If getBodyDamage throws (cell unload, rare),
-    -- fall back to our own wound.bleeding. The body part pipeline is the preferred path.
+    -- fall back to our own wound.bleeding. The body part pipeline is the preferred path
+    -- but returns nil on IsoZombie -- the engine exposes no per-part data for NPCs.
     local partUsed, shardDeep = false, false
     local bd = nil
     pcall(function() bd = zombie:getBodyDamage() end)
@@ -566,7 +641,6 @@ local function applyGlassCut(zombie, brain, mood, square, why)
         if okBp and bp then
             pcall(function() bp:setBleedingTime(10) end)
             pcall(function() bp:setHaveGlass(true) end)
-            -- Low chance of deep shard requiring removal
             if ZombRand and ZombRand(100) < (GLASS_DEEP_SHARD_CHANCE * 100) then
                 pcall(function() bp:generateDeepShardWound() end)
                 shardDeep = true
@@ -575,10 +649,18 @@ local function applyGlassCut(zombie, brain, mood, square, why)
         end
     end
 
-    -- Keep our own wound record as the fallback and for the panel's backward compat.
+    -- Always track the wound in our own per-part table so the health panel can display it.
+    -- The engine body part pipeline is unreachable for IsoZombie (getBodyDamage returns nil),
+    -- so this is the sole source of body part information for the panel.
     local wound = Wounds.Of(brain)
     wound.dressing = nil
-    if not partUsed and not wound.bleeding then
+
+    local glassPart = GLASS_PARTS[1 + (ZombRand and ZombRand(#GLASS_PARTS) or 0)]
+    recordWound(wound, glassPart, "cut")
+
+    -- Keep the global bleeding field for the AI decisions (NeedsDressing, bleedTick, etc.);
+    -- the per-part bleeding is additive visual detail.
+    if not wound.bleeding then
         wound.bleeding = true
         wound.bleedDay = SR.Today()
         wound.bleedSweeps = 0
@@ -634,6 +716,7 @@ local function bleedTick(zombie, brain)
     -- line says so in words somebody reading console.txt on another machine can act on.
     if wound.bleedSweeps >= BLEED_MAX_SWEEPS then
         wound.bleeding, wound.bleedDay, wound.bleedSweeps = nil, nil, nil
+        Wounds.ClearBodyBleeding(brain)
         SR.Log(string.format(
             "WOUND %s bled for %d sweeps without ever completing a Bandage -- bound reached, "
             .. "bleed dropped. Check their program and whether Main is being reached at all",
@@ -948,7 +1031,7 @@ Events.OnGameStart.Add(function()
         SR.Log(string.format(
             "WOUND ready -- healing costs a dressing; every window crossing costs blood "
             .. "(climb watcher every %d ms, both directions); a cut bleeds %.2f per sweep "
-            .. "until a Bandage completes, bound %d sweeps",
-            CLIMB_TICK_MS, BLEED_PER_SWEEP, BLEED_MAX_SWEEPS))
+            .. "until a Bandage completes, bound %d sweeps; %d body part slots tracked",
+            CLIMB_TICK_MS, BLEED_PER_SWEEP, BLEED_MAX_SWEEPS, #ALL_BODY_PARTS))
     end
 end)
