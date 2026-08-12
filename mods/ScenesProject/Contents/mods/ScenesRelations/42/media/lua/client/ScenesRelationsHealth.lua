@@ -522,7 +522,33 @@ function ScenesRelationsHealthPanel:doBandage()
     end
     wound.dressing = kind
     wound.day = SR.Today()
+
+    local gt = getGameTime()
+    if gt then
+        local okH, h = pcall(function() return gt:getWorldAgeHours() end)
+        if okH and type(h) == "number" then
+            wound.dressHours = h
+        end
+    end
+
+    wound.regenSweeps = nil
     SR.Wounds.MarkBodyBandaged(brain, kind)
+
+    local bodyPart = selectedPart
+    if not bodyPart then
+        local parts = brain.scenesWound and brain.scenesWound.bodyParts
+        if parts then
+            for pt, p in pairs(parts) do
+                if p.cuts > 0 or p.deepWounds > 0 or p.scratches > 0
+                   or p.bites > 0 or p.bleeding then
+                    bodyPart = pt
+                    break
+                end
+            end
+        end
+        if not bodyPart then bodyPart = BodyPartType.Torso_Upper end
+    end
+    pcall(function() zombie:addVisualBandage(bodyPart, true) end)
 
     local rewardBefore, rewardAfter = SR.Actions.RewardBandage(player, zombie)
 

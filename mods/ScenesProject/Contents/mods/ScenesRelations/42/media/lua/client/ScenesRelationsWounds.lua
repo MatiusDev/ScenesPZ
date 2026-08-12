@@ -282,6 +282,21 @@ local BLEED_PER_SWEEP = 0.02
 -- bleeding companions do not bury every other line in the file. Start and stop always print.
 local BLEED_LOG_EVERY = 5
 
+-- REGENERATION --------------------------------------------------------------------------
+
+-- Condition restored per autonomy sweep while bandaged and not bleeding. 0.01 per sweep
+-- (~6 s) is ~0.1 per minute and ~6 per in-game hour. A severely wounded NPC at 0.5 with
+-- max 2.0 takes ~150 sweeps (~15 real minutes) to fully heal -- reasonable for a wound
+-- that was dressed properly.
+local REGEN_PER_SWEEP = 0.01
+
+-- DRESSING DEGRADATION ------------------------------------------------------------------
+
+-- In-game hours before a clean dressing turns foul. A "bandage" (proper, getBandagePower
+-- >= 2) lasts longer than a "clean" rag.
+local BANDAGE_DEGRADE_HOURS = 12
+local CLEAN_DEGRADE_HOURS = 6
+
 -- THE BOUND, AND WHY IT EXISTS RATHER THAN A HOPEFUL COMMENT ---------------------------
 --
 -- `bleeding` is a remembered decision whose clear hangs off the NPC reaching a completed
@@ -329,6 +344,18 @@ local BLEED_MAX_SWEEPS = 100
 function Wounds.NeedsDressing(zombie, brain)
     local wound = brain.scenesWound
     if wound and wound.bleeding then
+        local item, _ = bestDressing(zombie)
+        if not item then return false end
+        return true
+    end
+
+    --- A dirty or improvised dressing needs changing. The cooldown below gates
+    --- how often, to prevent re-dressing every sweep.
+    if wound and (wound.dressing == "dirty" or wound.dressing == "improvised") then
+        if wound.day then
+            local hours = (SR.Today() - wound.day) * 24
+            if hours < REDRESS_HOURS then return false end
+        end
         local item, _ = bestDressing(zombie)
         if not item then return false end
         return true
@@ -473,13 +500,22 @@ local function scenesBandageComplete(zombie, task)
 
     local ok, err = pcall(function()
         zombie:setHealth(healed)
-        -- Their own visual, kept. task.bpi is set by their onStart, so this only runs when
-        -- the task really came through their pipeline.
+        -- Their own visual, kept. task.bpi is set by their onStart (1-17), and the mapping
+        -- below matches ZABandage.getBodyParts() exactly so the bandage appears on the
+        -- body part the animation actually shows.
         if task.bpi then
-            local parts = { BodyPartType.Torso_Upper, BodyPartType.UpperArm_L,
-                            BodyPartType.UpperArm_R, BodyPartType.LowerLeg_L,
-                            BodyPartType.LowerLeg_R }
-            zombie:addVisualBandage(parts[(task.bpi % #parts) + 1], true)
+            local _bparts = {
+                BodyPartType.Foot_R, BodyPartType.Foot_L,
+                BodyPartType.LowerLeg_R, BodyPartType.LowerLeg_L,
+                BodyPartType.UpperLeg_R, BodyPartType.UpperLeg_L,
+                BodyPartType.Groin, BodyPartType.Neck,
+                BodyPartType.Head, BodyPartType.Torso_Lower,
+                BodyPartType.Torso_Upper, BodyPartType.UpperArm_R,
+                BodyPartType.UpperArm_L, BodyPartType.ForeArm_R,
+                BodyPartType.ForeArm_L, BodyPartType.Hand_R,
+                BodyPartType.Hand_L,
+            }
+            zombie:addVisualBandage(_bparts[task.bpi], true)
         end
     end)
     if not ok then
@@ -494,6 +530,16 @@ local function scenesBandageComplete(zombie, task)
 
     wound.dressing = kind
     wound.day = SR.Today()
+
+    local gt = getGameTime()
+    if gt then
+        local okH, h = pcall(function() return gt:getWorldAgeHours() end)
+        if okH and type(h) == "number" then
+            wound.dressHours = h
+        end
+    end
+
+    wound.regenSweeps = nil
     Wounds.MarkBodyBandaged(brain, kind)
 
     SR.Log(string.format("WOUND %s dressed with %s | %.2f -> %.2f / %.2f | risky=%s",
@@ -729,6 +775,69 @@ local function bleedTick(zombie, brain)
     end
 end
 
+--- Restore health over time while bandaged and not bleeding.
+---
+--- Only while a dressing is on AND the wound has stopped bleeding -- an open wound under a
+--- bandage still heals, but a still-bleeding one does not. Capped at brain.health (their
+--- spawn maximum), which is the engine's own ceiling.
+---
+--- Logged at regen start and on completion only, once per bandage lifespan.
+local function regenTick(zombie, brain)
+    local wound = brain.scenesWound
+    if not wound then return end
+    if not wound.dressing then return end
+    if wound.bleeding then return end
+
+    local max = tonumber(brain.health) or 2
+    local ok, now = pcall(function() return zombie:getHealth() end)
+    if not ok or type(now) ~= "number" then return end
+    if now >= max then return end
+
+    local healed = math.min(max, now + REGEN_PER_SWEEP)
+    local set = pcall(function() zombie:setHealth(healed) end)
+    if not set then
+        SR.Log("WOUND could not regen " .. tostring(brain.fullname) .. " -- setHealth threw")
+        return
+    end
+
+    wound.regenSweeps = (wound.regenSweeps or 0) + 1
+
+    if wound.regenSweeps == 1 then
+        SR.Log(string.format("WOUND %s started regenerating under %s dressing | %.2f / %.2f",
+            tostring(brain.fullname), wound.dressing, now, max))
+    end
+
+    if healed >= max then
+        SR.Log(string.format("WOUND %s fully regenerated | %.2f / %.2f | %d sweeps",
+            tostring(brain.fullname), healed, max, wound.regenSweeps))
+        wound.regenSweeps = nil
+    end
+end
+
+--- Degrade a dressing over time. A proper bandage lasts longer than a clean rag; a sterile
+--- one stays sterile, and a dirty one is already as bad as it can be.
+local function degradeDressing(brain)
+    local wound = brain.scenesWound
+    if not wound or not wound.dressing or not wound.dressHours then return end
+
+    local kind = wound.dressing
+    if kind == "sterile" or kind == "dirty" or kind == "improvised" then return end
+
+    local gt = getGameTime()
+    if not gt then return end
+    local okHours, currentHours = pcall(function() return gt:getWorldAgeHours() end)
+    if not okHours or type(currentHours) ~= "number" then return end
+
+    local elapsed = currentHours - wound.dressHours
+    local threshold = (kind == "bandage") and BANDAGE_DEGRADE_HOURS or CLEAN_DEGRADE_HOURS
+
+    if elapsed >= threshold then
+        SR.Log(string.format("WOUND %s dressing degraded from %s to dirty after %.1f hours",
+            tostring(brain.fullname), kind, elapsed))
+        wound.dressing = "dirty"
+    end
+end
+
 --- Cut them if they are standing in a broken frame, and bleed them if they already are.
 ---
 --- Called from the autonomy sweep, which already holds the brain, the mood and the square,
@@ -752,6 +861,8 @@ end
 --- person standing in a corridor still has to bleed.
 function Wounds.CheckGlass(zombie, brain, mood, square)
     bleedTick(zombie, brain)
+    regenTick(zombie, brain)
+    degradeDressing(brain)
 
     if not glassOnSquare(square) then
         mood.cutAt = nil
