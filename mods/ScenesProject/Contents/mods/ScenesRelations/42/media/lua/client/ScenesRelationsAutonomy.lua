@@ -1318,6 +1318,7 @@ local function watchdog(zombie, brain, mood, name)
                 -- is behind the square centre, adding 1.0 from the NPC position lands
                 -- them on the same fence tile. The square centre + 1.0 reliably produces
                 -- the adjacent tile, matching vanilla climbOverFence(dir)'s behaviour.
+                local fd = zombie:getForwardDirection()
                 local landingX = square:getX() + 0.5 + fd:getX() * 1.0
                 local landingY = square:getY() + 0.5 + fd:getY() * 1.0
                 local landingZ = zombie:getZ()
