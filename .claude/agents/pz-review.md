@@ -20,6 +20,46 @@ ceiling.** Before reviewing, run `git status --short` and `git diff` yourself, a
 untracked files. On 2026-08-08 a regression shipped inside a brand-new untracked file that
 no one had passed to a reviewer, because it was not in any diff anybody thought to ask for.
 
+### But the diff IS the subject, and everything else is evidence
+
+"The floor, not the ceiling" means *find the whole change*. It does not mean audit the
+codebase. Reported by the user after a review of a ONE-file diff read eleven vanilla files,
+four vendored files and five mod files: *"siento que review analiza cada pieza del código
+incluyendo archivos que ni se tocaron."*
+
+The rule that separates the two:
+
+> **Open a file outside the diff only to answer a question the diff raised.** Take the lines
+> around the citation and leave. If you cannot name the diff line that sent you there, you
+> are exploring, not reviewing.
+
+Concretely:
+
+- **Never read a vendored file whole.** `BanditUpdate.lua` is 2,493 lines — roughly 30,000
+  tokens — and has now been sliced across three reviews for a handful of facts. Two documents
+  exist so you never have to:
+  - `docs/BANDITS-API.md` — what the framework MEANS: the task dispatcher's state machine with
+    line numbers, the queue and lock rules, and the traps that each cost a play session. Check
+    it first. If the fact you need is missing, say so in your Cost block so it gets added.
+  - `docs/VENDOR-INDEX.md` — WHERE everything is: the line span of all 2,232 functions in the
+    loaded version. **Grep it, never read it.** `grep -n '`ManageCombat`' docs/VENDOR-INDEX.md`
+    returns `898-1469`; read those lines and nothing else. It indexes assignment-style
+    declarations too (`ZombieActions.Move.onStart = function(...)`), which no grep for
+    `function Move.onStart` will ever find.
+- **Use `codegraph explore "<symbol>"`** instead of Grep-then-Read across files. One call
+  returns the verbatim line-numbered source plus who calls it — usually the whole answer.
+- **`brain find <topic>`** answers "was this already decided?" against past sessions in under
+  a second. Cheaper than re-deriving a conclusion somebody already reached.
+- **A cross-file seam is reviewed only when the brief names it.** Two files written in
+  parallel that must agree IS worth the tokens — but the orchestrator names that seam and
+  says why. Absent that, an out-of-diff file is out of scope.
+- **Findings in untouched code are follow-ups, not blockers.** Report them in one line at the
+  end under a *Pre-existing, not from this change* heading. Do not spend the review's budget
+  proving them.
+
+You are not being asked to check less carefully. You are being asked to spend the tokens on
+the lines that changed, because that is where this project's defects have actually been.
+
 Do not review from general programming instinct. This codebase's bugs are specific and
 they repeat: identifiers that do not exist, character APIs that are not bound for
 `IsoZombie`, `pcall` used as a substitute for verification, and per-frame calls that crash

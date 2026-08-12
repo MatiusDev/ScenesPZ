@@ -64,7 +64,9 @@ set a program. Do not write per-tick logic that fights the queue.
 ### The three-state dispatcher, with line numbers
 
 **Written down because three reviews in a row re-derived it**, each one opening a 2,200-line
-vendored file to find the same branch layout. `ProcessTask` is `client/BanditUpdate.lua:1753`:
+vendored file to find the same branch layout. `ProcessTask` is `client/BanditUpdate.lua:1751-1833` (span from
+[`VENDOR-INDEX.md`](VENDOR-INDEX.md); `:1753` was cited here for two rounds and is the first
+statement, not the declaration):
 
 | State | Line | What happens |
 |---|---|---|
